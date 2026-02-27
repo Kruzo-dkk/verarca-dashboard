@@ -14,11 +14,11 @@ export async function GET() {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfMonthStr = startOfMonth.toISOString().split("T")[0];
 
-    const [activeSubscriptions, cancelledThisMonth, newThisMonth, plans] =
+    const [activeSubscriptions, expiredThisMonth, newThisMonth, plans] =
       await Promise.all([
         listSubscriptions({ state: "active" }),
         listSubscriptions({
-          state: "cancelled",
+          state: "expired",
           from: startOfMonthStr,
         }),
         listSubscriptions({
@@ -35,8 +35,8 @@ export async function GET() {
     const arr = calculateARR(mrr);
     const uniqueCustomers = new Set(activeSubscriptions.map((s) => s.customer));
     const activeCustomerCount = uniqueCustomers.size;
-    const churnRate = calculateChurnRate(cancelledThisMonth, activeSubscriptions.length + cancelledThisMonth.length);
-    const netNewMRR = calculateNetNewMRR(newThisMonth, cancelledThisMonth, planMap);
+    const churnRate = calculateChurnRate(expiredThisMonth, activeSubscriptions.length + expiredThisMonth.length);
+    const netNewMRR = calculateNetNewMRR(newThisMonth, expiredThisMonth, planMap);
     const arpc = calculateARPC(mrr, activeCustomerCount);
 
     const currency = activeSubscriptions[0]?.currency ?? "USD";

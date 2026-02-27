@@ -26,10 +26,10 @@ export async function GET(request: Request) {
     const startOfMonthStr = startOfMonth.toISOString().split("T")[0];
     const today = now.toISOString().split("T")[0];
 
-    const [activeSubscriptions, cancelledThisMonth, newThisMonth, plans] =
+    const [activeSubscriptions, expiredThisMonth, newThisMonth, plans] =
       await Promise.all([
         listSubscriptions({ state: "active" }),
-        listSubscriptions({ state: "cancelled", from: startOfMonthStr }),
+        listSubscriptions({ state: "expired", from: startOfMonthStr }),
         listSubscriptions({
           state: "active",
           from: startOfMonthStr,
@@ -49,12 +49,12 @@ export async function GET(request: Request) {
     const churnRate =
       Math.round(
         calculateChurnRate(
-          cancelledThisMonth,
-          activeSubscriptions.length + cancelledThisMonth.length
+          expiredThisMonth,
+          activeSubscriptions.length + expiredThisMonth.length
         ) * 100
       ) / 100;
     const netNewMRR = Math.round(
-      calculateNetNewMRR(newThisMonth, cancelledThisMonth, planMap)
+      calculateNetNewMRR(newThisMonth, expiredThisMonth, planMap)
     );
     const arpc = Math.round(calculateARPC(mrr, customerCount));
     const currency = activeSubscriptions[0]?.currency ?? "USD";
