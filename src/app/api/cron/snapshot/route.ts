@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { listSubscriptions, listPlans, type Plan } from "@/lib/frisbii";
+import {
+  listSubscriptions,
+  listPlans,
+  buildPlanMap,
+  fetchAddOns,
+} from "@/lib/frisbii";
 import {
   calculateMRR,
   calculateARR,
@@ -38,14 +43,12 @@ export async function GET(request: Request) {
         listPlans(),
       ]);
 
-    const planMap = new Map<string, Plan>(plans.map((p) => [p.handle, p]));
+    const planMap = buildPlanMap(plans);
+    const addOnMap = await fetchAddOns(activeSubscriptions);
 
-    const mrr = Math.round(calculateMRR(activeSubscriptions, planMap));
+    const mrr = Math.round(calculateMRR(activeSubscriptions, planMap, addOnMap));
     const arr = Math.round(calculateARR(mrr));
-    const uniqueCustomers = new Set(
-      activeSubscriptions.map((s) => s.customer)
-    );
-    const customerCount = uniqueCustomers.size;
+    const customerCount = activeSubscriptions.length;
     const churnRate =
       Math.round(
         calculateChurnRate(
@@ -54,10 +57,10 @@ export async function GET(request: Request) {
         ) * 100
       ) / 100;
     const netNewMRR = Math.round(
-      calculateNetNewMRR(newThisMonth, expiredThisMonth, planMap)
+      calculateNetNewMRR(newThisMonth, expiredThisMonth, planMap, addOnMap)
     );
     const arpc = Math.round(calculateARPC(mrr, customerCount));
-    const currency = activeSubscriptions[0]?.currency ?? "USD";
+    const currency = activeSubscriptions[0]?.currency ?? "DKK";
 
     const snapshot = await prisma.metricSnapshot.upsert({
       where: { date: new Date(today) },

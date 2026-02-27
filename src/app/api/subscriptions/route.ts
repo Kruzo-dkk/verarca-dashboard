@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { listSubscriptions, listPlans, type Plan } from "@/lib/frisbii";
+import {
+  listSubscriptions,
+  listPlans,
+  buildPlanMap,
+  fetchAddOns,
+} from "@/lib/frisbii";
 import { getSubscriptionBreakdown } from "@/lib/metrics";
 
 export async function GET() {
@@ -9,8 +14,9 @@ export async function GET() {
       listPlans(),
     ]);
 
-    const planMap = new Map<string, Plan>(plans.map((p) => [p.handle, p]));
-    const breakdown = getSubscriptionBreakdown(subscriptions, planMap);
+    const planMap = buildPlanMap(plans);
+    const addOnMap = await fetchAddOns(subscriptions);
+    const breakdown = getSubscriptionBreakdown(subscriptions, planMap, addOnMap);
 
     return NextResponse.json({
       breakdown,

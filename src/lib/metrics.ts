@@ -1,4 +1,4 @@
-import type { Subscription, Invoice, Plan } from "./frisbii";
+import type { Subscription, Invoice, Plan, AddOn } from "./frisbii";
 
 /**
  * Normalize a plan amount to its monthly equivalent based on billing interval.
@@ -8,7 +8,7 @@ import type { Subscription, Invoice, Plan } from "./frisbii";
  * - Keep full precision during aggregation to avoid cumulative rounding drift
  * - Round only at display time (handled by formatCurrency in components)
  *
- * @param amount - The plan amount per billing cycle (in minor units, e.g. cents)
+ * @param amount - The plan amount per billing cycle (in minor units, e.g. cents/øre)
  * @param intervalLength - Number of months per billing cycle (1 = monthly, 3 = quarterly, 12 = annual)
  * @returns The monthly equivalent amount in minor units (unrounded for aggregation accuracy)
  */
@@ -38,18 +38,40 @@ export interface MetricsSummary {
   currency: string;
 }
 
+/**
+ * Calculate the monthly recurring revenue contribution for a single subscription.
+ * Includes both the base plan amount and any add-ons.
+ */
+function subscriptionMRR(
+  sub: Subscription,
+  plans: Map<string, Plan>,
+  addOns: Map<string, AddOn>
+): number {
+  const plan = plans.get(sub.plan);
+  const intervalLength = plan?.interval_length ?? 12;
+  const planAmount = sub.amount ?? plan?.amount ?? 0;
+  let total = normalizeToMonthly(planAmount * (sub.quantity || 1), intervalLength);
+
+  // Add-ons inherit the plan's billing interval
+  for (const addOnHandle of sub.subscription_add_ons ?? []) {
+    const addOn = addOns.get(addOnHandle);
+    if (addOn) {
+      const addOnInterval = addOn.interval_length ?? intervalLength;
+      total += normalizeToMonthly(addOn.amount, addOnInterval);
+    }
+  }
+
+  return total;
+}
+
 export function calculateMRR(
   subscriptions: Subscription[],
-  plans: Map<string, Plan>
+  plans: Map<string, Plan>,
+  addOns: Map<string, AddOn> = new Map()
 ): number {
   return subscriptions
     .filter((s) => s.state === "active")
-    .reduce((sum, sub) => {
-      const plan = plans.get(sub.plan);
-      const intervalLength = plan?.interval_length ?? 1;
-      const amount = sub.amount ?? plan?.amount ?? 0;
-      return sum + normalizeToMonthly(amount * (sub.quantity || 1), intervalLength);
-    }, 0);
+    .reduce((sum, sub) => sum + subscriptionMRR(sub, plans, addOns), 0);
 }
 
 export function calculateARR(mrr: number): number {
@@ -67,23 +89,17 @@ export function calculateChurnRate(
 export function calculateNetNewMRR(
   newSubscriptions: Subscription[],
   cancelledSubscriptions: Subscription[],
-  plans: Map<string, Plan>
+  plans: Map<string, Plan>,
+  addOns: Map<string, AddOn> = new Map()
 ): number {
   const newMRR = newSubscriptions
     .filter((s) => s.state === "active")
-    .reduce((sum, sub) => {
-      const plan = plans.get(sub.plan);
-      const intervalLength = plan?.interval_length ?? 1;
-      const amount = sub.amount ?? plan?.amount ?? 0;
-      return sum + normalizeToMonthly(amount * (sub.quantity || 1), intervalLength);
-    }, 0);
+    .reduce((sum, sub) => sum + subscriptionMRR(sub, plans, addOns), 0);
 
-  const churnedMRR = cancelledSubscriptions.reduce((sum, sub) => {
-    const plan = plans.get(sub.plan);
-    const intervalLength = plan?.interval_length ?? 1;
-    const amount = sub.amount ?? plan?.amount ?? 0;
-    return sum + normalizeToMonthly(amount * (sub.quantity || 1), intervalLength);
-  }, 0);
+  const churnedMRR = cancelledSubscriptions.reduce(
+    (sum, sub) => sum + subscriptionMRR(sub, plans, addOns),
+    0
+  );
 
   return newMRR - churnedMRR;
 }
@@ -122,17 +138,15 @@ export interface PlanBreakdown {
 
 export function getSubscriptionBreakdown(
   subscriptions: Subscription[],
-  plans: Map<string, Plan>
+  plans: Map<string, Plan>,
+  addOns: Map<string, AddOn> = new Map()
 ): PlanBreakdown[] {
   const byPlan = new Map<string, { count: number; mrr: number }>();
 
   subscriptions
     .filter((s) => s.state === "active")
     .forEach((sub) => {
-      const plan = plans.get(sub.plan);
-      const intervalLength = plan?.interval_length ?? 1;
-      const amount = sub.amount ?? plan?.amount ?? 0;
-      const monthlyAmount = normalizeToMonthly(amount * (sub.quantity || 1), intervalLength);
+      const monthlyAmount = subscriptionMRR(sub, plans, addOns);
 
       const existing = byPlan.get(sub.plan) ?? { count: 0, mrr: 0 };
       byPlan.set(sub.plan, {

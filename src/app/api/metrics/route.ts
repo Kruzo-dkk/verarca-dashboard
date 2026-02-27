@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { listSubscriptions, listPlans, type Plan } from "@/lib/frisbii";
+import {
+  listSubscriptions,
+  listPlans,
+  buildPlanMap,
+  fetchAddOns,
+} from "@/lib/frisbii";
 import {
   calculateMRR,
   calculateARR,
@@ -29,19 +34,27 @@ export async function GET() {
         listPlans(),
       ]);
 
-    const planMap = new Map<string, Plan>(plans.map((p) => [p.handle, p]));
+    const planMap = buildPlanMap(plans);
+    const addOnMap = await fetchAddOns(activeSubscriptions);
 
-    const mrr = calculateMRR(activeSubscriptions, planMap);
+    const mrr = calculateMRR(activeSubscriptions, planMap, addOnMap);
     const arr = calculateARR(mrr);
-    const uniqueCustomers = new Set(activeSubscriptions.map((s) => s.customer));
-    const activeCustomerCount = uniqueCustomers.size;
-    const churnRate = calculateChurnRate(expiredThisMonth, activeSubscriptions.length + expiredThisMonth.length);
-    const netNewMRR = calculateNetNewMRR(newThisMonth, expiredThisMonth, planMap);
+    const activeCustomerCount = activeSubscriptions.length;
+    const churnRate = calculateChurnRate(
+      expiredThisMonth,
+      activeSubscriptions.length + expiredThisMonth.length
+    );
+    const netNewMRR = calculateNetNewMRR(
+      newThisMonth,
+      expiredThisMonth,
+      planMap,
+      addOnMap
+    );
     const arpc = calculateARPC(mrr, activeCustomerCount);
 
-    const currency = activeSubscriptions[0]?.currency ?? "USD";
+    const currency = activeSubscriptions[0]?.currency ?? "DKK";
 
-    // Round to minor currency unit (cent) at the API boundary —
+    // Round to minor currency unit (øre) at the API boundary —
     // this is the single rounding point, preserving precision through all aggregation
     return NextResponse.json({
       mrr: Math.round(mrr),

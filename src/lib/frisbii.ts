@@ -31,10 +31,10 @@ export interface Subscription {
   customer: string;
   plan: string;
   quantity: number;
-  amount: number;
+  amount?: number;
   currency: string;
   created: string;
-  activated: string;
+  activated?: string;
   cancelled?: string;
   expired?: string;
   trial_start?: string;
@@ -43,13 +43,8 @@ export interface Subscription {
   next_period_start?: string;
   plan_version: number;
   discount?: string;
-  add_ons?: SubscriptionAddOn[];
-}
-
-export interface SubscriptionAddOn {
-  handle: string;
-  quantity: number;
-  amount: number;
+  subscription_add_ons?: string[];
+  subscription_discounts?: string[];
 }
 
 export interface Invoice {
@@ -80,6 +75,14 @@ export interface Plan {
   setup_fee?: number;
   trial_interval_length?: number;
   created: string;
+}
+
+export interface AddOn {
+  handle: string;
+  name: string;
+  amount: number;
+  currency?: string;
+  interval_length?: number;
 }
 
 export interface Customer {
@@ -165,4 +168,53 @@ export async function listPlans(
   params: ListParams = {}
 ): Promise<Plan[]> {
   return fetchAll<Plan>("/list/plan", params);
+}
+
+export async function getAddOn(handle: string): Promise<AddOn> {
+  return apiFetch<AddOn>(`/add_on/${handle}`);
+}
+
+/**
+ * Build a plan map keyed by handle, keeping only the active version
+ * when multiple versions exist (active > superseded > deleted).
+ */
+export function buildPlanMap(plans: Plan[]): Map<string, Plan> {
+  const map = new Map<string, Plan>();
+  for (const plan of plans) {
+    const existing = map.get(plan.handle);
+    if (!existing || plan.state === "active") {
+      map.set(plan.handle, plan);
+    }
+  }
+  return map;
+}
+
+/**
+ * Collect all unique add-on handles from subscriptions
+ * and fetch their details in parallel.
+ */
+export async function fetchAddOns(
+  subscriptions: Subscription[]
+): Promise<Map<string, AddOn>> {
+  const handles = new Set<string>();
+  for (const sub of subscriptions) {
+    for (const handle of sub.subscription_add_ons ?? []) {
+      handles.add(handle);
+    }
+  }
+  const addOns = await Promise.all(
+    Array.from(handles).map(async (handle) => {
+      try {
+        const addOn = await getAddOn(handle);
+        return [handle, addOn] as const;
+      } catch {
+        return null;
+      }
+    })
+  );
+  const map = new Map<string, AddOn>();
+  for (const result of addOns) {
+    if (result) map.set(result[0], result[1]);
+  }
+  return map;
 }
