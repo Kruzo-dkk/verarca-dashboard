@@ -4,7 +4,7 @@ import {
   listSubscriptions,
   listPlans,
   buildPlanMap,
-  fetchAddOns,
+  fetchSubscriptionAddOnTotals,
 } from "@/lib/frisbii";
 import {
   calculateMRR,
@@ -15,7 +15,6 @@ import {
 } from "@/lib/metrics";
 
 export async function GET(request: Request) {
-  // Simple auth: only allow calls from localhost or with a secret
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
@@ -44,9 +43,11 @@ export async function GET(request: Request) {
       ]);
 
     const planMap = buildPlanMap(plans);
-    const addOnMap = await fetchAddOns(activeSubscriptions);
+    const addOnTotals = await fetchSubscriptionAddOnTotals(activeSubscriptions);
 
-    const mrr = Math.round(calculateMRR(activeSubscriptions, planMap, addOnMap));
+    const mrr = Math.round(
+      calculateMRR(activeSubscriptions, planMap, addOnTotals)
+    );
     const arr = Math.round(calculateARR(mrr));
     const customerCount = activeSubscriptions.length;
     const churnRate =
@@ -57,7 +58,7 @@ export async function GET(request: Request) {
         ) * 100
       ) / 100;
     const netNewMRR = Math.round(
-      calculateNetNewMRR(newThisMonth, expiredThisMonth, planMap, addOnMap)
+      calculateNetNewMRR(newThisMonth, expiredThisMonth, planMap, addOnTotals)
     );
     const arpc = Math.round(calculateARPC(mrr, customerCount));
     const currency = activeSubscriptions[0]?.currency ?? "DKK";

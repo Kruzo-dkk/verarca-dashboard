@@ -3,7 +3,7 @@ import {
   listSubscriptions,
   listPlans,
   buildPlanMap,
-  fetchAddOns,
+  fetchSubscriptionAddOnTotals,
 } from "@/lib/frisbii";
 import { getSubscriptionBreakdown } from "@/lib/metrics";
 
@@ -15,8 +15,8 @@ export async function GET() {
     ]);
 
     const planMap = buildPlanMap(plans);
-    const addOnMap = await fetchAddOns(subscriptions);
-    const breakdown = getSubscriptionBreakdown(subscriptions, planMap, addOnMap);
+    const addOnTotals = await fetchSubscriptionAddOnTotals(subscriptions);
+    const breakdown = getSubscriptionBreakdown(subscriptions, planMap, addOnTotals);
 
     return NextResponse.json({
       breakdown,

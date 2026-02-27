@@ -1,14 +1,9 @@
-import type { Subscription, Invoice, Plan, AddOn } from "./frisbii";
+import type { Subscription, Invoice, Plan } from "./frisbii";
 
 /**
  * Normalize a plan amount to its monthly equivalent based on billing interval.
  *
- * Industry best practice (Stripe, ChartMogul, Baremetrics):
- * - Divide the cycle amount by the interval length in months
- * - Keep full precision during aggregation to avoid cumulative rounding drift
- * - Round only at display time (handled by formatCurrency in components)
- *
- * @param amount - The plan amount per billing cycle (in minor units, e.g. cents/øre)
+ * @param amount - The plan amount per billing cycle (in minor units, e.g. øre)
  * @param intervalLength - Number of months per billing cycle (1 = monthly, 3 = quarterly, 12 = annual)
  * @returns The monthly equivalent amount in minor units (unrounded for aggregation accuracy)
  */
@@ -16,15 +11,8 @@ export function normalizeToMonthly(
   amount: number,
   intervalLength: number
 ): number {
-  // Guard: monthly plans pass through untouched (most common case)
   if (intervalLength === 1) return amount;
-
-  // Guard: invalid or zero interval — treat as monthly to avoid division by zero
   if (!intervalLength || intervalLength <= 0) return amount;
-
-  // Standard normalization: $1200/year (12) = $100/month, $450/quarter (3) = $150/month
-  // No rounding here — precision is preserved across the full aggregation.
-  // Rounding happens once at display time in formatCurrency().
   return amount / intervalLength;
 }
 
@@ -39,26 +27,32 @@ export interface MetricsSummary {
 }
 
 /**
- * Calculate the monthly recurring revenue contribution for a single subscription.
- * Includes both the base plan amount and any add-ons.
+ * Calculate the monthly recurring revenue for a single subscription.
+ *
+ * MRR = (plan list price + add-on amounts) / billing interval in months
+ *
+ * Uses the plan's base amount (not sub.amount which may include discounts)
+ * to follow standard SaaS MRR convention: MRR represents list-price revenue.
+ *
+ * @param addOnTotals - Map of subscription handle → total add-on amount per billing period
  */
 function subscriptionMRR(
   sub: Subscription,
   plans: Map<string, Plan>,
-  addOns: Map<string, AddOn>
+  addOnTotals: Map<string, number>
 ): number {
   const plan = plans.get(sub.plan);
   const intervalLength = plan?.interval_length ?? 12;
-  const planAmount = sub.amount ?? plan?.amount ?? 0;
-  let total = normalizeToMonthly(planAmount * (sub.quantity || 1), intervalLength);
+  const planAmount = plan?.amount ?? 0;
+  const quantity = sub.quantity || 1;
 
-  // Add-ons inherit the plan's billing interval
-  for (const addOnHandle of sub.subscription_add_ons ?? []) {
-    const addOn = addOns.get(addOnHandle);
-    if (addOn) {
-      const addOnInterval = addOn.interval_length ?? intervalLength;
-      total += normalizeToMonthly(addOn.amount, addOnInterval);
-    }
+  // Plan base amount normalized to monthly
+  let total = normalizeToMonthly(planAmount * quantity, intervalLength);
+
+  // Add-on amounts (already per-billing-period from the subscription endpoint)
+  const addOnTotal = addOnTotals.get(sub.handle) ?? 0;
+  if (addOnTotal > 0) {
+    total += normalizeToMonthly(addOnTotal, intervalLength);
   }
 
   return total;
@@ -67,11 +61,11 @@ function subscriptionMRR(
 export function calculateMRR(
   subscriptions: Subscription[],
   plans: Map<string, Plan>,
-  addOns: Map<string, AddOn> = new Map()
+  addOnTotals: Map<string, number> = new Map()
 ): number {
   return subscriptions
     .filter((s) => s.state === "active")
-    .reduce((sum, sub) => sum + subscriptionMRR(sub, plans, addOns), 0);
+    .reduce((sum, sub) => sum + subscriptionMRR(sub, plans, addOnTotals), 0);
 }
 
 export function calculateARR(mrr: number): number {
@@ -90,14 +84,14 @@ export function calculateNetNewMRR(
   newSubscriptions: Subscription[],
   cancelledSubscriptions: Subscription[],
   plans: Map<string, Plan>,
-  addOns: Map<string, AddOn> = new Map()
+  addOnTotals: Map<string, number> = new Map()
 ): number {
   const newMRR = newSubscriptions
     .filter((s) => s.state === "active")
-    .reduce((sum, sub) => sum + subscriptionMRR(sub, plans, addOns), 0);
+    .reduce((sum, sub) => sum + subscriptionMRR(sub, plans, addOnTotals), 0);
 
   const churnedMRR = cancelledSubscriptions.reduce(
-    (sum, sub) => sum + subscriptionMRR(sub, plans, addOns),
+    (sum, sub) => sum + subscriptionMRR(sub, plans, addOnTotals),
     0
   );
 
@@ -139,14 +133,14 @@ export interface PlanBreakdown {
 export function getSubscriptionBreakdown(
   subscriptions: Subscription[],
   plans: Map<string, Plan>,
-  addOns: Map<string, AddOn> = new Map()
+  addOnTotals: Map<string, number> = new Map()
 ): PlanBreakdown[] {
   const byPlan = new Map<string, { count: number; mrr: number }>();
 
   subscriptions
     .filter((s) => s.state === "active")
     .forEach((sub) => {
-      const monthlyAmount = subscriptionMRR(sub, plans, addOns);
+      const monthlyAmount = subscriptionMRR(sub, plans, addOnTotals);
 
       const existing = byPlan.get(sub.plan) ?? { count: 0, mrr: 0 };
       byPlan.set(sub.plan, {

@@ -174,6 +174,26 @@ export async function getAddOn(handle: string): Promise<AddOn> {
   return apiFetch<AddOn>(`/add_on/${handle}`);
 }
 
+/** Add-on as attached to a specific subscription (includes subscription-specific amount) */
+export interface SubscriptionAddOnDetail {
+  handle: string;
+  amount: number;
+  currency?: string;
+  add_on?: { name: string; amount: number };
+}
+
+/**
+ * Fetch the add-ons attached to a specific subscription.
+ * Returns the subscription-specific amounts (which may differ from the base add-on definition).
+ */
+export async function getSubscriptionAddOns(
+  subscriptionHandle: string
+): Promise<SubscriptionAddOnDetail[]> {
+  return apiFetch<SubscriptionAddOnDetail[]>(
+    `/subscription/${subscriptionHandle}/add_on`
+  );
+}
+
 /**
  * Build a plan map keyed by handle, keeping only the active version
  * when multiple versions exist (active > superseded > deleted).
@@ -190,31 +210,27 @@ export function buildPlanMap(plans: Plan[]): Map<string, Plan> {
 }
 
 /**
- * Collect all unique add-on handles from subscriptions
- * and fetch their details in parallel.
+ * Fetch subscription-specific add-on amounts for all subscriptions that have add-ons.
+ * Returns a map of subscription handle → total add-on amount per billing period.
  */
-export async function fetchAddOns(
+export async function fetchSubscriptionAddOnTotals(
   subscriptions: Subscription[]
-): Promise<Map<string, AddOn>> {
-  const handles = new Set<string>();
-  for (const sub of subscriptions) {
-    for (const handle of sub.subscription_add_ons ?? []) {
-      handles.add(handle);
-    }
-  }
-  const addOns = await Promise.all(
-    Array.from(handles).map(async (handle) => {
+): Promise<Map<string, number>> {
+  const subsWithAddOns = subscriptions.filter(
+    (s) => s.subscription_add_ons && s.subscription_add_ons.length > 0
+  );
+
+  const results = await Promise.all(
+    subsWithAddOns.map(async (sub) => {
       try {
-        const addOn = await getAddOn(handle);
-        return [handle, addOn] as const;
+        const addOns = await getSubscriptionAddOns(sub.handle);
+        const total = addOns.reduce((sum, a) => sum + (a.amount || 0), 0);
+        return [sub.handle, total] as const;
       } catch {
-        return null;
+        return [sub.handle, 0] as const;
       }
     })
   );
-  const map = new Map<string, AddOn>();
-  for (const result of addOns) {
-    if (result) map.set(result[0], result[1]);
-  }
-  return map;
+
+  return new Map(results);
 }

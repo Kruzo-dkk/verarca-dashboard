@@ -3,7 +3,7 @@ import {
   listSubscriptions,
   listPlans,
   buildPlanMap,
-  fetchAddOns,
+  fetchSubscriptionAddOnTotals,
 } from "@/lib/frisbii";
 import {
   calculateMRR,
@@ -35,9 +35,9 @@ export async function GET() {
       ]);
 
     const planMap = buildPlanMap(plans);
-    const addOnMap = await fetchAddOns(activeSubscriptions);
+    const addOnTotals = await fetchSubscriptionAddOnTotals(activeSubscriptions);
 
-    const mrr = calculateMRR(activeSubscriptions, planMap, addOnMap);
+    const mrr = calculateMRR(activeSubscriptions, planMap, addOnTotals);
     const arr = calculateARR(mrr);
     const activeCustomerCount = activeSubscriptions.length;
     const churnRate = calculateChurnRate(
@@ -48,14 +48,12 @@ export async function GET() {
       newThisMonth,
       expiredThisMonth,
       planMap,
-      addOnMap
+      addOnTotals
     );
     const arpc = calculateARPC(mrr, activeCustomerCount);
 
     const currency = activeSubscriptions[0]?.currency ?? "DKK";
 
-    // Round to minor currency unit (øre) at the API boundary —
-    // this is the single rounding point, preserving precision through all aggregation
     return NextResponse.json({
       mrr: Math.round(mrr),
       arr: Math.round(arr),
