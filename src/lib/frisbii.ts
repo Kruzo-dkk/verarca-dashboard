@@ -124,6 +124,9 @@ async function fetchAll<T>(path: string, params: ListParams = {}): Promise<T[]> 
 
   do {
     const response = await apiFetch<ListResponse<T>>(path, {
+      // Frisbii defaults to range=created with a 1-month window,
+      // so without an explicit `from` it only returns recently-created records.
+      from: "2020-01-01",
       ...params,
       size: params.size ?? 100,
       ...(nextToken ? { next_page_token: nextToken } : {}),
