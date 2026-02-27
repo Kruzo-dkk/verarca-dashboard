@@ -125,7 +125,7 @@ async function fetchAll<T>(path: string, params: ListParams = {}): Promise<T[]> 
   do {
     const response = await apiFetch<ListResponse<T>>(path, {
       ...params,
-      size: 100,
+      size: params.size ?? 100,
       ...(nextToken ? { next_page_token: nextToken } : {}),
     });
     all.push(...response.content);
@@ -138,27 +138,28 @@ async function fetchAll<T>(path: string, params: ListParams = {}): Promise<T[]> 
 export async function listSubscriptions(
   params: ListParams = {}
 ): Promise<Subscription[]> {
-  return fetchAll<Subscription>("/subscriptions", params);
+  return fetchAll<Subscription>("/list/subscription", params);
 }
 
 export async function listInvoices(
   params: ListParams = {}
 ): Promise<Invoice[]> {
-  return fetchAll<Invoice>("/invoices", params);
+  return fetchAll<Invoice>("/list/invoice", params);
 }
 
 export async function listCustomers(
   params: ListParams = {}
 ): Promise<Customer[]> {
-  return fetchAll<Customer>("/customers", params);
+  return fetchAll<Customer>("/list/customer", params);
 }
 
 export async function getPlan(handle: string): Promise<Plan> {
-  return apiFetch<Plan>(`/plan/${handle}`);
+  const result = await apiFetch<Plan | Plan[]>(`/plan/${handle}`);
+  return Array.isArray(result) ? result[0] : result;
 }
 
 export async function listPlans(
   params: ListParams = {}
 ): Promise<Plan[]> {
-  return fetchAll<Plan>("/plans", params);
+  return fetchAll<Plan>("/list/plan", params);
 }
