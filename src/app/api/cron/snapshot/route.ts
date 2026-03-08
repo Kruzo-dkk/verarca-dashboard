@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   listSubscriptions,
   listPlans,
@@ -63,20 +63,27 @@ export async function GET(request: Request) {
     const arpc = Math.round(calculateARPC(mrr, customerCount));
     const currency = activeSubscriptions[0]?.currency ?? "DKK";
 
-    const snapshot = await prisma.metricSnapshot.upsert({
-      where: { date: new Date(today) },
-      update: { mrr, arr, churnRate, customerCount, netNewMRR, arpc, currency },
-      create: {
-        date: new Date(today),
-        mrr,
-        arr,
-        churnRate,
-        customerCount,
-        netNewMRR,
-        arpc,
-        currency,
-      },
-    });
+    const supabase = createAdminClient();
+
+    const { data: snapshot, error: dbError } = await supabase
+      .from("metric_snapshots")
+      .upsert(
+        {
+          date: today,
+          mrr,
+          arr,
+          churn_rate: churnRate,
+          customer_count: customerCount,
+          net_new_mrr: netNewMRR,
+          arpc,
+          currency,
+        },
+        { onConflict: "date" }
+      )
+      .select()
+      .single();
+
+    if (dbError) throw dbError;
 
     return NextResponse.json({
       message: "Snapshot saved",

@@ -1,28 +1,13 @@
 services:
-  db:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: verarca
-      POSTGRES_USER: verarca
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-verarca_secret_2024}
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U verarca"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
   app:
     build: .
     restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://verarca:${POSTGRES_PASSWORD:-verarca_secret_2024}@db:5432/verarca
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
       FRISBII_API_KEY: ${FRISBII_API_KEY}
+      CRON_SECRET: ${CRON_SECRET}
     ports:
       - "3000:3000"
 
@@ -35,6 +20,3 @@ services:
       - "80:80"
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
-
-volumes:
-  pgdata:
