@@ -13,6 +13,8 @@ import {
 interface ChurnDataPoint {
   month: string;
   churnRate: number;
+  expiredCount: number;
+  activeAtStart: number;
 }
 
 interface ChurnChartProps {
@@ -23,6 +25,44 @@ function formatMonth(month: string): string {
   const [year, m] = month.split("-");
   const date = new Date(Number(year), Number(m) - 1);
   return date.toLocaleString("en-US", { month: "short", year: "2-digit" });
+}
+
+interface TooltipPayloadEntry {
+  payload: ChurnDataPoint;
+}
+
+function CustomTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: TooltipPayloadEntry[];
+  label?: string;
+}) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div className="rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm shadow-xl">
+      <p className="font-medium text-white mb-1.5">{formatMonth(d.month)}</p>
+      <div className="space-y-1 text-zinc-300">
+        <p>
+          Churn rate:{" "}
+          <span className="font-medium text-red-400">
+            {d.churnRate.toFixed(2)}%
+          </span>
+        </p>
+        <p>
+          Churned:{" "}
+          <span className="font-medium text-white">{d.expiredCount}</span>{" "}
+          subscriptions
+        </p>
+        <p>
+          Active at start:{" "}
+          <span className="font-medium text-white">{d.activeAtStart}</span>
+        </p>
+      </div>
+    </div>
+  );
 }
 
 export function ChurnChart({ data }: ChurnChartProps) {
@@ -52,15 +92,7 @@ export function ChurnChart({ data }: ChurnChartProps) {
               tickLine={false}
               tickFormatter={(v: number) => `${v.toFixed(1)}%`}
             />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: "#18181b",
-                border: "1px solid #27272a",
-                borderRadius: "8px",
-                color: "#fff",
-              }}
-              formatter={(value) => [`${Number(value).toFixed(2)}%`, "Churn"]}
-            />
+            <Tooltip content={<CustomTooltip />} />
             <Bar
               dataKey="churnRate"
               fill="#ef4444"

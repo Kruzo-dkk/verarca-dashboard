@@ -123,6 +123,67 @@ export function getMonthlyRevenue(invoices: Invoice[]): MonthlyRevenue[] {
     .sort((a, b) => a.month.localeCompare(b.month));
 }
 
+export interface MonthlyChurn {
+  month: string; // YYYY-MM
+  churnRate: number;
+  expiredCount: number;
+  activeAtStart: number;
+}
+
+/**
+ * Compute per-month churn rates from subscription data.
+ *
+ * For each month we determine:
+ *   - activeAtStart: subscriptions that were active at the beginning of the month
+ *     (activated before month start AND not expired before month start)
+ *   - expiredCount: subscriptions that expired within the month
+ *   - churnRate: expiredCount / activeAtStart * 100
+ */
+export function getMonthlyChurn(
+  subscriptions: Subscription[],
+  months: number = 12
+): MonthlyChurn[] {
+  const now = new Date();
+  const results: MonthlyChurn[] = [];
+
+  for (let i = months - 1; i >= 0; i--) {
+    const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+    const monthKey = `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, "0")}`;
+
+    // Subscriptions active at the start of this month:
+    // activated before monthStart AND (not expired OR expired on/after monthStart)
+    const activeAtStart = subscriptions.filter((s) => {
+      const activated = s.activated ? new Date(s.activated) : null;
+      const created = new Date(s.created);
+      const startDate = activated ?? created;
+      if (startDate >= monthStart) return false; // not yet active at month start
+
+      const expired = s.expired ? new Date(s.expired) : null;
+      if (expired && expired < monthStart) return false; // already expired before this month
+      return true;
+    }).length;
+
+    // Subscriptions that expired within this month
+    const expiredCount = subscriptions.filter((s) => {
+      if (s.state !== "expired" || !s.expired) return false;
+      const expired = new Date(s.expired);
+      return expired >= monthStart && expired < monthEnd;
+    }).length;
+
+    const churnRate = activeAtStart > 0 ? (expiredCount / activeAtStart) * 100 : 0;
+
+    results.push({
+      month: monthKey,
+      churnRate: Math.round(churnRate * 100) / 100,
+      expiredCount,
+      activeAtStart,
+    });
+  }
+
+  return results;
+}
+
 export interface PlanBreakdown {
   plan: string;
   planName: string;

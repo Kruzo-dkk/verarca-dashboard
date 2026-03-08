@@ -21,6 +21,17 @@ interface RevenueData {
   monthlyRevenue: { month: string; revenue: number }[];
 }
 
+interface ChurnDataPoint {
+  month: string;
+  churnRate: number;
+  expiredCount: number;
+  activeAtStart: number;
+}
+
+interface ChurnData {
+  monthlyChurn: ChurnDataPoint[];
+}
+
 interface SubscriptionData {
   breakdown: {
     plan: string;
@@ -51,6 +62,7 @@ function Skeleton({ className = "" }: { className?: string }) {
 export default function Dashboard() {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [revenue, setRevenue] = useState<RevenueData | null>(null);
+  const [churn, setChurn] = useState<ChurnData | null>(null);
   const [subscriptions, setSubscriptions] = useState<SubscriptionData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -58,24 +70,27 @@ export default function Dashboard() {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const [metricsRes, revenueRes, subsRes] = await Promise.all([
+      const [metricsRes, revenueRes, churnRes, subsRes] = await Promise.all([
         fetch("/api/metrics"),
         fetch("/api/revenue?months=12"),
+        fetch("/api/churn?months=12"),
         fetch("/api/subscriptions"),
       ]);
 
-      if (!metricsRes.ok || !revenueRes.ok || !subsRes.ok) {
+      if (!metricsRes.ok || !revenueRes.ok || !churnRes.ok || !subsRes.ok) {
         throw new Error("Failed to fetch dashboard data");
       }
 
-      const [metricsData, revenueData, subsData] = await Promise.all([
+      const [metricsData, revenueData, churnData, subsData] = await Promise.all([
         metricsRes.json(),
         revenueRes.json(),
+        churnRes.json(),
         subsRes.json(),
       ]);
 
       setMetrics(metricsData);
       setRevenue(revenueData);
+      setChurn(churnData);
       setSubscriptions(subsData);
       setError(null);
     } catch (err) {
@@ -93,11 +108,7 @@ export default function Dashboard() {
 
   const currency = metrics?.currency ?? "USD";
 
-  // Mock churn data for chart (we'd compute this from historical data in a full implementation)
-  const churnData = revenue?.monthlyRevenue.map((r) => ({
-    month: r.month,
-    churnRate: metrics?.churnRate ?? 0,
-  })) ?? [];
+  const churnData = churn?.monthlyChurn ?? [];
 
   return (
     <div className="min-h-screen bg-zinc-950 px-6 py-8 font-sans">
@@ -196,22 +207,19 @@ export default function Dashboard() {
 
         {/* Bottom Row: Churn + Plan Breakdown */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {loading && !churn ? (
+            <Skeleton className="h-80" />
+          ) : churn ? (
+            <ChurnChart data={churnData} />
+          ) : null}
           {loading && !subscriptions ? (
-            <>
-              <Skeleton className="h-80" />
-              <Skeleton className="h-80" />
-            </>
-          ) : (
-            <>
-              <ChurnChart data={churnData} />
-              {subscriptions && (
-                <SubscriptionTable
-                  data={subscriptions.breakdown}
-                  currency={currency}
-                />
-              )}
-            </>
-          )}
+            <Skeleton className="h-80" />
+          ) : subscriptions ? (
+            <SubscriptionTable
+              data={subscriptions.breakdown}
+              currency={currency}
+            />
+          ) : null}
         </div>
       </div>
     </div>
