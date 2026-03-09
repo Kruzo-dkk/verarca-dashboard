@@ -6,14 +6,19 @@ import {
   calculatePipelineMetrics,
 } from "@/lib/hubspot";
 import { syncFXRates } from "@/lib/sync/sync-fx";
+import { syncCustomers } from "@/lib/sync/sync-customers";
+import { syncCustomerSnapshots } from "@/lib/sync/sync-customer-snapshots";
+import { syncMonthlySnapshot } from "@/lib/sync/sync-frisbii";
 
 /**
  * GET /api/cron/backfill-pipeline?from=YYYY-MM&to=YYYY-MM
  *
- * Backfills pipeline_snapshots (and fx_rates) for a range of historical months.
- *
- * Fetches all deals from HubSpot ONCE, then computes metrics for each month
- * locally — fast and avoids rate limits.
+ * Backfills ALL monthly data for a range of historical months:
+ *   - Pipeline snapshots (HubSpot deals — fetched once, computed per month)
+ *   - FX rates (Frankfurter API)
+ *   - Customer profiles (Frisbii + ClickUp — synced once)
+ *   - Customer MRR snapshots (Frisbii subscriptions — per month)
+ *   - Monthly aggregate snapshots (MRR decomposition — per month)
  *
  * Auth: CRON_SECRET or localhost.
  */
@@ -32,19 +37,23 @@ export async function GET(request: Request) {
     const fromParam = url.searchParams.get("from");
     const toParam = url.searchParams.get("to");
 
-    // Default: from earliest deal createdate to current month
     const now = new Date();
     const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
-    // Fetch all deals and stages once
-    console.log(`[backfill] Fetching all deals and stages from HubSpot...`);
+    // ── Step 1: Sync customers once (Frisbii + ClickUp) ────────
+    console.log(`[backfill] Step 1: Syncing customer profiles...`);
+    await syncCustomers();
+    console.log(`[backfill] Customer profiles synced`);
+
+    // ── Step 2: Fetch all HubSpot deals once ───────────────────
+    console.log(`[backfill] Step 2: Fetching all deals and stages from HubSpot...`);
     const [deals, stages] = await Promise.all([
       listDeals(),
       getPipelineStages(),
     ]);
     console.log(`[backfill] Fetched ${deals.length} deals, ${stages.length} stages`);
 
-    // Determine date range from deal data if not specified
+    // Determine date range
     const from = fromParam ?? getEarliestDealMonth(deals);
     const to = toParam ?? currentMonth;
 
@@ -60,13 +69,22 @@ export async function GET(request: Request) {
 
     const supabase = createAdminClient();
     const stageMap = new Map(stages.map((s) => [s.stageId, s.label]));
-    const results: { month: string; status: string; dealsWon?: number; dealsOpen?: number; dealsLost?: number }[] = [];
 
+    interface MonthResult {
+      month: string;
+      status: string;
+      pipeline?: { won: number; lost: number; open: number };
+      error?: string;
+    }
+    const results: MonthResult[] = [];
+
+    // ── Step 3: Loop through each month ────────────────────────
     for (const month of months) {
       try {
-        // Compute pipeline metrics for this month
-        const metrics = calculatePipelineMetrics(deals, stages, month);
+        console.log(`[backfill] ── ${month} ──────────────────────`);
 
+        // 3a. Pipeline snapshot (computed locally from pre-fetched deals)
+        const metrics = calculatePipelineMetrics(deals, stages, month);
         const dealsJson = metrics.deals.map((d) => ({
           id: d.id,
           name: d.properties.dealname,
@@ -77,7 +95,7 @@ export async function GET(request: Request) {
           days_to_close: d.properties.days_to_close,
         }));
 
-        const { error } = await supabase
+        const { error: pipelineErr } = await supabase
           .from("pipeline_snapshots")
           .upsert(
             {
@@ -94,31 +112,38 @@ export async function GET(request: Request) {
             },
             { onConflict: "month" }
           );
+        if (pipelineErr) throw pipelineErr;
+        console.log(`[backfill]   pipeline: won=${metrics.dealsWon} lost=${metrics.dealsLost} open=${metrics.dealsOpen}`);
 
-        if (error) throw error;
-
-        // Also sync FX rates for this month
+        // 3b. FX rates
         await syncFXRates(month);
 
-        console.log(
-          `[backfill] ${month}: won=${metrics.dealsWon} lost=${metrics.dealsLost} open=${metrics.dealsOpen}`
-        );
+        // 3c. Customer MRR snapshots (uses historical subscription filtering)
+        await syncCustomerSnapshots(month);
+
+        // 3d. Monthly aggregate snapshot (MRR decomposition, retention, etc.)
+        await syncMonthlySnapshot(month);
+
         results.push({
           month,
           status: "ok",
-          dealsWon: metrics.dealsWon,
-          dealsOpen: metrics.dealsOpen,
-          dealsLost: metrics.dealsLost,
+          pipeline: {
+            won: metrics.dealsWon,
+            lost: metrics.dealsLost,
+            open: metrics.dealsOpen,
+          },
         });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         console.error(`[backfill] ${month} FAILED: ${msg}`);
-        results.push({ month, status: `error: ${msg}` });
+        results.push({ month, status: "error", error: msg });
       }
     }
 
+    const failed = results.filter((r) => r.status === "error");
+
     return NextResponse.json({
-      message: `Backfilled ${results.length} months`,
+      message: `Backfilled ${results.length} months (${failed.length} errors)`,
       from,
       to,
       totalDeals: deals.length,

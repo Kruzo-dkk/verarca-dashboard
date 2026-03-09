@@ -34,10 +34,35 @@ function singleSubMRR(
 }
 
 /**
+ * Check whether a subscription was active during a given month.
+ *
+ * A subscription was active during month M if:
+ *   1. It was activated/created on or before the last day of M, AND
+ *   2. It had not expired/cancelled before the first day of M
+ */
+function wasActiveDuringMonth(sub: Subscription, month: string): boolean {
+  const monthStart = `${month}-01`;
+  const [y, m] = month.split("-").map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+  const monthEnd = `${month}-${String(lastDay).padStart(2, "0")}`;
+
+  // When was the subscription activated?
+  const activatedDate = (sub.activated || sub.created)?.slice(0, 10);
+  if (!activatedDate || activatedDate > monthEnd) return false;
+
+  // When did it end?
+  const endDate = (sub.expired || sub.cancelled)?.slice(0, 10) ?? null;
+  if (endDate && endDate < monthStart) return false;
+
+  return true;
+}
+
+/**
  * Sync per-customer monthly MRR snapshots into `customer_snapshots`.
  *
- * For each customer in the `customers` table, looks up their active
- * subscription and writes a snapshot row for the given month.
+ * For each customer in the `customers` table, determines which subscription
+ * was active during the target month and computes their MRR accordingly.
+ * This works for both current and historical months.
  *
  * @param month - YYYY-MM format
  */
@@ -74,19 +99,20 @@ export async function syncCustomerSnapshots(month: string): Promise<void> {
 
   const planMap = buildPlanMap(plans);
 
-  // Only fetch add-on totals for active subscriptions that have add-ons
-  const activeSubscriptions = allSubscriptions.filter(
-    (s) => s.state === "active"
+  // Fetch add-on totals for subscriptions that were active during this month
+  const subsActiveDuringMonth = allSubscriptions.filter((s) =>
+    wasActiveDuringMonth(s, month)
   );
-  const addOnTotals = await fetchSubscriptionAddOnTotals(activeSubscriptions);
+  const addOnTotals = await fetchSubscriptionAddOnTotals(subsActiveDuringMonth);
 
   console.log(
-    `[sync-customer-snapshots] Fetched ${allSubscriptions.length} subscriptions, ${plans.length} plans`
+    `[sync-customer-snapshots] Fetched ${allSubscriptions.length} subscriptions, ${plans.length} plans, ` +
+      `${subsActiveDuringMonth.length} active during ${month}`
   );
 
-  // ── Map customer handle -> active subscription ─────────────
+  // ── Map customer handle -> subscription active during this month ──
   const subByCustomer = new Map<string, Subscription>();
-  for (const sub of activeSubscriptions) {
+  for (const sub of subsActiveDuringMonth) {
     if (!subByCustomer.has(sub.customer)) {
       subByCustomer.set(sub.customer, sub);
     }
@@ -105,7 +131,7 @@ export async function syncCustomerSnapshots(month: string): Promise<void> {
     const sub = subByCustomer.get(customer.frisbii_handle);
 
     let mrr = 0;
-    let status = customer.status || "churned";
+    let status = "churned";
     let planHandle = customer.plan_handle;
 
     if (sub) {
