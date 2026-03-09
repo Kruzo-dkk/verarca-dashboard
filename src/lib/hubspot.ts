@@ -127,8 +127,16 @@ export function calculatePipelineMetrics(
     });
   }
 
-  const wonDeals = filtered.filter(d => d.properties.dealstage === "closedwon");
-  const lostDeals = filtered.filter(d => d.properties.dealstage === "closedlost");
+  // HubSpot uses numeric stage IDs – detect won/lost/open by probability
+  // probability === 1 → won, probability === 0 → lost, 0 < p < 1 → open
+  const wonDeals = filtered.filter(d => {
+    const stage = stageMap.get(d.properties.dealstage);
+    return stage && stage.probability === 1;
+  });
+  const lostDeals = filtered.filter(d => {
+    const stage = stageMap.get(d.properties.dealstage);
+    return stage && stage.probability === 0;
+  });
   const openDeals = filtered.filter(d => {
     const stage = stageMap.get(d.properties.dealstage);
     return stage && stage.probability > 0 && stage.probability < 1;

@@ -23,11 +23,13 @@ export async function syncPipeline(month: string): Promise<void> {
   );
 
   // Build a JSON-serializable deals array for storage
+  const stageMap = new Map(stages.map(s => [s.stageId, s.label]));
   const dealsJson = metrics.deals.map((d) => ({
     id: d.id,
     name: d.properties.dealname,
     amount: d.properties.amount,
     stage: d.properties.dealstage,
+    stage_label: stageMap.get(d.properties.dealstage) ?? d.properties.dealstage,
     closedate: d.properties.closedate,
     days_to_close: d.properties.days_to_close,
   }));
