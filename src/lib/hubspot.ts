@@ -100,8 +100,8 @@ export async function getPipelineStages(): Promise<PipelineStage[]> {
   const pipeline = data.results?.[0];
   if (!pipeline) return [];
 
-  return pipeline.stages.map((s: { stageId: string; label: string; displayOrder: number; metadata: { probability: string; isClosed: string } }) => ({
-    stageId: s.stageId,
+  return pipeline.stages.map((s: { id: string; label: string; displayOrder: number; metadata: { probability: string; isClosed: string } }) => ({
+    stageId: s.id,  // HubSpot pipeline API returns 'id', not 'stageId'
     label: s.label,
     displayOrder: s.displayOrder,
     // HubSpot returns probability already as a decimal (0.1, 0.3, 1.0)
