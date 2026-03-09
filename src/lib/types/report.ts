@@ -49,13 +49,14 @@ export interface ReportData {
     top10Concentration: number | null;
     segments: SegmentBreakdown[];
     topCustomers: CustomerSummary[];
+    recentlyChurned: CustomerSummary[];
     countHistory: { month: string; count: number }[];
     arpaHistory: { month: string; arpa: number }[];
   };
 
-  // Pipeline (HubSpot)
+  // Pipeline (HubSpot – all amounts in DKK øre)
   pipeline: {
-    totalPipelineValue: number; // USD cents
+    totalPipelineValue: number; // DKK øre
     weightedPipeline: number;
     pipelineCoverage: number | null; // weighted / net new MRR
     dealsWon: number;
@@ -63,7 +64,7 @@ export interface ReportData {
     dealsOpen: number;
     winRate: number | null;
     avgSalesCycleDays: number;
-    avgDealSize: number; // USD cents
+    avgDealSize: number; // DKK øre
     deals: PipelineDeal[];
   };
 
@@ -111,12 +112,13 @@ export interface CustomerSummary {
   status: string;
   partner: string | null;
   matchConfidence: string;
+  churnDate?: string | null;
 }
 
 export interface PipelineDeal {
   id: string;
   name: string;
-  amount: number; // USD cents
+  amount: number; // DKK øre
   stage: string;
   probability: number;
   closeDate: string | null;

@@ -9,7 +9,7 @@ import {
   CartesianGrid,
   Tooltip,
 } from "recharts";
-import { WATERFALL_COLORS, CHART_GRID_PROPS, CHART_AXIS_PROPS } from "./ChartTheme";
+import { WATERFALL_COLORS, CHART_COLORS, CHART_GRID_PROPS, CHART_AXIS_PROPS } from "./ChartTheme";
 import type { MRRDecomposition } from "@/lib/metrics";
 
 interface MRRWaterfallProps {
@@ -34,12 +34,12 @@ export function MRRWaterfall({ decomposition, formatValue }: MRRWaterfallProps) 
         <YAxis {...CHART_AXIS_PROPS} tickFormatter={(v: number) => formatValue(Math.abs(v))} />
         <Tooltip
           contentStyle={{
-            background: "rgba(17, 24, 39, 0.95)",
-            border: "1px solid #1E293B",
+            background: CHART_COLORS.tooltipBg,
+            border: `1px solid ${CHART_COLORS.grid}`,
             borderRadius: "0.5rem",
           }}
           labelStyle={{ color: "#F8FAFC" }}
-          itemStyle={{ color: "#94A3B8" }}
+          itemStyle={{ color: CHART_COLORS.text }}
           formatter={(value: number | undefined) => [formatValue(Math.abs(value ?? 0)), ""]}
         />
         <Bar

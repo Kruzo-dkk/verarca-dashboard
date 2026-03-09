@@ -31,14 +31,14 @@ export interface PipelineStage {
 }
 
 export interface PipelineMetrics {
-  totalPipelineValue: number;    // USD cents, open deals
-  weightedPipeline: number;      // USD cents, probability-weighted
+  totalPipelineValue: number;    // DKK øre (deal amounts from HubSpot home currency)
+  weightedPipeline: number;      // DKK øre, probability-weighted
   dealsWon: number;
   dealsLost: number;
   dealsOpen: number;
   winRate: number;               // percentage
   avgSalesCycleDays: number;
-  avgDealSize: number;           // USD cents
+  avgDealSize: number;           // DKK øre
   deals: HubSpotDeal[];
 }
 
@@ -162,15 +162,19 @@ export function calculatePipelineMetrics(
     return stage && !stage.isClosed;
   });
 
-  // Convert dollar amounts to cents
-  const toCents = (val: string | null) => Math.round(parseFloat(val || "0") * 100);
+  // Convert amounts to minor units (øre). Prefer amount_in_home_currency (always DKK)
+  // over amount (which may be in deal's local currency like EUR/USD).
+  const toOre = (d: HubSpotDeal) => {
+    const raw = d.properties.amount_in_home_currency ?? d.properties.amount;
+    return Math.round(parseFloat(raw || "0") * 100);
+  };
 
   const totalPipelineValue = openDeals.reduce(
-    (sum, d) => sum + toCents(d.properties.amount), 0
+    (sum, d) => sum + toOre(d), 0
   );
 
   const weightedPipeline = openDeals.reduce((sum, d) => {
-    const amount = toCents(d.properties.amount);
+    const amount = toOre(d);
     const stage = stageMap.get(d.properties.dealstage);
     return sum + Math.round(amount * (stage?.probability ?? 0));
   }, 0);
@@ -187,7 +191,7 @@ export function calculatePipelineMetrics(
     ? salesCycles.reduce((a, b) => a + b, 0) / salesCycles.length
     : 0;
 
-  const wonAmounts = wonDeals.map(d => toCents(d.properties.amount));
+  const wonAmounts = wonDeals.map(d => toOre(d));
   const avgDealSize = wonAmounts.length > 0
     ? wonAmounts.reduce((a, b) => a + b, 0) / wonAmounts.length
     : 0;

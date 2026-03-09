@@ -7,10 +7,9 @@ import type { ReportData } from "@/lib/types/report";
 interface PipelineSectionProps {
   data: ReportData;
   formatValue: (v: number) => string;
-  formatUSD: (v: number) => string;
 }
 
-export function PipelineSection({ data, formatValue: _formatValue, formatUSD }: PipelineSectionProps) {
+export function PipelineSection({ data, formatValue }: PipelineSectionProps) {
   const p = data.pipeline;
 
   return (
@@ -21,11 +20,11 @@ export function PipelineSection({ data, formatValue: _formatValue, formatUSD }: 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 mb-4">
         <GlassCard className="text-center">
           <span className="text-xs text-[var(--text-muted)]">Pipeline Value</span>
-          <div className="metric-value text-xl mt-1">{formatUSD(p.totalPipelineValue)}</div>
+          <div className="metric-value text-xl mt-1">{formatValue(p.totalPipelineValue)}</div>
         </GlassCard>
         <GlassCard className="text-center">
           <span className="text-xs text-[var(--text-muted)]">Weighted</span>
-          <div className="metric-value text-xl mt-1">{formatUSD(p.weightedPipeline)}</div>
+          <div className="metric-value text-xl mt-1">{formatValue(p.weightedPipeline)}</div>
         </GlassCard>
         <GlassCard className="text-center">
           <span className="text-xs text-[var(--text-muted)]">Win Rate</span>
@@ -59,7 +58,7 @@ export function PipelineSection({ data, formatValue: _formatValue, formatUSD }: 
           <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
             <div>
               <span className="text-[var(--text-muted)] text-xs">Avg Deal Size</span>
-              <div className="metric-value">{formatUSD(p.avgDealSize)}</div>
+              <div className="metric-value">{formatValue(p.avgDealSize)}</div>
             </div>
             <div>
               <span className="text-[var(--text-muted)] text-xs">Avg Sales Cycle</span>
@@ -87,7 +86,7 @@ export function PipelineSection({ data, formatValue: _formatValue, formatUSD }: 
                     <td className="py-1.5 text-[var(--text-primary)] truncate max-w-[150px]">
                       {deal.name}
                     </td>
-                    <td className="py-1.5 text-right metric-value">{formatUSD(deal.amount)}</td>
+                    <td className="py-1.5 text-right metric-value">{formatValue(deal.amount)}</td>
                     <td className="py-1.5 text-[var(--text-secondary)]">{deal.stage}</td>
                     <td className="py-1.5 text-right metric-value">{(deal.probability * 100).toFixed(0)}%</td>
                   </tr>

@@ -68,11 +68,6 @@ export function ReportShell() {
     [currency, fxRates]
   );
 
-  // USD pipeline formatting (always in USD)
-  const formatUSD = useCallback((usdCents: number): string => {
-    return `$${Math.round(usdCents / 100).toLocaleString("en-US")}`;
-  }, []);
-
   return (
     <div className="min-h-screen px-6 py-8">
       <div className="mx-auto max-w-[1400px]">
@@ -122,7 +117,7 @@ export function ReportShell() {
             <RevenueSection data={data} formatValue={formatValue} />
             <RetentionSection data={data} />
             <CustomerSection data={data} formatValue={formatValue} />
-            <PipelineSection data={data} formatValue={formatValue} formatUSD={formatUSD} />
+            <PipelineSection data={data} formatValue={formatValue} />
             <UnitEconomicsSection data={data} formatValue={formatValue} />
             <CommentarySection
               month={month}

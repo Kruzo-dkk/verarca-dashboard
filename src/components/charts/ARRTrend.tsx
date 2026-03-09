@@ -39,8 +39,8 @@ export function ARRTrend({ data, formatValue }: ARRTrendProps) {
         <YAxis {...CHART_AXIS_PROPS} tickFormatter={(v: number) => formatValue(v)} />
         <Tooltip
           contentStyle={{
-            background: "rgba(17, 24, 39, 0.95)",
-            border: "1px solid #1E293B",
+            background: CHART_COLORS.tooltipBg,
+            border: `1px solid ${CHART_COLORS.grid}`,
             borderRadius: "0.5rem",
           }}
           labelStyle={{ color: "#F8FAFC" }}

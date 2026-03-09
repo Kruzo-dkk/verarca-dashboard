@@ -88,7 +88,7 @@ export async function GET(request: Request) {
         const dealsJson = metrics.deals.map((d) => ({
           id: d.id,
           name: d.properties.dealname,
-          amount: d.properties.amount,
+          amount: d.properties.amount_in_home_currency ?? d.properties.amount,
           stage: d.properties.dealstage,
           stage_label: stageMap.get(d.properties.dealstage) ?? d.properties.dealstage,
           closedate: d.properties.closedate,

@@ -1,18 +1,23 @@
 @import "tailwindcss";
 
 :root {
-  --bg-primary: #0A0E1A;
-  --bg-card: #111827;
-  --bg-card-hover: #1a2235;
-  --border-subtle: #1E293B;
-  --border-medium: #334155;
-  --text-primary: #F8FAFC;
-  --text-secondary: #94A3B8;
-  --text-muted: #64748B;
+  /* Verarca brand palette */
+  --bg-primary: #1a1d21;
+  --bg-card: #22262b;
+  --bg-card-hover: #2a2f35;
+  --border-subtle: #32373c;
+  --border-medium: #444a52;
+  --text-primary: #F0F2F4;
+  --text-secondary: #9CA3AF;
+  --text-muted: #6B7280;
+
+  /* Accent: verarca cyan-blue */
+  --accent-cyan: #0693e3;
+  --accent-teal: #7bdcb5;
   --accent-emerald: #10B981;
   --accent-red: #EF4444;
   --accent-amber: #F59E0B;
-  --accent-blue: #3B82F6;
+  --accent-blue: #0693e3;
 }
 
 @theme inline {
@@ -28,9 +33,9 @@ body {
   color: var(--text-primary);
 }
 
-/* Glass card effect */
+/* Glass card effect – charcoal-toned glass */
 .glass-card {
-  background: rgba(17, 24, 39, 0.8);
+  background: rgba(34, 38, 43, 0.85);
   backdrop-filter: blur(12px);
   border: 1px solid var(--border-subtle);
   border-radius: 1rem;
@@ -38,7 +43,7 @@ body {
 
 /* Chart tooltip glass */
 .chart-tooltip {
-  background: rgba(17, 24, 39, 0.95);
+  background: rgba(34, 38, 43, 0.95);
   backdrop-filter: blur(8px);
   border: 1px solid var(--border-subtle);
   border-radius: 0.5rem;

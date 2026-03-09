@@ -165,13 +165,15 @@ export async function syncCustomers(): Promise<void> {
         ? sub.cancelled.substring(0, 10)
         : null;
 
-    const displayName =
-      [customer.first_name, customer.last_name].filter(Boolean).join(" ") ||
-      customer.handle;
+    // Prefer ClickUp folder name (company name) over Frisbii contact name
+    const companyName = clickupMatch?.name
+      || customer.handle;
+    // Also keep contact name as a reference but we don't store it separately
+    // The handle is typically a company slug
 
     rows.push({
       frisbii_handle: customer.handle,
-      name: displayName,
+      name: companyName,
       email: customer.email || null,
       cvr: vat || (clickupMatch?.cvr ? clickupMatch.cvr.replace(/\D/g, "") : null),
       segment: inferSegment(sub?.plan || null),

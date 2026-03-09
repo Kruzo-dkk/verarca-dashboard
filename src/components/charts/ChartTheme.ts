@@ -1,16 +1,19 @@
-/** Shared Recharts dark theme configuration */
+/** Shared Recharts theme – aligned with Verarca brand */
 
 export const CHART_COLORS = {
+  // Verarca brand accents
+  cyan: "#0693e3",     // primary accent (verarca cyan-blue)
+  teal: "#7bdcb5",     // secondary accent (verarca light green-cyan)
   emerald: "#10B981",
   red: "#EF4444",
   amber: "#F59E0B",
-  blue: "#3B82F6",
+  blue: "#0693e3",
   purple: "#8B5CF6",
-  cyan: "#06B6D4",
-  slate: "#64748B",
-  grid: "#1E293B",
-  text: "#94A3B8",
-  tooltipBg: "rgba(17, 24, 39, 0.95)",
+  slate: "#6B7280",
+  // Chart structural colors
+  grid: "#32373c",
+  text: "#9CA3AF",
+  tooltipBg: "rgba(34, 38, 43, 0.95)",
 } as const;
 
 export const CHART_GRID_PROPS = {
@@ -34,8 +37,8 @@ export const CHART_MARGIN = {
 
 /** MRR Waterfall colors */
 export const WATERFALL_COLORS = {
-  new: "#10B981",
-  expansion: "#06B6D4",
+  new: "#0693e3",       // verarca cyan for new MRR
+  expansion: "#7bdcb5", // verarca teal for expansion
   contraction: "#F59E0B",
   churned: "#EF4444",
 } as const;

@@ -33,7 +33,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body
-        className={`${dmSans.variable} ${dmSerif.variable} ${ibmPlexMono.variable} antialiased bg-[#0A0E1A] text-white font-[family-name:var(--font-body)]`}
+        className={`${dmSans.variable} ${dmSerif.variable} ${ibmPlexMono.variable} antialiased bg-[#1a1d21] text-white font-[family-name:var(--font-body)]`}
       >
         {children}
       </body>

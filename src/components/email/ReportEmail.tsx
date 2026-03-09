@@ -14,10 +14,6 @@ function fmt(dkkOre: number, currency: Currency, fxRates: FXRates): string {
   return formatAmount(converted, currency);
 }
 
-function fmtUSD(usdCents: number): string {
-  return `$${Math.round(usdCents / 100).toLocaleString("en-US")}`;
-}
-
 function fmtPct(value: number | null): string {
   if (value === null) return "—";
   return `${value.toFixed(1)}%`;
@@ -73,7 +69,7 @@ export function ReportEmail({ data, month, currency, fxRates }: ReportEmailProps
         <table cellPadding={0} cellSpacing={0} style={{ width: "100%", maxWidth: 600, margin: "0 auto", backgroundColor: "#FFFFFF" }}>
           {/* Header */}
           <tr>
-            <td style={{ padding: "32px 24px 20px", backgroundColor: "#0A0E1A", color: "#F8FAFC" }}>
+            <td style={{ padding: "32px 24px 20px", backgroundColor: "#1a1d21", color: "#F8FAFC" }}>
               <table cellPadding={0} cellSpacing={0} style={{ width: "100%" }}>
                 <tr>
                   <td>
@@ -238,19 +234,19 @@ export function ReportEmail({ data, month, currency, fxRates }: ReportEmailProps
           {/* Pipeline */}
           <tr>
             <td style={{ padding: "24px" }}>
-              <h2 style={sectionTitle}>Pipeline (USD)</h2>
+              <h2 style={sectionTitle}>Pipeline</h2>
               <table cellPadding={0} cellSpacing={0} style={{ width: "100%", fontSize: 13 }}>
                 <tr>
                   <td style={metricRow}>Total Pipeline</td>
-                  <td style={metricVal}>{fmtUSD(data.pipeline.totalPipelineValue)}</td>
+                  <td style={metricVal}>{f(data.pipeline.totalPipelineValue)}</td>
                   <td style={metricRow}>Weighted</td>
-                  <td style={metricVal}>{fmtUSD(data.pipeline.weightedPipeline)}</td>
+                  <td style={metricVal}>{f(data.pipeline.weightedPipeline)}</td>
                 </tr>
                 <tr>
                   <td style={metricRow}>Win Rate</td>
                   <td style={metricVal}>{fmtPct(data.pipeline.winRate)}</td>
                   <td style={metricRow}>Avg Deal Size</td>
-                  <td style={metricVal}>{fmtUSD(data.pipeline.avgDealSize)}</td>
+                  <td style={metricVal}>{f(data.pipeline.avgDealSize)}</td>
                 </tr>
                 <tr>
                   <td style={metricRow}>Won</td>

@@ -165,21 +165,39 @@ export async function getReportData(
 
   // ------ Top customers --------------------------------------------------
 
+  const mapSnapshot = (cs: { customer_id: number; mrr: number; status: string; plan_handle: string | null }) => {
+    const cust = customerMap.get(cs.customer_id);
+    return {
+      id: cs.customer_id,
+      name: cust?.name ?? `Customer ${cs.customer_id}`,
+      mrr: cs.mrr,
+      plan: cs.plan_handle,
+      status: cs.status,
+      partner: cust?.partner ?? null,
+      matchConfidence: cust?.match_confidence ?? "unknown",
+    };
+  };
+
   const topCustomers: CustomerSummary[] = customerSnapshots
     .sort((a, b) => b.mrr - a.mrr)
     .slice(0, 20)
-    .map((cs) => {
-      const cust = customerMap.get(cs.customer_id);
-      return {
-        id: cs.customer_id,
-        name: cust?.name ?? `Customer ${cs.customer_id}`,
-        mrr: cs.mrr,
-        plan: cs.plan_handle,
-        status: cs.status,
-        partner: cust?.partner ?? null,
-        matchConfidence: cust?.match_confidence ?? "unknown",
-      };
-    });
+    .map(mapSnapshot);
+
+  // Recently churned customers (status = churned, sorted by most recent churn date)
+  const recentlyChurned: CustomerSummary[] = customers
+    .filter(c => c.status === "churned" && c.churn_date)
+    .sort((a, b) => (b.churn_date ?? "").localeCompare(a.churn_date ?? ""))
+    .slice(0, 20)
+    .map(c => ({
+      id: c.id,
+      name: c.name ?? c.frisbii_handle,
+      mrr: 0,
+      plan: c.plan_handle,
+      status: "churned",
+      partner: c.partner ?? null,
+      matchConfidence: c.match_confidence ?? "unknown",
+      churnDate: c.churn_date ?? null,
+    }));
 
   // ------ Cohort data ----------------------------------------------------
 
@@ -279,6 +297,7 @@ export async function getReportData(
       top10Concentration: snap?.top10_concentration ?? null,
       segments,
       topCustomers,
+      recentlyChurned,
       countHistory,
       arpaHistory,
     },
@@ -407,11 +426,12 @@ function parsePipelineDeals(dealsJson: unknown): PipelineDeal[] {
   return dealsJson.map((d: Record<string, unknown>) => ({
     id: String(d.id ?? ""),
     name: String(d.name ?? ""),
-    amount: Number(d.amount ?? 0),
-    stage: String(d.stage ?? ""),
+    // deals_json stores amount as whole DKK (e.g. "50000"); convert to øre
+    amount: Math.round(Number(d.amount ?? 0) * 100),
+    stage: String(d.stage_label ?? d.stage ?? ""),
     probability: Number(d.probability ?? 0),
-    closeDate: d.closeDate != null ? String(d.closeDate) : null,
-    daysToClose: d.daysToClose != null ? Number(d.daysToClose) : null,
+    closeDate: d.closedate != null ? String(d.closedate) : null,
+    daysToClose: d.days_to_close != null ? Number(d.days_to_close) : null,
     createDate: String(d.createDate ?? ""),
   }));
 }
