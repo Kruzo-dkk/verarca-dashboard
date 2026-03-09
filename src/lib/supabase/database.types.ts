@@ -14,6 +14,128 @@ export type Database = {
   }
   public: {
     Tables: {
+      customer_snapshots: {
+        Row: {
+          created_at: string
+          customer_id: number
+          id: number
+          month: string
+          mrr: number
+          plan_handle: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id: number
+          id?: never
+          month: string
+          mrr?: number
+          plan_handle?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: number
+          id?: never
+          month?: string
+          mrr?: number
+          plan_handle?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_snapshots_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customers: {
+        Row: {
+          churn_date: string | null
+          clickup_folder_id: string | null
+          created_at: string
+          cvr: string | null
+          email: string | null
+          frisbii_handle: string
+          hubspot_company_id: string | null
+          id: number
+          match_confidence: string
+          name: string
+          partner: string | null
+          plan_handle: string | null
+          segment: string | null
+          start_date: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          churn_date?: string | null
+          clickup_folder_id?: string | null
+          created_at?: string
+          cvr?: string | null
+          email?: string | null
+          frisbii_handle: string
+          hubspot_company_id?: string | null
+          id?: never
+          match_confidence?: string
+          name: string
+          partner?: string | null
+          plan_handle?: string | null
+          segment?: string | null
+          start_date?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          churn_date?: string | null
+          clickup_folder_id?: string | null
+          created_at?: string
+          cvr?: string | null
+          email?: string | null
+          frisbii_handle?: string
+          hubspot_company_id?: string | null
+          id?: never
+          match_confidence?: string
+          name?: string
+          partner?: string | null
+          plan_handle?: string | null
+          segment?: string | null
+          start_date?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      fx_rates: {
+        Row: {
+          created_at: string
+          eur_rate: number
+          id: number
+          locked_at: string
+          month: string
+          usd_rate: number
+        }
+        Insert: {
+          created_at?: string
+          eur_rate: number
+          id?: never
+          locked_at?: string
+          month: string
+          usd_rate: number
+        }
+        Update: {
+          created_at?: string
+          eur_rate?: number
+          id?: never
+          locked_at?: string
+          month?: string
+          usd_rate?: number
+        }
+        Relationships: []
+      }
       metric_snapshots: {
         Row: {
           arpc: number
@@ -53,6 +175,144 @@ export type Database = {
           mrr?: number
           net_new_mrr?: number
           updated_at?: string
+        }
+        Relationships: []
+      }
+      monthly_snapshots: {
+        Row: {
+          arpa: number
+          arr: number
+          churned_logos: number
+          churned_mrr: number
+          contraction_mrr: number
+          created_at: string
+          customer_count: number
+          executive_summary: string | null
+          expansion_mrr: number
+          grr: number | null
+          highlights: string | null
+          id: number
+          logo_retention_rate: number | null
+          lowlights: string | null
+          month: string
+          mrr: number
+          mrr_growth_mom: number | null
+          mrr_growth_yoy: number | null
+          net_new_mrr: number
+          new_logos: number
+          new_mrr: number
+          non_recurring_revenue: number
+          nrr: number | null
+          quick_ratio: number | null
+          top10_concentration: number | null
+          updated_at: string
+          whats_ahead: string | null
+        }
+        Insert: {
+          arpa?: number
+          arr?: number
+          churned_logos?: number
+          churned_mrr?: number
+          contraction_mrr?: number
+          created_at?: string
+          customer_count?: number
+          executive_summary?: string | null
+          expansion_mrr?: number
+          grr?: number | null
+          highlights?: string | null
+          id?: never
+          logo_retention_rate?: number | null
+          lowlights?: string | null
+          month: string
+          mrr?: number
+          mrr_growth_mom?: number | null
+          mrr_growth_yoy?: number | null
+          net_new_mrr?: number
+          new_logos?: number
+          new_mrr?: number
+          non_recurring_revenue?: number
+          nrr?: number | null
+          quick_ratio?: number | null
+          top10_concentration?: number | null
+          updated_at?: string
+          whats_ahead?: string | null
+        }
+        Update: {
+          arpa?: number
+          arr?: number
+          churned_logos?: number
+          churned_mrr?: number
+          contraction_mrr?: number
+          created_at?: string
+          customer_count?: number
+          executive_summary?: string | null
+          expansion_mrr?: number
+          grr?: number | null
+          highlights?: string | null
+          id?: never
+          logo_retention_rate?: number | null
+          lowlights?: string | null
+          month?: string
+          mrr?: number
+          mrr_growth_mom?: number | null
+          mrr_growth_yoy?: number | null
+          net_new_mrr?: number
+          new_logos?: number
+          new_mrr?: number
+          non_recurring_revenue?: number
+          nrr?: number | null
+          quick_ratio?: number | null
+          top10_concentration?: number | null
+          updated_at?: string
+          whats_ahead?: string | null
+        }
+        Relationships: []
+      }
+      pipeline_snapshots: {
+        Row: {
+          avg_deal_size: number
+          avg_sales_cycle_days: number
+          created_at: string
+          deals_json: Json | null
+          deals_lost: number
+          deals_open: number
+          deals_won: number
+          id: number
+          month: string
+          total_pipeline_value: number
+          updated_at: string
+          weighted_pipeline: number
+          win_rate: number | null
+        }
+        Insert: {
+          avg_deal_size?: number
+          avg_sales_cycle_days?: number
+          created_at?: string
+          deals_json?: Json | null
+          deals_lost?: number
+          deals_open?: number
+          deals_won?: number
+          id?: never
+          month: string
+          total_pipeline_value?: number
+          updated_at?: string
+          weighted_pipeline?: number
+          win_rate?: number | null
+        }
+        Update: {
+          avg_deal_size?: number
+          avg_sales_cycle_days?: number
+          created_at?: string
+          deals_json?: Json | null
+          deals_lost?: number
+          deals_open?: number
+          deals_won?: number
+          id?: never
+          month?: string
+          total_pipeline_value?: number
+          updated_at?: string
+          weighted_pipeline?: number
+          win_rate?: number | null
         }
         Relationships: []
       }
