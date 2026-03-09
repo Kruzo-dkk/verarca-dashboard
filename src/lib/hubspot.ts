@@ -26,7 +26,8 @@ export interface PipelineStage {
   stageId: string;
   label: string;
   displayOrder: number;
-  probability: number;
+  probability: number;   // 0.0–1.0 decimal
+  isClosed: boolean;
 }
 
 export interface PipelineMetrics {
@@ -99,11 +100,13 @@ export async function getPipelineStages(): Promise<PipelineStage[]> {
   const pipeline = data.results?.[0];
   if (!pipeline) return [];
 
-  return pipeline.stages.map((s: { stageId: string; label: string; displayOrder: number; metadata: { probability: string } }) => ({
+  return pipeline.stages.map((s: { stageId: string; label: string; displayOrder: number; metadata: { probability: string; isClosed: string } }) => ({
     stageId: s.stageId,
     label: s.label,
     displayOrder: s.displayOrder,
-    probability: parseFloat(s.metadata?.probability ?? "0") / 100,
+    // HubSpot returns probability already as a decimal (0.1, 0.3, 1.0)
+    probability: parseFloat(s.metadata?.probability ?? "0"),
+    isClosed: s.metadata?.isClosed === "true",
   }));
 }
 
@@ -122,24 +125,26 @@ export function calculatePipelineMetrics(
       if (closeDate && closeDate.startsWith(month)) return true;
       // Include open deals regardless of month
       const stage = stageMap.get(d.properties.dealstage);
-      if (stage && stage.probability > 0 && stage.probability < 1) return true;
+      if (stage && !stage.isClosed) return true;
       return false;
     });
   }
 
-  // HubSpot uses numeric stage IDs – detect won/lost/open by probability
-  // probability === 1 → won, probability === 0 → lost, 0 < p < 1 → open
+  // HubSpot uses numeric stage IDs – detect won/lost/open by isClosed + probability
+  // isClosed + probability >= 1.0 → won
+  // isClosed + probability < 1.0  → lost
+  // !isClosed                      → open
   const wonDeals = filtered.filter(d => {
     const stage = stageMap.get(d.properties.dealstage);
-    return stage && stage.probability === 1;
+    return stage && stage.isClosed && stage.probability >= 1.0;
   });
   const lostDeals = filtered.filter(d => {
     const stage = stageMap.get(d.properties.dealstage);
-    return stage && stage.probability === 0;
+    return stage && stage.isClosed && stage.probability < 1.0;
   });
   const openDeals = filtered.filter(d => {
     const stage = stageMap.get(d.properties.dealstage);
-    return stage && stage.probability > 0 && stage.probability < 1;
+    return stage && !stage.isClosed;
   });
 
   // Convert dollar amounts to cents
