@@ -1,4 +1,4 @@
-const BASE_URL = "https://api.hubspotapi.com/crm/v3";
+const BASE_URL = "https://api-eu1.hubapi.com/crm/v3";
 
 function getAuthHeader(): string {
   const token = process.env.HUBSPOT_API_TOKEN;
@@ -83,7 +83,7 @@ export async function listDeals(): Promise<HubSpotDeal[]> {
 export async function getPipelineStages(): Promise<PipelineStage[]> {
   // Use the pipelines API endpoint
   const response = await fetch(
-    "https://api.hubspotapi.com/crm/v3/pipelines/deals",
+    "https://api-eu1.hubapi.com/crm/v3/pipelines/deals",
     {
       headers: {
         Authorization: getAuthHeader(),
