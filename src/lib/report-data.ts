@@ -61,6 +61,7 @@ export async function getReportData(
     customersRes,
     pipelineRes,
     fxRes,
+    settingsRes,
   ] = await Promise.all([
     // 1. End-month snapshot (point-in-time metrics)
     supabase
@@ -109,6 +110,13 @@ export async function getReportData(
       .select("eur_rate, usd_rate")
       .eq("month", endMonth)
       .maybeSingle(),
+
+    // 8. Settings for the end month (CAC spend, employee override)
+    supabase
+      .from("settings")
+      .select("total_cac, employee_count")
+      .eq("month", endMonth)
+      .maybeSingle(),
   ]);
 
   // ------ Unpack & default values ----------------------------------------
@@ -120,6 +128,7 @@ export async function getReportData(
   const customers = customersRes.data ?? [];
   const pipeline = pipelineRes.data;
   const fxRow = fxRes.data;
+  const settingsRow = settingsRes.data;
 
   const fxRates: FXRates = {
     EUR: fxRow?.eur_rate ?? 0,
@@ -274,11 +283,18 @@ export async function getReportData(
   let employeeCount: number | null = null;
   let ltv: number | null = null;
   let revenuePerEmployee: number | null = null;
+  let cac: number | null = null;
+  let ltvCacRatio: number | null = null;
 
-  try {
-    employeeCount = await getTeamMemberCount();
-  } catch {
-    // ClickUp may be unavailable; continue with null
+  // Employee count: settings override takes precedence over ClickUp
+  if (settingsRow?.employee_count != null) {
+    employeeCount = settingsRow.employee_count;
+  } else {
+    try {
+      employeeCount = await getTeamMemberCount();
+    } catch {
+      // ClickUp may be unavailable; continue with null
+    }
   }
 
   const arpa = snap?.arpa ?? 0;
@@ -300,6 +316,17 @@ export async function getReportData(
       snap?.arr ?? 0,
       employeeCount
     );
+  }
+
+  // CAC: total S&M spend / new logos (both must be > 0)
+  const totalCacSpend = settingsRow?.total_cac ?? 0;
+  if (totalCacSpend > 0 && totalNewLogos > 0) {
+    cac = Math.round(totalCacSpend / totalNewLogos);
+  }
+
+  // LTV/CAC ratio (both must be available)
+  if (ltv !== null && cac !== null && cac > 0) {
+    ltvCacRatio = Math.round((ltv / cac) * 100) / 100;
   }
 
   // ------ Assemble ReportData --------------------------------------------
@@ -360,8 +387,8 @@ export async function getReportData(
       ltv,
       revenuePerEmployee,
       employeeCount,
-      cac: null,
-      ltvCacRatio: null,
+      cac,
+      ltvCacRatio,
       grossMargin: null,
       ruleOf40: null,
     },

@@ -73,9 +73,9 @@ export interface ReportData {
     ltv: number | null;
     revenuePerEmployee: number | null;
     employeeCount: number | null;
+    cac: number | null;
+    ltvCacRatio: number | null;
     // Stubbed - requires accounting integration
-    cac: null;
-    ltvCacRatio: null;
     grossMargin: null;
     ruleOf40: null;
   };

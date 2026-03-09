@@ -316,6 +316,36 @@ export type Database = {
         }
         Relationships: []
       }
+      settings: {
+        Row: {
+          created_at: string | null
+          employee_count: number | null
+          id: number
+          month: string
+          notes: string | null
+          total_cac: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          employee_count?: number | null
+          id?: never
+          month: string
+          notes?: string | null
+          total_cac?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          employee_count?: number | null
+          id?: never
+          month?: string
+          notes?: string | null
+          total_cac?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

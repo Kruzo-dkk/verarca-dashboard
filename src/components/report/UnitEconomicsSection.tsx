@@ -37,16 +37,19 @@ export function UnitEconomicsSection({ data, formatValue }: UnitEconomicsSection
     {
       label: "CAC",
       metric: "cac",
-      value: null,
-      available: false,
-      stub: "Configure in Settings",
+      value: ue.cac !== null ? formatValue(ue.cac) : null,
+      available: ue.cac !== null,
+      stub: ue.cac === null ? "Configure in Settings" : undefined,
     },
     {
       label: "LTV/CAC Ratio",
       metric: "ltvCacRatio",
-      value: null,
-      available: false,
-      stub: "Configure in Settings",
+      value: ue.ltvCacRatio !== null ? `${ue.ltvCacRatio.toFixed(1)}x` : null,
+      available: ue.ltvCacRatio !== null,
+      subtitle: ue.ltvCacRatio !== null
+        ? ue.ltvCacRatio >= 3 ? "Healthy" : ue.ltvCacRatio >= 1 ? "Monitor" : "Below target"
+        : undefined,
+      stub: ue.ltvCacRatio === null ? "Configure in Settings" : undefined,
     },
     {
       label: "Gross Margin",
