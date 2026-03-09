@@ -219,3 +219,190 @@ export function getSubscriptionBreakdown(
     }))
     .sort((a, b) => b.mrr - a.mrr);
 }
+
+// ─── M&A Metric Types ──────────────────────────────────────────
+
+export interface MRRDecomposition {
+  newMRR: number;
+  expansionMRR: number;
+  contractionMRR: number;
+  churnedMRR: number;
+  netNewMRR: number;
+}
+
+export interface CustomerMRRSnapshot {
+  customerId: string;
+  mrr: number;
+  status: string;
+  planHandle: string;
+}
+
+// ─── M&A Metric Functions ──────────────────────────────────────
+
+/**
+ * Decompose MRR changes between two months into components.
+ *
+ * - New MRR: customers present in current but not in previous
+ * - Churned MRR: customers present in previous but not in current
+ * - Expansion MRR: existing customers whose MRR increased
+ * - Contraction MRR: existing customers whose MRR decreased
+ */
+export function decomposeMRR(
+  currentSnapshots: CustomerMRRSnapshot[],
+  prevSnapshots: CustomerMRRSnapshot[]
+): MRRDecomposition {
+  const prevMap = new Map(prevSnapshots.map(s => [s.customerId, s.mrr]));
+  const currMap = new Map(currentSnapshots.map(s => [s.customerId, s.mrr]));
+
+  let newMRR = 0;
+  let expansionMRR = 0;
+  let contractionMRR = 0;
+  let churnedMRR = 0;
+
+  // Check current customers against previous
+  for (const [id, currMrr] of currMap) {
+    const prevMrr = prevMap.get(id);
+    if (prevMrr === undefined) {
+      // New customer
+      newMRR += currMrr;
+    } else if (currMrr > prevMrr) {
+      expansionMRR += currMrr - prevMrr;
+    } else if (currMrr < prevMrr) {
+      contractionMRR += prevMrr - currMrr;
+    }
+  }
+
+  // Check for churned customers (in previous but not in current)
+  for (const [id, prevMrr] of prevMap) {
+    if (!currMap.has(id)) {
+      churnedMRR += prevMrr;
+    }
+  }
+
+  return {
+    newMRR,
+    expansionMRR,
+    contractionMRR,
+    churnedMRR,
+    netNewMRR: newMRR + expansionMRR - contractionMRR - churnedMRR,
+  };
+}
+
+/**
+ * Net Revenue Retention (NRR).
+ * Measures revenue retained + expanded from existing customers over a period.
+ *
+ * NRR = (End MRR from customers who existed at Start) / Start MRR × 100
+ *
+ * > 100% means expansion exceeds churn. Best-in-class SaaS: 120%+.
+ */
+export function calculateNRR(
+  startMRR: number,
+  endMRRExistingCustomers: number
+): number {
+  if (startMRR === 0) return 0;
+  return Math.round((endMRRExistingCustomers / startMRR) * 10000) / 100;
+}
+
+/**
+ * Gross Revenue Retention (GRR).
+ * Measures revenue retained from existing customers, excluding expansion.
+ *
+ * GRR = (Start MRR - Contraction - Churned) / Start MRR × 100
+ *
+ * Always ≤ 100%. Best-in-class SaaS: 90%+.
+ */
+export function calculateGRR(
+  startMRR: number,
+  contractionMRR: number,
+  churnedMRR: number
+): number {
+  if (startMRR === 0) return 0;
+  const retained = startMRR - contractionMRR - churnedMRR;
+  return Math.round((Math.max(0, retained) / startMRR) * 10000) / 100;
+}
+
+/**
+ * SaaS Quick Ratio.
+ * Measures growth efficiency: how much new/expansion MRR vs. lost MRR.
+ *
+ * Quick Ratio = (New MRR + Expansion MRR) / (Churned MRR + Contraction MRR)
+ *
+ * > 4 = excellent, > 2 = good, < 1 = shrinking.
+ */
+export function calculateQuickRatio(
+  newMRR: number,
+  expansionMRR: number,
+  churnedMRR: number,
+  contractionMRR: number
+): number {
+  const lost = churnedMRR + contractionMRR;
+  if (lost === 0) return newMRR + expansionMRR > 0 ? Infinity : 0;
+  return Math.round(((newMRR + expansionMRR) / lost) * 100) / 100;
+}
+
+/**
+ * Revenue concentration: what % of total MRR comes from the top N customers.
+ *
+ * High concentration (>30% from top 10) = risk flag for acquirers.
+ */
+export function calculateConcentration(
+  customerMRRs: number[],
+  topN: number = 10
+): number {
+  if (customerMRRs.length === 0) return 0;
+  const total = customerMRRs.reduce((a, b) => a + b, 0);
+  if (total === 0) return 0;
+
+  const sorted = [...customerMRRs].sort((a, b) => b - a);
+  const topSum = sorted.slice(0, topN).reduce((a, b) => a + b, 0);
+  return Math.round((topSum / total) * 10000) / 100;
+}
+
+/**
+ * Customer Lifetime Value (LTV).
+ * LTV = ARPA / Monthly Churn Rate
+ *
+ * Both ARPA and result are in minor units (øre).
+ */
+export function calculateLTV(arpa: number, monthlyChurnRate: number): number {
+  if (monthlyChurnRate <= 0) return 0; // Cannot calculate if no churn
+  // monthlyChurnRate is a percentage (e.g., 2.5 = 2.5%)
+  return Math.round(arpa / (monthlyChurnRate / 100));
+}
+
+/**
+ * Revenue per employee.
+ * ARR (minor units) / employee count.
+ */
+export function calculateRevenuePerEmployee(
+  arr: number,
+  employeeCount: number
+): number {
+  if (employeeCount === 0) return 0;
+  return Math.round(arr / employeeCount);
+}
+
+/**
+ * Logo (customer count) retention rate.
+ * = (1 - churned / start) × 100
+ */
+export function calculateLogoRetention(
+  startCustomers: number,
+  churnedCustomers: number
+): number {
+  if (startCustomers === 0) return 0;
+  return Math.round((1 - churnedCustomers / startCustomers) * 10000) / 100;
+}
+
+/**
+ * MRR growth rate (month-over-month or year-over-year).
+ * = ((current - previous) / |previous|) × 100
+ */
+export function calculateMRRGrowth(
+  currentMRR: number,
+  previousMRR: number
+): number {
+  if (previousMRR === 0) return currentMRR > 0 ? 100 : 0;
+  return Math.round(((currentMRR - previousMRR) / Math.abs(previousMRR)) * 10000) / 100;
+}

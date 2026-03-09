@@ -13,6 +13,12 @@ import {
   calculateNetNewMRR,
   calculateARPC,
 } from "@/lib/metrics";
+import { runMonthlySyncAll } from "@/lib/sync/sync-monthly";
+
+function getCurrentMonth(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
@@ -29,7 +35,9 @@ export async function GET(request: Request) {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfMonthStr = startOfMonth.toISOString().split("T")[0];
     const today = now.toISOString().split("T")[0];
+    const month = getCurrentMonth();
 
+    // --- Daily metric snapshot (existing) ---
     const [activeSubscriptions, expiredThisMonth, newThisMonth, plans] =
       await Promise.all([
         listSubscriptions({ state: "active" }),
@@ -85,10 +93,17 @@ export async function GET(request: Request) {
 
     if (dbError) throw dbError;
 
+    // --- Monthly M&A report sync (FX, pipeline, customers, snapshots) ---
+    console.log(`[cron] Starting monthly sync for ${month}...`);
+    const syncSummary = await runMonthlySyncAll(month);
+    console.log(`[cron] Monthly sync complete:`, JSON.stringify(syncSummary, null, 2));
+
     return NextResponse.json({
-      message: "Snapshot saved",
+      message: "Snapshot saved + monthly sync complete",
       date: today,
+      month,
       snapshot,
+      sync: syncSummary,
     });
   } catch (error) {
     console.error("Failed to create snapshot:", error);
