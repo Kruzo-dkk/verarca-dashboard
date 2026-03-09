@@ -82,15 +82,15 @@ export function HeroKPIs({ data, formatValue }: HeroKPIsProps) {
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
+    <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-3 xl:grid-cols-6">
       {kpis.map((kpi) => (
-        <GlassCard key={kpi.label} className="flex flex-col gap-2">
+        <GlassCard key={kpi.label} className="flex flex-col gap-1.5 sm:gap-2">
           <MetricTooltip metric={kpi.metric}>
-            <span className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">
+            <span className="text-[10px] sm:text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide sm:tracking-wider">
               {kpi.label}
             </span>
           </MetricTooltip>
-          <span className="metric-value text-2xl text-[var(--text-primary)]">
+          <span className="metric-value text-xl sm:text-2xl text-[var(--text-primary)]">
             {kpi.value}
           </span>
           <div className="flex items-center gap-2">

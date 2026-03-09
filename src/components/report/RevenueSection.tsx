@@ -43,7 +43,7 @@ export function RevenueSection({ data, formatValue }: RevenueSectionProps) {
               </span>
             </div>
 
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:gap-6 sm:grid-cols-3">
               {/* List Price MRR */}
               <div>
                 <MetricTooltip metric="mrr">
@@ -142,7 +142,7 @@ export function RevenueSection({ data, formatValue }: RevenueSectionProps) {
       )}
 
       {/* Growth indicators */}
-      <div className="grid grid-cols-2 gap-4 mt-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 mt-4 lg:grid-cols-4">
         <GlassCard className="text-center">
           <MetricTooltip metric="momGrowth">
             <span className="text-xs text-[var(--text-muted)]">MoM Growth</span>

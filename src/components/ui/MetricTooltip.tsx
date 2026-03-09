@@ -90,7 +90,7 @@ export function MetricTooltip({ metric, children }: MetricTooltipProps) {
       {/* Info indicator dot */}
       <div className="relative">
         {children}
-        <span className="absolute -top-0.5 -right-2 w-2.5 h-2.5 rounded-full bg-[var(--accent-teal)] opacity-30 pointer-events-none" />
+        <span className="absolute -top-0.5 -right-2.5 w-3.5 h-3.5 sm:w-2.5 sm:h-2.5 rounded-full bg-[var(--accent-teal)] opacity-30 pointer-events-none" />
       </div>
 
       {/* Tooltip card */}
@@ -98,7 +98,7 @@ export function MetricTooltip({ metric, children }: MetricTooltipProps) {
         <div
           ref={tooltipRef}
           role="tooltip"
-          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-72 animate-tooltip-in"
+          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-[calc(100vw-2rem)] sm:w-72 animate-tooltip-in"
         >
           <div className="metric-tooltip-card rounded-lg p-3 text-left shadow-lg border border-[var(--border-subtle)] bg-[var(--bg-card)]">
             {/* Header */}
@@ -117,7 +117,7 @@ export function MetricTooltip({ metric, children }: MetricTooltipProps) {
             </div>
 
             {/* Source */}
-            <div className="flex items-center gap-1.5 text-[10px] text-[var(--text-muted)]">
+            <div className="flex items-center gap-1.5 text-[11px] sm:text-[10px] text-[var(--text-muted)]">
               <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <circle cx="8" cy="8" r="6" />
                 <path d="M8 5v3l2 1.5" />

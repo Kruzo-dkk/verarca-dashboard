@@ -9,7 +9,8 @@ import {
   CartesianGrid,
   Tooltip,
 } from "recharts";
-import { CHART_COLORS, CHART_GRID_PROPS, CHART_AXIS_PROPS } from "./ChartTheme";
+import { CHART_COLORS, CHART_GRID_PROPS, CHART_AXIS_PROPS, CHART_AXIS_PROPS_MOBILE, CHART_MARGIN, CHART_MARGIN_MOBILE } from "./ChartTheme";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 interface ARRTrendProps {
   data: { month: string; arr: number }[];
@@ -17,9 +18,13 @@ interface ARRTrendProps {
 }
 
 export function ARRTrend({ data, formatValue }: ARRTrendProps) {
+  const mobile = useIsMobile();
+  const axisProps = mobile ? CHART_AXIS_PROPS_MOBILE : CHART_AXIS_PROPS;
+  const margin = mobile ? CHART_MARGIN_MOBILE : CHART_MARGIN;
+
   return (
-    <ResponsiveContainer width="100%" height={280}>
-      <AreaChart data={data} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+    <ResponsiveContainer width="100%" height={mobile ? 220 : 280}>
+      <AreaChart data={data} margin={margin}>
         <defs>
           <linearGradient id="arrGradient" x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%" stopColor={CHART_COLORS.blue} stopOpacity={0.3} />
@@ -29,14 +34,15 @@ export function ARRTrend({ data, formatValue }: ARRTrendProps) {
         <CartesianGrid {...CHART_GRID_PROPS} />
         <XAxis
           dataKey="month"
-          {...CHART_AXIS_PROPS}
+          {...axisProps}
+          interval={mobile ? "equidistantPreserveStart" : undefined}
           tickFormatter={(m: string) => {
             const [, mo] = m.split("-");
             const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
             return monthNames[parseInt(mo) - 1] ?? m;
           }}
         />
-        <YAxis {...CHART_AXIS_PROPS} tickFormatter={(v: number) => formatValue(v)} />
+        <YAxis {...axisProps} tickFormatter={(v: number) => formatValue(v)} width={mobile ? 50 : undefined} />
         <Tooltip
           contentStyle={{
             background: CHART_COLORS.tooltipBg,

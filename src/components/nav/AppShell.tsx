@@ -90,7 +90,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </header>
 
       {/* ── Main content ────────────────────────────────────────── */}
-      <main className="mx-auto max-w-[1400px] px-4 sm:px-6 py-6 pb-20 lg:pb-6">
+      <main className="mx-auto max-w-[1400px] px-3 sm:px-6 py-4 sm:py-6 pb-24 lg:pb-6">
         {children}
       </main>
 

@@ -35,6 +35,20 @@ export const CHART_MARGIN = {
   bottom: 0,
 } as const;
 
+/** Mobile-optimised axis props (smaller font) */
+export const CHART_AXIS_PROPS_MOBILE = {
+  tick: { fill: CHART_COLORS.text, fontSize: 10 },
+  axisLine: false,
+  tickLine: false,
+} as const;
+
+export const CHART_MARGIN_MOBILE = {
+  top: 5,
+  right: 5,
+  left: 0,
+  bottom: 0,
+} as const;
+
 /** MRR Waterfall colors */
 export const WATERFALL_COLORS = {
   new: "#1A5C5A",       // verarca teal for new MRR

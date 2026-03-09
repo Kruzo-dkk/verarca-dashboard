@@ -79,7 +79,7 @@ export function ForecastPage() {
           <p className="text-sm text-red-600">{error}</p>
           <button
             onClick={fetchForecast}
-            className="mt-3 px-4 py-2 text-sm font-medium text-white bg-[var(--accent-teal)] rounded-lg hover:opacity-90"
+            className="mt-3 px-5 py-2.5 sm:px-4 sm:py-2 text-sm font-medium text-white bg-[var(--accent-teal)] rounded-lg hover:opacity-90"
           >
             Retry
           </button>
@@ -91,7 +91,7 @@ export function ForecastPage() {
   if (!forecast) return null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -107,7 +107,7 @@ export function ForecastPage() {
             <button
               key={h}
               onClick={() => setHorizon(h)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+              className={`px-4 py-2 sm:px-3 sm:py-1.5 text-xs font-medium rounded-md transition-all ${
                 horizon === h
                   ? "bg-white text-[var(--text-primary)] shadow-sm"
                   : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"

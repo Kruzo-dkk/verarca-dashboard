@@ -233,7 +233,7 @@ export function ForecastAssumptions({ assumptions, formatValue, onSave }: Foreca
                                 : e.target.value;
                             handleChange(s, field.key, val);
                           }}
-                          className="w-20 px-2 py-1 text-sm text-right bg-[var(--bg-card)] border border-[var(--border-subtle)] rounded text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-teal)] focus:border-transparent"
+                          className="w-24 px-2 py-1.5 text-sm text-right bg-[var(--bg-card)] border border-[var(--border-subtle)] rounded text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-teal)] focus:border-transparent"
                         />
                         {field.suffix === "%" && (
                           <span className="text-xs text-[var(--text-muted)]">%</span>
@@ -248,7 +248,7 @@ export function ForecastAssumptions({ assumptions, formatValue, onSave }: Foreca
                 <button
                   onClick={() => handleSave(s)}
                   disabled={savingScenario === s}
-                  className="px-3 py-1.5 text-xs font-medium text-white bg-[var(--accent-teal)] rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
+                  className="px-4 py-2 text-xs font-medium text-white bg-[var(--accent-teal)] rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
                 >
                   {savingScenario === s ? "Saving..." : "Save"}
                 </button>

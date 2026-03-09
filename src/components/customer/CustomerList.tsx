@@ -160,7 +160,7 @@ export function CustomerList() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
         <GlassCard className="text-center py-3">
           <span className="text-xs text-[var(--text-muted)]">Total</span>
           <div className="metric-value text-xl mt-1">{data.count}</div>
@@ -195,7 +195,7 @@ export function CustomerList() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search customers, plans, partners..."
-              className="w-full px-3 py-2 text-sm bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-teal)] focus:border-transparent"
+              className="w-full px-3 py-2.5 sm:py-2 text-sm bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-teal)] focus:border-transparent"
             />
           </div>
 
@@ -205,7 +205,7 @@ export function CustomerList() {
               <button
                 key={status}
                 onClick={() => setStatusFilter(status)}
-                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors capitalize ${
+                className={`px-4 py-2 sm:px-3 sm:py-1.5 text-sm font-medium rounded-md transition-colors capitalize ${
                   statusFilter === status
                     ? "bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm"
                     : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"

@@ -10,7 +10,8 @@ import {
   Tooltip,
   ReferenceLine,
 } from "recharts";
-import { CHART_GRID_PROPS, CHART_AXIS_PROPS } from "@/components/charts/ChartTheme";
+import { CHART_GRID_PROPS, CHART_AXIS_PROPS, CHART_AXIS_PROPS_MOBILE, CHART_MARGIN, CHART_MARGIN_MOBILE } from "@/components/charts/ChartTheme";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import type { ForecastResult } from "@/lib/forecast";
 
 interface ForecastChartProps {
@@ -25,6 +26,10 @@ const SCENARIO_COLORS = {
 };
 
 export function ForecastChart({ data, formatValue }: ForecastChartProps) {
+  const mobile = useIsMobile();
+  const axisProps = mobile ? CHART_AXIS_PROPS_MOBILE : CHART_AXIS_PROPS;
+  const margin = mobile ? CHART_MARGIN_MOBILE : CHART_MARGIN;
+
   // Build combined dataset: historical + projections
   const chartData: Record<string, unknown>[] = [];
 
@@ -77,8 +82,8 @@ export function ForecastChart({ data, formatValue }: ForecastChartProps) {
   }
 
   return (
-    <ResponsiveContainer width="100%" height={320}>
-      <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+    <ResponsiveContainer width="100%" height={mobile ? 240 : 320}>
+      <AreaChart data={chartData} margin={margin}>
         <defs>
           <linearGradient id="bestGradient" x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%" stopColor={SCENARIO_COLORS.best.fill} stopOpacity={0.15} />
@@ -101,12 +106,13 @@ export function ForecastChart({ data, formatValue }: ForecastChartProps) {
         <CartesianGrid {...CHART_GRID_PROPS} />
         <XAxis
           dataKey="month"
-          {...CHART_AXIS_PROPS}
-          interval="preserveStartEnd"
+          {...axisProps}
+          interval={mobile ? "equidistantPreserveStart" : "preserveStartEnd"}
         />
         <YAxis
-          {...CHART_AXIS_PROPS}
+          {...axisProps}
           tickFormatter={(v: number) => formatValue(v)}
+          width={mobile ? 50 : undefined}
         />
         <Tooltip
           contentStyle={{

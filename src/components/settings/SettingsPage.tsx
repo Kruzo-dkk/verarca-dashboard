@@ -125,7 +125,7 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div>
         <h1 className="section-heading text-2xl text-[var(--text-primary)]">Settings</h1>
         <p className="text-sm text-[var(--text-muted)] mt-1">
@@ -157,7 +157,7 @@ export function SettingsPage() {
                 value={cacKroner}
                 onChange={(e) => setCacKroner(e.target.value)}
                 placeholder="0"
-                className="w-full pl-8 pr-3 py-2 text-sm bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-teal)] focus:border-transparent"
+                className="w-full pl-8 pr-3 py-2.5 sm:py-2 text-sm bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-teal)] focus:border-transparent"
               />
             </div>
           </div>
@@ -175,7 +175,7 @@ export function SettingsPage() {
               value={employeeCount}
               onChange={(e) => setEmployeeCount(e.target.value)}
               placeholder="Auto from ClickUp"
-              className="w-full px-3 py-2 text-sm bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-teal)] focus:border-transparent"
+              className="w-full px-3 py-2.5 sm:py-2 text-sm bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-teal)] focus:border-transparent"
             />
           </div>
 
@@ -189,7 +189,7 @@ export function SettingsPage() {
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Optional notes for this month..."
               rows={3}
-              className="w-full px-3 py-2 text-sm bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-teal)] focus:border-transparent resize-none"
+              className="w-full px-3 py-2.5 sm:py-2 text-sm bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-teal)] focus:border-transparent resize-none"
             />
           </div>
         </div>
@@ -199,7 +199,7 @@ export function SettingsPage() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-4 py-2 text-sm font-medium text-white bg-[var(--accent-teal)] rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
+            className="px-5 py-2.5 sm:px-4 sm:py-2 text-sm font-medium text-white bg-[var(--accent-teal)] rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
           >
             {saving ? "Saving..." : "Save Settings"}
           </button>
@@ -224,7 +224,7 @@ export function SettingsPage() {
                   <th className="pb-2 font-medium">Month</th>
                   <th className="pb-2 font-medium text-right">S&M Spend</th>
                   <th className="pb-2 font-medium text-right">Employees</th>
-                  <th className="pb-2 font-medium">Notes</th>
+                  <th className="pb-2 font-medium hidden sm:table-cell">Notes</th>
                 </tr>
               </thead>
               <tbody>
@@ -237,7 +237,7 @@ export function SettingsPage() {
                     <td className="py-2 text-right metric-value">
                       {row.employee_count ?? "—"}
                     </td>
-                    <td className="py-2 text-[var(--text-secondary)] truncate max-w-[200px]">
+                    <td className="py-2 text-[var(--text-secondary)] truncate max-w-[200px] hidden sm:table-cell">
                       {row.notes ?? "—"}
                     </td>
                   </tr>

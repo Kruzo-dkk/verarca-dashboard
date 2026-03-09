@@ -68,7 +68,7 @@ export function PeriodSelector({ value, onChange }: PeriodSelectorProps) {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1 z-50 w-64 max-h-80 overflow-y-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] shadow-lg">
+        <div className="absolute right-0 top-full mt-1 z-50 w-[calc(100vw-2rem)] sm:w-64 max-h-[70vh] sm:max-h-80 overflow-y-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] shadow-lg">
           <OptionGroup
             label="Trailing"
             items={options.trailing}

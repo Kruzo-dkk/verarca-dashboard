@@ -9,7 +9,8 @@ import {
   CartesianGrid,
   Tooltip,
 } from "recharts";
-import { WATERFALL_COLORS, CHART_COLORS, CHART_GRID_PROPS, CHART_AXIS_PROPS } from "./ChartTheme";
+import { WATERFALL_COLORS, CHART_COLORS, CHART_GRID_PROPS, CHART_AXIS_PROPS, CHART_AXIS_PROPS_MOBILE, CHART_MARGIN, CHART_MARGIN_MOBILE } from "./ChartTheme";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import type { MRRDecomposition } from "@/lib/metrics";
 
 interface MRRWaterfallProps {
@@ -18,6 +19,10 @@ interface MRRWaterfallProps {
 }
 
 export function MRRWaterfall({ decomposition, formatValue }: MRRWaterfallProps) {
+  const mobile = useIsMobile();
+  const axisProps = mobile ? CHART_AXIS_PROPS_MOBILE : CHART_AXIS_PROPS;
+  const margin = mobile ? CHART_MARGIN_MOBILE : CHART_MARGIN;
+
   const data = [
     { name: "New", value: decomposition.newMRR, fill: WATERFALL_COLORS.new },
     { name: "Expansion", value: decomposition.expansionMRR, fill: WATERFALL_COLORS.expansion },
@@ -27,11 +32,11 @@ export function MRRWaterfall({ decomposition, formatValue }: MRRWaterfallProps) 
   ];
 
   return (
-    <ResponsiveContainer width="100%" height={280}>
-      <BarChart data={data} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+    <ResponsiveContainer width="100%" height={mobile ? 220 : 280}>
+      <BarChart data={data} margin={margin}>
         <CartesianGrid {...CHART_GRID_PROPS} />
-        <XAxis dataKey="name" {...CHART_AXIS_PROPS} />
-        <YAxis {...CHART_AXIS_PROPS} tickFormatter={(v: number) => formatValue(Math.abs(v))} />
+        <XAxis dataKey="name" {...axisProps} />
+        <YAxis {...axisProps} tickFormatter={(v: number) => formatValue(Math.abs(v))} width={mobile ? 50 : undefined} />
         <Tooltip
           contentStyle={{
             background: CHART_COLORS.tooltipBg,

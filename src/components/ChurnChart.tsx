@@ -9,7 +9,8 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { CHART_COLORS, CHART_GRID_PROPS, CHART_AXIS_PROPS } from "./charts/ChartTheme";
+import { CHART_COLORS, CHART_GRID_PROPS, CHART_AXIS_PROPS, CHART_AXIS_PROPS_MOBILE, CHART_MARGIN, CHART_MARGIN_MOBILE } from "./charts/ChartTheme";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 interface ChurnDataPoint {
   month: string;
@@ -67,27 +68,32 @@ function CustomTooltip({
 }
 
 export function ChurnChart({ data }: ChurnChartProps) {
+  const mobile = useIsMobile();
+  const axisProps = mobile ? CHART_AXIS_PROPS_MOBILE : CHART_AXIS_PROPS;
+  const margin = mobile ? CHART_MARGIN_MOBILE : CHART_MARGIN;
+
   const chartData = data.map((d) => ({
     ...d,
     label: formatMonth(d.month),
   }));
 
   return (
-    <div className="glass-card p-6">
+    <div className="glass-card p-3 sm:p-6">
       <h3 className="text-sm font-medium text-[var(--text-muted)] mb-4">
         Monthly Churn Rate
       </h3>
-      <div className="h-64">
+      <div className={mobile ? "h-[220px]" : "h-64"}>
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={chartData}>
+          <BarChart data={chartData} margin={margin}>
             <CartesianGrid {...CHART_GRID_PROPS} />
             <XAxis
               dataKey="label"
-              {...CHART_AXIS_PROPS}
+              {...axisProps}
             />
             <YAxis
-              {...CHART_AXIS_PROPS}
+              {...axisProps}
               tickFormatter={(v: number) => `${v.toFixed(1)}%`}
+              width={mobile ? 40 : undefined}
             />
             <Tooltip content={<CustomTooltip />} />
             <Bar

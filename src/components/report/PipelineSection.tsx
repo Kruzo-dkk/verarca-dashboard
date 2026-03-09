@@ -18,7 +18,7 @@ export function PipelineSection({ data, formatValue }: PipelineSectionProps) {
       <h2 className="section-heading text-xl mb-4 text-[var(--text-primary)]">Pipeline</h2>
 
       {/* Metrics row */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 mb-4">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-4 mb-4">
         <GlassCard className="text-center">
           <MetricTooltip metric="pipelineValue">
             <span className="text-xs text-[var(--text-muted)]">Pipeline Value</span>
@@ -89,18 +89,18 @@ export function PipelineSection({ data, formatValue }: PipelineSectionProps) {
                 <tr className="text-left text-[var(--text-muted)]">
                   <th className="pb-2 font-medium">Deal</th>
                   <th className="pb-2 font-medium text-right">Amount</th>
-                  <th className="pb-2 font-medium">Stage</th>
+                  <th className="pb-2 font-medium hidden sm:table-cell">Stage</th>
                   <th className="pb-2 font-medium text-right">Prob.</th>
                 </tr>
               </thead>
               <tbody>
                 {p.deals.map((deal) => (
                   <tr key={deal.id} className="border-t border-[var(--border-subtle)]">
-                    <td className="py-1.5 text-[var(--text-primary)] truncate max-w-[150px]">
+                    <td className="py-1.5 text-[var(--text-primary)] truncate max-w-[120px] sm:max-w-[150px]">
                       {deal.name}
                     </td>
                     <td className="py-1.5 text-right metric-value">{formatValue(deal.amount)}</td>
-                    <td className="py-1.5 text-[var(--text-secondary)]">{deal.stage}</td>
+                    <td className="py-1.5 text-[var(--text-secondary)] hidden sm:table-cell">{deal.stage}</td>
                     <td className="py-1.5 text-right metric-value">{(deal.probability * 100).toFixed(0)}%</td>
                   </tr>
                 ))}
