@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Build report data
-    const reportData = await getReportData(month, currency);
+    const reportData = await getReportData(month, month, currency);
 
     // Build HTML
     const html = await buildReportEmailHTML(

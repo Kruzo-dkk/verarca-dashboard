@@ -28,76 +28,93 @@ function currentMonth(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
-/** Check whether a given YYYY-MM is the current month. */
-function isCurrentMonth(month: string): boolean {
-  return month === currentMonth();
-}
-
 // ---------------------------------------------------------------------------
 // Main aggregator
 // ---------------------------------------------------------------------------
 
+/**
+ * Fetch and aggregate report data for a given period.
+ *
+ * When startMonth === endMonth: identical to single-month behaviour.
+ * When startMonth < endMonth (range query):
+ *   - Point-in-time metrics (MRR, ARR, count, NRR, etc.): uses endMonth values
+ *   - Flow metrics (net new, decomposition, new/churned logos): summed across range
+ */
 export async function getReportData(
-  month: string,
+  startMonth: string,
+  endMonth: string,
   currency: Currency
 ): Promise<ReportData> {
   const supabase = await createClient();
+  const isRange = startMonth !== endMonth;
 
-  // Compute trailing window start (24 months back, inclusive of `month`)
-  const trailingStart = monthsAgo(month, 23);
+  // Compute trailing window start (24 months back from endMonth)
+  const trailingStart = monthsAgo(endMonth, 23);
 
   // ------ Parallel data fetches ------------------------------------------
 
   const [
-    snapshotRes,
+    endSnapshotRes,
+    rangeSnapshotsRes,
     trailingRes,
     customerSnapshotsRes,
     customersRes,
     pipelineRes,
     fxRes,
   ] = await Promise.all([
-    // 1. Current month snapshot
+    // 1. End-month snapshot (point-in-time metrics)
     supabase
       .from("monthly_snapshots")
       .select("*")
-      .eq("month", month)
+      .eq("month", endMonth)
       .maybeSingle(),
 
-    // 2. Trailing 24 months of snapshots (for history arrays)
+    // 2. Range snapshots (for summing flow metrics across multi-month periods)
+    isRange
+      ? supabase
+          .from("monthly_snapshots")
+          .select("*")
+          .gte("month", startMonth)
+          .lte("month", endMonth)
+          .order("month", { ascending: true })
+      : Promise.resolve({ data: null, error: null }),
+
+    // 3. Trailing 24 months of snapshots (for history arrays)
     supabase
       .from("monthly_snapshots")
       .select("month, mrr, arr, customer_count, arpa, nrr")
       .gte("month", trailingStart)
-      .lte("month", month)
+      .lte("month", endMonth)
       .order("month", { ascending: true }),
 
-    // 3. Customer snapshots for the report month
+    // 4. Customer snapshots for the end month
     supabase
       .from("customer_snapshots")
       .select("customer_id, mrr, status, plan_handle")
-      .eq("month", month),
+      .eq("month", endMonth),
 
-    // 4. All customers (for join / segment analysis)
+    // 5. All customers (for join / segment analysis)
     supabase.from("customers").select("*"),
 
-    // 5. Pipeline snapshot for the month
+    // 6. Pipeline snapshot for the end month
     supabase
       .from("pipeline_snapshots")
       .select("*")
-      .eq("month", month)
+      .eq("month", endMonth)
       .maybeSingle(),
 
-    // 6. FX rates for the month
+    // 7. FX rates for the end month
     supabase
       .from("fx_rates")
       .select("eur_rate, usd_rate")
-      .eq("month", month)
+      .eq("month", endMonth)
       .maybeSingle(),
   ]);
 
   // ------ Unpack & default values ----------------------------------------
 
-  const snap = snapshotRes.data;
+  const snap = endSnapshotRes.data;
+  const rangeSnaps = rangeSnapshotsRes.data ?? [];
   const trailing = trailingRes.data ?? [];
   const customerSnapshots = customerSnapshotsRes.data ?? [];
   const customers = customersRes.data ?? [];
@@ -122,15 +139,41 @@ export async function getReportData(
     .filter((r) => r.nrr != null)
     .map((r) => ({ month: r.month, nrr: r.nrr as number }));
 
-  // ------ Decomposition --------------------------------------------------
+  // ------ Decomposition (flow metrics: sum across range) -----------------
 
-  const decomposition: MRRDecomposition = {
-    newMRR: snap?.new_mrr ?? 0,
-    expansionMRR: snap?.expansion_mrr ?? 0,
-    contractionMRR: snap?.contraction_mrr ?? 0,
-    churnedMRR: snap?.churned_mrr ?? 0,
-    netNewMRR: snap?.net_new_mrr ?? 0,
-  };
+  let decomposition: MRRDecomposition;
+  let totalNetNewMRR: number;
+  let totalNewLogos: number;
+  let totalChurnedLogos: number;
+  let totalNonRecurring: number;
+
+  if (isRange && rangeSnaps.length > 0) {
+    // Sum flow metrics across all months in the range
+    decomposition = {
+      newMRR: sumField(rangeSnaps, "new_mrr"),
+      expansionMRR: sumField(rangeSnaps, "expansion_mrr"),
+      contractionMRR: sumField(rangeSnaps, "contraction_mrr"),
+      churnedMRR: sumField(rangeSnaps, "churned_mrr"),
+      netNewMRR: sumField(rangeSnaps, "net_new_mrr"),
+    };
+    totalNetNewMRR = decomposition.netNewMRR;
+    totalNewLogos = sumField(rangeSnaps, "new_logos");
+    totalChurnedLogos = sumField(rangeSnaps, "churned_logos");
+    totalNonRecurring = sumField(rangeSnaps, "non_recurring_revenue");
+  } else {
+    // Single month
+    decomposition = {
+      newMRR: snap?.new_mrr ?? 0,
+      expansionMRR: snap?.expansion_mrr ?? 0,
+      contractionMRR: snap?.contraction_mrr ?? 0,
+      churnedMRR: snap?.churned_mrr ?? 0,
+      netNewMRR: snap?.net_new_mrr ?? 0,
+    };
+    totalNetNewMRR = snap?.net_new_mrr ?? 0;
+    totalNewLogos = snap?.new_logos ?? 0;
+    totalChurnedLogos = snap?.churned_logos ?? 0;
+    totalNonRecurring = snap?.non_recurring_revenue ?? 0;
+  }
 
   // ------ Segment breakdown ----------------------------------------------
 
@@ -201,12 +244,11 @@ export async function getReportData(
 
   // ------ Cohort data ----------------------------------------------------
 
-  // Fetch all customer_snapshots across all trailing months for cohort analysis
   const cohortSnapshotsRes = await supabase
     .from("customer_snapshots")
     .select("customer_id, month, status")
     .gte("month", trailingStart)
-    .lte("month", month)
+    .lte("month", endMonth)
     .order("month", { ascending: true });
 
   const cohortSnapshots = cohortSnapshotsRes.data ?? [];
@@ -215,17 +257,16 @@ export async function getReportData(
     cohortSnapshots,
     customers,
     trailingStart,
-    month
+    endMonth
   );
 
   // ------ Pipeline -------------------------------------------------------
 
   const deals: PipelineDeal[] = parsePipelineDeals(pipeline?.deals_json);
-  const netNewMRR = snap?.net_new_mrr ?? 0;
   const weightedPipeline = pipeline?.weighted_pipeline ?? 0;
   const pipelineCoverage =
-    netNewMRR !== 0
-      ? Math.round((weightedPipeline / netNewMRR) * 100) / 100
+    totalNetNewMRR !== 0
+      ? Math.round((weightedPipeline / totalNetNewMRR) * 100) / 100
       : null;
 
   // ------ Unit economics -------------------------------------------------
@@ -264,16 +305,16 @@ export async function getReportData(
   // ------ Assemble ReportData --------------------------------------------
 
   return {
-    month,
+    month: endMonth,
     currency,
     fxRates,
 
     revenue: {
       mrr: snap?.mrr ?? 0,
       arr: snap?.arr ?? 0,
-      netNewMRR: snap?.net_new_mrr ?? 0,
+      netNewMRR: totalNetNewMRR,
       decomposition,
-      nonRecurringRevenue: snap?.non_recurring_revenue ?? 0,
+      nonRecurringRevenue: totalNonRecurring,
       mrrHistory,
       arrHistory,
       growthMoM: snap?.mrr_growth_mom ?? null,
@@ -291,8 +332,8 @@ export async function getReportData(
 
     customers: {
       count: snap?.customer_count ?? 0,
-      newLogos: snap?.new_logos ?? 0,
-      churnedLogos: snap?.churned_logos ?? 0,
+      newLogos: totalNewLogos,
+      churnedLogos: totalChurnedLogos,
       arpa: snap?.arpa ?? 0,
       top10Concentration: snap?.top10_concentration ?? null,
       segments,
@@ -332,6 +373,21 @@ export async function getReportData(
       whatsAhead: snap?.whats_ahead ?? null,
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Sum a numeric field across an array of snapshot rows. */
+function sumField(
+  rows: Record<string, unknown>[],
+  field: string
+): number {
+  return rows.reduce(
+    (acc, row) => acc + (typeof row[field] === "number" ? (row[field] as number) : 0),
+    0
+  );
 }
 
 // ---------------------------------------------------------------------------
