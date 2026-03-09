@@ -2,6 +2,7 @@ import { syncFXRates } from "./sync-fx";
 import { syncPipeline } from "./sync-pipeline";
 import { syncCustomers } from "./sync-customers";
 import { syncCustomerSnapshots } from "./sync-customer-snapshots";
+import { syncDiscounts } from "./sync-discounts";
 import { syncMonthlySnapshot } from "./sync-frisbii";
 
 // ─── Types ─────────────────────────────────────────────────────
@@ -52,7 +53,8 @@ async function runModule(
  *   2. Pipeline    -- no dependencies (runs in parallel with FX)
  *   3. Customers   -- syncs current state, no month param
  *   4. Customer snapshots -- depends on customers existing in DB
- *   5. Monthly snapshot   -- depends on customer snapshots for MRR decomposition
+ *   5. Discount snapshots -- depends on customers for ID mapping
+ *   6. Monthly snapshot   -- depends on customer snapshots for MRR decomposition
  *
  * Each module is wrapped in try/catch so that a failure in one module
  * does not prevent subsequent modules from running. The summary reports
@@ -93,7 +95,13 @@ export async function runMonthlySyncAll(
   );
   results.push(customerSnapshotsResult);
 
-  // ── Step 5: Monthly snapshot (depends on customer snapshots) ──
+  // ── Step 5: Discount snapshots (depends on customers) ──
+  const discountsResult = await runModule("sync-discounts", () =>
+    syncDiscounts(month)
+  );
+  results.push(discountsResult);
+
+  // ── Step 6: Monthly snapshot (depends on customer snapshots) ──
   const monthlyResult = await runModule("sync-monthly-snapshot", () =>
     syncMonthlySnapshot(month)
   );

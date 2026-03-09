@@ -28,6 +28,10 @@ export type MetricKey =
   | "momGrowth"
   | "yoyGrowth"
   | "nonRecurring"
+  // Committed MRR
+  | "billedMRR"
+  | "discountDelta"
+  | "discountExpirations"
   // Retention
   | "grr"
   | "logoRetentionRate"
@@ -130,6 +134,26 @@ export const tooltipRegistry: Record<MetricKey, TooltipContent> = {
     name: "Non-Recurring Revenue",
     formula: "One-time fees (setup, onboarding, consulting)",
     source: "Monthly snapshots",
+  },
+
+  // ---------------------------------------------------------------------------
+  // Committed MRR
+  // ---------------------------------------------------------------------------
+  billedMRR: {
+    name: "Billed MRR",
+    formula: "List Price MRR − Total active discount impacts",
+    source: "Frisbii subscriptions + discount snapshots",
+    benchmark: "Gap should narrow as discounts expire",
+  },
+  discountDelta: {
+    name: "Discount Delta",
+    formula: "List Price MRR − Billed MRR (total monthly discount impact)",
+    source: "Discount snapshots",
+  },
+  discountExpirations: {
+    name: "Upcoming Discount Expirations",
+    formula: "Sum of monthly impacts grouped by discount expiration month",
+    source: "Discount snapshots (expires_at field)",
   },
 
   // ---------------------------------------------------------------------------

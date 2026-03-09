@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getTeamMemberCount } from "@/lib/clickup";
 import { calculateLTV, calculateRevenuePerEmployee } from "@/lib/metrics";
+import { computeCommittedMRR } from "@/lib/committed-mrr";
 import type { MRRDecomposition } from "@/lib/metrics";
 import type { Currency, FXRates } from "@/lib/currency";
 import type {
@@ -62,6 +63,7 @@ export async function getReportData(
     pipelineRes,
     fxRes,
     settingsRes,
+    discountSnapshotsRes,
   ] = await Promise.all([
     // 1. End-month snapshot (point-in-time metrics)
     supabase
@@ -117,6 +119,12 @@ export async function getReportData(
       .select("total_cac, employee_count")
       .eq("month", endMonth)
       .maybeSingle(),
+
+    // 9. Discount snapshots for the end month (committed MRR)
+    supabase
+      .from("discount_snapshots")
+      .select("monthly_impact, discount_name, discount_percentage, discount_type, expires_at, subscription_handle, customer_id")
+      .eq("month", endMonth),
   ]);
 
   // ------ Unpack & default values ----------------------------------------
@@ -129,6 +137,7 @@ export async function getReportData(
   const pipeline = pipelineRes.data;
   const fxRow = fxRes.data;
   const settingsRow = settingsRes.data;
+  const discountSnapshots = discountSnapshotsRes.data ?? [];
 
   const fxRates: FXRates = {
     EUR: fxRow?.eur_rate ?? 0,
@@ -329,6 +338,13 @@ export async function getReportData(
     ltvCacRatio = Math.round((ltv / cac) * 100) / 100;
   }
 
+  // ------ Committed MRR ---------------------------------------------------
+
+  const committedMRR =
+    discountSnapshots.length > 0
+      ? computeCommittedMRR(snap?.mrr ?? 0, discountSnapshots)
+      : null;
+
   // ------ Assemble ReportData --------------------------------------------
 
   return {
@@ -346,6 +362,7 @@ export async function getReportData(
       arrHistory,
       growthMoM: snap?.mrr_growth_mom ?? null,
       growthYoY: snap?.mrr_growth_yoy ?? null,
+      committedMRR,
     },
 
     retention: {

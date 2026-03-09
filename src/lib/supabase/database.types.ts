@@ -14,6 +14,59 @@ export type Database = {
   }
   public: {
     Tables: {
+      discount_snapshots: {
+        Row: {
+          id: number
+          month: string
+          subscription_handle: string
+          customer_id: number | null
+          discount_handle: string
+          discount_name: string | null
+          discount_amount: number
+          discount_percentage: number | null
+          discount_type: string
+          monthly_impact: number
+          expires_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: never
+          month: string
+          subscription_handle: string
+          customer_id?: number | null
+          discount_handle: string
+          discount_name?: string | null
+          discount_amount?: number
+          discount_percentage?: number | null
+          discount_type?: string
+          monthly_impact?: number
+          expires_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: never
+          month?: string
+          subscription_handle?: string
+          customer_id?: number | null
+          discount_handle?: string
+          discount_name?: string | null
+          discount_amount?: number
+          discount_percentage?: number | null
+          discount_type?: string
+          monthly_impact?: number
+          expires_at?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discount_snapshots_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customer_snapshots: {
         Row: {
           created_at: string

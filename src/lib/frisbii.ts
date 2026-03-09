@@ -94,6 +94,30 @@ export interface Customer {
   active_subscriptions: number;
 }
 
+// ─── Discount types ───────────────────────────────────────────
+
+export interface Discount {
+  handle: string;
+  name: string;
+  description?: string;
+  amount?: number;           // fixed amount discount (øre)
+  percentage?: number;       // percentage discount (0-100)
+  state: string;             // "active" | "deleted"
+  apply_to?: string[];       // which plans/add-ons
+  created: string;
+}
+
+export interface SubscriptionDiscount {
+  handle: string;
+  discount: string;          // handle of the base discount
+  name?: string;
+  amount?: number;           // fixed amount override
+  percentage?: number;       // percentage override
+  state: string;
+  expires?: string;          // ISO date when discount expires
+  created: string;
+}
+
 async function apiFetch<T>(path: string, params: ListParams = {}): Promise<T> {
   const url = new URL(`${BASE_URL}${path}`);
   for (const [key, value] of Object.entries(params)) {
@@ -207,6 +231,60 @@ export function buildPlanMap(plans: Plan[]): Map<string, Plan> {
     }
   }
   return map;
+}
+
+// ─── Discount API functions ──────────────────────────────────────
+
+/**
+ * Fetch a single discount definition by handle.
+ */
+export async function getDiscount(handle: string): Promise<Discount> {
+  return apiFetch<Discount>(`/discount/${handle}`);
+}
+
+/**
+ * Fetch the discounts attached to a specific subscription.
+ * Returns the subscription-level discount details (may include overrides).
+ */
+export async function getSubscriptionDiscounts(
+  subscriptionHandle: string
+): Promise<SubscriptionDiscount[]> {
+  try {
+    const result = await apiFetch<SubscriptionDiscount[]>(
+      `/subscription/${subscriptionHandle}/discount`
+    );
+    return Array.isArray(result) ? result : [];
+  } catch {
+    // Subscription may not have discounts endpoint, return empty
+    return [];
+  }
+}
+
+/**
+ * Fetch discount details for all subscriptions that have discounts.
+ * Returns a map of subscription handle → array of discount details.
+ */
+export async function fetchSubscriptionDiscountDetails(
+  subscriptions: Subscription[]
+): Promise<Map<string, SubscriptionDiscount[]>> {
+  const subsWithDiscounts = subscriptions.filter(
+    (s) =>
+      (s.subscription_discounts && s.subscription_discounts.length > 0) ||
+      s.discount
+  );
+
+  const results = await Promise.all(
+    subsWithDiscounts.map(async (sub): Promise<[string, SubscriptionDiscount[]]> => {
+      try {
+        const discounts = await getSubscriptionDiscounts(sub.handle);
+        return [sub.handle, discounts];
+      } catch {
+        return [sub.handle, []];
+      }
+    })
+  );
+
+  return new Map(results);
 }
 
 /**

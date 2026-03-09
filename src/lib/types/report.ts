@@ -1,6 +1,7 @@
 import type { Tables } from "@/lib/supabase/database.types";
 import type { Currency, FXRates } from "@/lib/currency";
 import type { MRRDecomposition } from "@/lib/metrics";
+import type { CommittedMRRResult } from "@/lib/committed-mrr";
 
 // ─── Database Row Types ────────────────────────────────────────
 
@@ -28,6 +29,7 @@ export interface ReportData {
     arrHistory: { month: string; arr: number }[];
     growthMoM: number | null;
     growthYoY: number | null;
+    committedMRR: CommittedMRRResult | null;
   };
 
   // Retention
