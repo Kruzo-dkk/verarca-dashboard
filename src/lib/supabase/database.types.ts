@@ -316,6 +316,42 @@ export type Database = {
         }
         Relationships: []
       }
+      forecast_assumptions: {
+        Row: {
+          id: number
+          scenario: string
+          monthly_churn_pct: number
+          monthly_expansion_pct: number
+          new_logos_per_month: number
+          avg_new_deal_size: number
+          pipeline_conversion_pct: number
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: never
+          scenario: string
+          monthly_churn_pct?: number
+          monthly_expansion_pct?: number
+          new_logos_per_month?: number
+          avg_new_deal_size?: number
+          pipeline_conversion_pct?: number
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: never
+          scenario?: string
+          monthly_churn_pct?: number
+          monthly_expansion_pct?: number
+          new_logos_per_month?: number
+          avg_new_deal_size?: number
+          pipeline_conversion_pct?: number
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       settings: {
         Row: {
           created_at: string | null
