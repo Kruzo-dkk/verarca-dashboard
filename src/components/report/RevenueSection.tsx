@@ -3,6 +3,7 @@
 import { GlassCard } from "@/components/ui/GlassCard";
 import { MRRWaterfall } from "@/components/charts/MRRWaterfall";
 import { ARRTrend } from "@/components/charts/ARRTrend";
+import { MetricTooltip } from "@/components/ui/MetricTooltip";
 import type { ReportData } from "@/lib/types/report";
 
 interface RevenueSectionProps {
@@ -28,25 +29,33 @@ export function RevenueSection({ data, formatValue }: RevenueSectionProps) {
       {/* Growth indicators */}
       <div className="grid grid-cols-2 gap-4 mt-4 lg:grid-cols-4">
         <GlassCard className="text-center">
-          <span className="text-xs text-[var(--text-muted)]">MoM Growth</span>
+          <MetricTooltip metric="momGrowth">
+            <span className="text-xs text-[var(--text-muted)]">MoM Growth</span>
+          </MetricTooltip>
           <div className="metric-value text-lg mt-1">
             {data.revenue.growthMoM !== null ? `${data.revenue.growthMoM.toFixed(1)}%` : "—"}
           </div>
         </GlassCard>
         <GlassCard className="text-center">
-          <span className="text-xs text-[var(--text-muted)]">YoY Growth</span>
+          <MetricTooltip metric="yoyGrowth">
+            <span className="text-xs text-[var(--text-muted)]">YoY Growth</span>
+          </MetricTooltip>
           <div className="metric-value text-lg mt-1">
             {data.revenue.growthYoY !== null ? `${data.revenue.growthYoY.toFixed(1)}%` : "—"}
           </div>
         </GlassCard>
         <GlassCard className="text-center">
-          <span className="text-xs text-[var(--text-muted)]">Non-Recurring</span>
+          <MetricTooltip metric="nonRecurring">
+            <span className="text-xs text-[var(--text-muted)]">Non-Recurring</span>
+          </MetricTooltip>
           <div className="metric-value text-lg mt-1">
             {formatValue(data.revenue.nonRecurringRevenue)}
           </div>
         </GlassCard>
         <GlassCard className="text-center">
-          <span className="text-xs text-[var(--text-muted)]">Net New MRR</span>
+          <MetricTooltip metric="netNewMRR">
+            <span className="text-xs text-[var(--text-muted)]">Net New MRR</span>
+          </MetricTooltip>
           <div className={`metric-value text-lg mt-1 ${data.revenue.netNewMRR >= 0 ? "text-emerald-600" : "text-red-600"}`}>
             {formatValue(data.revenue.netNewMRR)}
           </div>

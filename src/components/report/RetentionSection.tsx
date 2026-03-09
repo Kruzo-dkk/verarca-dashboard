@@ -2,6 +2,8 @@
 
 import { GlassCard } from "@/components/ui/GlassCard";
 import { CohortHeatmap } from "@/components/charts/CohortHeatmap";
+import { MetricTooltip } from "@/components/ui/MetricTooltip";
+import type { MetricKey } from "@/lib/tooltip-registry";
 import type { ReportData } from "@/lib/types/report";
 
 interface RetentionSectionProps {
@@ -9,9 +11,17 @@ interface RetentionSectionProps {
 }
 
 export function RetentionSection({ data }: RetentionSectionProps) {
-  const metrics = [
+  const metrics: {
+    label: string;
+    metric: MetricKey;
+    value: number | null;
+    format: (v: number) => string;
+    benchmark: string;
+    isGood: boolean;
+  }[] = [
     {
       label: "Net Revenue Retention",
+      metric: "nrr",
       value: data.retention.nrr,
       format: (v: number) => `${v.toFixed(1)}%`,
       benchmark: "Best-in-class: >120%",
@@ -19,6 +29,7 @@ export function RetentionSection({ data }: RetentionSectionProps) {
     },
     {
       label: "Gross Revenue Retention",
+      metric: "grr",
       value: data.retention.grr,
       format: (v: number) => `${v.toFixed(1)}%`,
       benchmark: "Best-in-class: >90%",
@@ -26,6 +37,7 @@ export function RetentionSection({ data }: RetentionSectionProps) {
     },
     {
       label: "Logo Retention Rate",
+      metric: "logoRetentionRate",
       value: data.retention.logoRetentionRate,
       format: (v: number) => `${v.toFixed(1)}%`,
       benchmark: "Target: >90%",
@@ -33,6 +45,7 @@ export function RetentionSection({ data }: RetentionSectionProps) {
     },
     {
       label: "Quick Ratio",
+      metric: "quickRatio",
       value: data.retention.quickRatio,
       format: (v: number) => v === Infinity ? "∞" : v.toFixed(2),
       benchmark: ">4 excellent, >2 good",
@@ -48,7 +61,9 @@ export function RetentionSection({ data }: RetentionSectionProps) {
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 mb-4">
         {metrics.map((m) => (
           <GlassCard key={m.label} className="text-center">
-            <span className="text-xs text-[var(--text-muted)]">{m.label}</span>
+            <MetricTooltip metric={m.metric}>
+              <span className="text-xs text-[var(--text-muted)]">{m.label}</span>
+            </MetricTooltip>
             <div className={`metric-value text-2xl mt-2 ${m.isGood ? "text-emerald-600" : m.value !== null ? "text-amber-600" : "text-[var(--text-muted)]"}`}>
               {m.value !== null ? m.format(m.value) : "—"}
             </div>
@@ -59,7 +74,9 @@ export function RetentionSection({ data }: RetentionSectionProps) {
 
       {/* Cohort heatmap */}
       <GlassCard>
-        <h3 className="text-sm font-medium text-[var(--text-muted)] mb-4">Cohort Retention</h3>
+        <MetricTooltip metric="cohortRetention">
+          <h3 className="text-sm font-medium text-[var(--text-muted)] mb-4">Cohort Retention</h3>
+        </MetricTooltip>
         <CohortHeatmap data={data.retention.cohortData} />
       </GlassCard>
     </section>

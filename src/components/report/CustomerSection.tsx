@@ -11,6 +11,7 @@ import {
   Tooltip,
 } from "recharts";
 import { GlassCard } from "@/components/ui/GlassCard";
+import { MetricTooltip } from "@/components/ui/MetricTooltip";
 import { CHART_COLORS, CHART_GRID_PROPS, CHART_AXIS_PROPS } from "@/components/charts/ChartTheme";
 import type { ReportData, CustomerSummary } from "@/lib/types/report";
 
@@ -54,19 +55,27 @@ export function CustomerSection({ data, formatValue }: CustomerSectionProps) {
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 mb-4">
         <GlassCard className="text-center">
-          <span className="text-xs text-[var(--text-muted)]">Total</span>
+          <MetricTooltip metric="customerCount">
+            <span className="text-xs text-[var(--text-muted)]">Total</span>
+          </MetricTooltip>
           <div className="metric-value text-2xl mt-1">{data.customers.count}</div>
         </GlassCard>
         <GlassCard className="text-center">
-          <span className="text-xs text-[var(--text-muted)]">New Logos</span>
+          <MetricTooltip metric="newLogos">
+            <span className="text-xs text-[var(--text-muted)]">New Logos</span>
+          </MetricTooltip>
           <div className="metric-value text-2xl mt-1 text-emerald-600">+{data.customers.newLogos}</div>
         </GlassCard>
         <GlassCard className="text-center">
-          <span className="text-xs text-[var(--text-muted)]">Churned</span>
+          <MetricTooltip metric="churnedLogos">
+            <span className="text-xs text-[var(--text-muted)]">Churned</span>
+          </MetricTooltip>
           <div className="metric-value text-2xl mt-1 text-red-600">-{data.customers.churnedLogos}</div>
         </GlassCard>
         <GlassCard className="text-center">
-          <span className="text-xs text-[var(--text-muted)]">ARPA</span>
+          <MetricTooltip metric="arpa">
+            <span className="text-xs text-[var(--text-muted)]">ARPA</span>
+          </MetricTooltip>
           <div className="metric-value text-2xl mt-1">{formatValue(data.customers.arpa)}</div>
         </GlassCard>
       </div>
@@ -100,7 +109,9 @@ export function CustomerSection({ data, formatValue }: CustomerSectionProps) {
           <h3 className="text-sm font-medium text-[var(--text-muted)] mb-4">Segments & Concentration</h3>
           {data.customers.top10Concentration !== null && (
             <div className="mb-4 p-3 rounded-lg bg-[var(--bg-secondary)]">
-              <span className="text-xs text-[var(--text-muted)]">Top 10 Revenue Concentration</span>
+              <MetricTooltip metric="top10Concentration">
+                <span className="text-xs text-[var(--text-muted)]">Top 10 Revenue Concentration</span>
+              </MetricTooltip>
               <div className={`metric-value text-xl ${data.customers.top10Concentration > 30 ? "text-amber-600" : "text-emerald-600"}`}>
                 {data.customers.top10Concentration.toFixed(1)}%
               </div>

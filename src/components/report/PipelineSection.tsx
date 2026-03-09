@@ -2,6 +2,7 @@
 
 import { GlassCard } from "@/components/ui/GlassCard";
 import { PipelineFunnel } from "@/components/charts/PipelineFunnel";
+import { MetricTooltip } from "@/components/ui/MetricTooltip";
 import type { ReportData } from "@/lib/types/report";
 
 interface PipelineSectionProps {
@@ -19,21 +20,29 @@ export function PipelineSection({ data, formatValue }: PipelineSectionProps) {
       {/* Metrics row */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 mb-4">
         <GlassCard className="text-center">
-          <span className="text-xs text-[var(--text-muted)]">Pipeline Value</span>
+          <MetricTooltip metric="pipelineValue">
+            <span className="text-xs text-[var(--text-muted)]">Pipeline Value</span>
+          </MetricTooltip>
           <div className="metric-value text-xl mt-1">{formatValue(p.totalPipelineValue)}</div>
         </GlassCard>
         <GlassCard className="text-center">
-          <span className="text-xs text-[var(--text-muted)]">Weighted</span>
+          <MetricTooltip metric="weightedPipeline">
+            <span className="text-xs text-[var(--text-muted)]">Weighted</span>
+          </MetricTooltip>
           <div className="metric-value text-xl mt-1">{formatValue(p.weightedPipeline)}</div>
         </GlassCard>
         <GlassCard className="text-center">
-          <span className="text-xs text-[var(--text-muted)]">Win Rate</span>
+          <MetricTooltip metric="winRate">
+            <span className="text-xs text-[var(--text-muted)]">Win Rate</span>
+          </MetricTooltip>
           <div className="metric-value text-xl mt-1">
             {p.winRate !== null ? `${p.winRate.toFixed(0)}%` : "—"}
           </div>
         </GlassCard>
         <GlassCard className="text-center">
-          <span className="text-xs text-[var(--text-muted)]">Pipeline Coverage</span>
+          <MetricTooltip metric="pipelineCoverage">
+            <span className="text-xs text-[var(--text-muted)]">Pipeline Coverage</span>
+          </MetricTooltip>
           <div className={`metric-value text-xl mt-1 ${
             p.pipelineCoverage !== null && p.pipelineCoverage >= 3
               ? "text-emerald-600"
@@ -57,11 +66,15 @@ export function PipelineSection({ data, formatValue }: PipelineSectionProps) {
           />
           <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
             <div>
-              <span className="text-[var(--text-muted)] text-xs">Avg Deal Size</span>
+              <MetricTooltip metric="avgDealSize">
+                <span className="text-[var(--text-muted)] text-xs">Avg Deal Size</span>
+              </MetricTooltip>
               <div className="metric-value">{formatValue(p.avgDealSize)}</div>
             </div>
             <div>
-              <span className="text-[var(--text-muted)] text-xs">Avg Sales Cycle</span>
+              <MetricTooltip metric="avgSalesCycle">
+                <span className="text-[var(--text-muted)] text-xs">Avg Sales Cycle</span>
+              </MetricTooltip>
               <div className="metric-value">{p.avgSalesCycleDays} days</div>
             </div>
           </div>

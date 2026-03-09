@@ -3,6 +3,8 @@
 import { GlassCard } from "@/components/ui/GlassCard";
 import { DeltaPill } from "@/components/ui/DeltaPill";
 import { SparkLine } from "@/components/charts/SparkLine";
+import { MetricTooltip } from "@/components/ui/MetricTooltip";
+import type { MetricKey } from "@/lib/tooltip-registry";
 import type { ReportData } from "@/lib/types/report";
 
 interface HeroKPIsProps {
@@ -11,9 +13,17 @@ interface HeroKPIsProps {
 }
 
 export function HeroKPIs({ data, formatValue }: HeroKPIsProps) {
-  const kpis = [
+  const kpis: {
+    label: string;
+    metric: MetricKey;
+    value: string;
+    sparkData: { value: number }[];
+    current: number;
+    previous: number | null;
+  }[] = [
     {
       label: "ARR",
+      metric: "arr",
       value: formatValue(data.revenue.arr),
       sparkData: data.revenue.arrHistory.map((h) => ({ value: h.arr })),
       current: data.revenue.arr,
@@ -23,6 +33,7 @@ export function HeroKPIs({ data, formatValue }: HeroKPIsProps) {
     },
     {
       label: "MRR",
+      metric: "mrr",
       value: formatValue(data.revenue.mrr),
       sparkData: data.revenue.mrrHistory.map((h) => ({ value: h.mrr })),
       current: data.revenue.mrr,
@@ -32,6 +43,7 @@ export function HeroKPIs({ data, formatValue }: HeroKPIsProps) {
     },
     {
       label: "Net New MRR",
+      metric: "netNewMRR",
       value: formatValue(data.revenue.netNewMRR),
       sparkData: [],
       current: data.revenue.netNewMRR,
@@ -39,6 +51,7 @@ export function HeroKPIs({ data, formatValue }: HeroKPIsProps) {
     },
     {
       label: "NRR",
+      metric: "nrr",
       value: data.retention.nrr !== null ? `${data.retention.nrr.toFixed(1)}%` : "—",
       sparkData: data.retention.nrrHistory.map((h) => ({ value: h.nrr })),
       current: data.retention.nrr ?? 0,
@@ -48,6 +61,7 @@ export function HeroKPIs({ data, formatValue }: HeroKPIsProps) {
     },
     {
       label: "Active Customers",
+      metric: "activeCustomers",
       value: data.customers.count.toLocaleString(),
       sparkData: data.customers.countHistory.map((h) => ({ value: h.count })),
       current: data.customers.count,
@@ -57,6 +71,7 @@ export function HeroKPIs({ data, formatValue }: HeroKPIsProps) {
     },
     {
       label: "Quick Ratio",
+      metric: "quickRatio",
       value: data.retention.quickRatio !== null
         ? data.retention.quickRatio === Infinity ? "∞" : data.retention.quickRatio.toFixed(1)
         : "—",
@@ -70,9 +85,11 @@ export function HeroKPIs({ data, formatValue }: HeroKPIsProps) {
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
       {kpis.map((kpi) => (
         <GlassCard key={kpi.label} className="flex flex-col gap-2">
-          <span className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">
-            {kpi.label}
-          </span>
+          <MetricTooltip metric={kpi.metric}>
+            <span className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">
+              {kpi.label}
+            </span>
+          </MetricTooltip>
           <span className="metric-value text-2xl text-[var(--text-primary)]">
             {kpi.value}
           </span>
