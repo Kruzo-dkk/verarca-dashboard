@@ -1,23 +1,24 @@
 @import "tailwindcss";
 
 :root {
-  /* Verarca brand palette */
-  --bg-primary: #1a1d21;
-  --bg-card: #22262b;
-  --bg-card-hover: #2a2f35;
-  --border-subtle: #32373c;
-  --border-medium: #444a52;
-  --text-primary: #F0F2F4;
-  --text-secondary: #9CA3AF;
-  --text-muted: #6B7280;
+  /* Verarca brand palette – light theme (matches verarca.com) */
+  --bg-primary: #FFFFFF;
+  --bg-secondary: #F8F8F8;
+  --bg-card: #FFFFFF;
+  --bg-card-hover: #F5F5F5;
+  --border-subtle: #E8E8E8;
+  --border-medium: #D4D4D4;
+  --text-primary: #1A1A1A;
+  --text-secondary: #4A4A4A;
+  --text-muted: #8A8A8A;
 
-  /* Accent: verarca cyan-blue */
-  --accent-cyan: #0693e3;
-  --accent-teal: #7bdcb5;
+  /* Accent: verarca coral + teal */
+  --accent-coral: #FF6B4A;
+  --accent-teal: #1A5C5A;
   --accent-emerald: #10B981;
   --accent-red: #EF4444;
   --accent-amber: #F59E0B;
-  --accent-blue: #0693e3;
+  --accent-blue: #FF6B4A;   /* primary accent = coral */
 }
 
 @theme inline {
@@ -29,26 +30,25 @@
 }
 
 body {
-  background: var(--bg-primary);
+  background: var(--bg-secondary);
   color: var(--text-primary);
 }
 
-/* Glass card effect – charcoal-toned glass */
+/* Card – clean white card with subtle shadow */
 .glass-card {
-  background: rgba(34, 38, 43, 0.85);
-  backdrop-filter: blur(12px);
+  background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 
-/* Chart tooltip glass */
+/* Chart tooltip */
 .chart-tooltip {
-  background: rgba(34, 38, 43, 0.95);
-  backdrop-filter: blur(8px);
+  background: #FFFFFF;
   border: 1px solid var(--border-subtle);
   border-radius: 0.5rem;
   padding: 0.75rem 1rem;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 /* Number display */
@@ -78,4 +78,9 @@ body {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
+}
+
+/* Selection accent */
+::selection {
+  background: rgba(255, 107, 74, 0.15);
 }

@@ -9,6 +9,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { CHART_COLORS, CHART_GRID_PROPS, CHART_AXIS_PROPS } from "./charts/ChartTheme";
 
 interface ChurnDataPoint {
   month: string;
@@ -42,23 +43,23 @@ function CustomTooltip({
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
   return (
-    <div className="rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm shadow-xl">
-      <p className="font-medium text-white mb-1.5">{formatMonth(d.month)}</p>
-      <div className="space-y-1 text-zinc-300">
+    <div className="chart-tooltip text-sm">
+      <p className="font-medium text-[var(--text-primary)] mb-1.5">{formatMonth(d.month)}</p>
+      <div className="space-y-1 text-[var(--text-secondary)]">
         <p>
           Churn rate:{" "}
-          <span className="font-medium text-red-400">
+          <span className="font-medium text-red-600">
             {d.churnRate.toFixed(2)}%
           </span>
         </p>
         <p>
           Churned:{" "}
-          <span className="font-medium text-white">{d.expiredCount}</span>{" "}
+          <span className="font-medium text-[var(--text-primary)]">{d.expiredCount}</span>{" "}
           subscriptions
         </p>
         <p>
           Active at start:{" "}
-          <span className="font-medium text-white">{d.activeAtStart}</span>
+          <span className="font-medium text-[var(--text-primary)]">{d.activeAtStart}</span>
         </p>
       </div>
     </div>
@@ -72,30 +73,26 @@ export function ChurnChart({ data }: ChurnChartProps) {
   }));
 
   return (
-    <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-6">
-      <h3 className="text-sm font-medium text-zinc-400 mb-4">
+    <div className="glass-card p-6">
+      <h3 className="text-sm font-medium text-[var(--text-muted)] mb-4">
         Monthly Churn Rate
       </h3>
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+            <CartesianGrid {...CHART_GRID_PROPS} />
             <XAxis
               dataKey="label"
-              stroke="#71717a"
-              fontSize={12}
-              tickLine={false}
+              {...CHART_AXIS_PROPS}
             />
             <YAxis
-              stroke="#71717a"
-              fontSize={12}
-              tickLine={false}
+              {...CHART_AXIS_PROPS}
               tickFormatter={(v: number) => `${v.toFixed(1)}%`}
             />
             <Tooltip content={<CustomTooltip />} />
             <Bar
               dataKey="churnRate"
-              fill="#ef4444"
+              fill={CHART_COLORS.red}
               radius={[4, 4, 0, 0]}
               maxBarSize={40}
             />

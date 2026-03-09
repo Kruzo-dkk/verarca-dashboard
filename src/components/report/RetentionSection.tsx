@@ -49,7 +49,7 @@ export function RetentionSection({ data }: RetentionSectionProps) {
         {metrics.map((m) => (
           <GlassCard key={m.label} className="text-center">
             <span className="text-xs text-[var(--text-muted)]">{m.label}</span>
-            <div className={`metric-value text-2xl mt-2 ${m.isGood ? "text-emerald-400" : m.value !== null ? "text-amber-400" : "text-[var(--text-muted)]"}`}>
+            <div className={`metric-value text-2xl mt-2 ${m.isGood ? "text-emerald-600" : m.value !== null ? "text-amber-600" : "text-[var(--text-muted)]"}`}>
               {m.value !== null ? m.format(m.value) : "—"}
             </div>
             <span className="text-[10px] text-[var(--text-muted)] mt-1 block">{m.benchmark}</span>

@@ -36,9 +36,9 @@ export function PipelineSection({ data, formatValue }: PipelineSectionProps) {
           <span className="text-xs text-[var(--text-muted)]">Pipeline Coverage</span>
           <div className={`metric-value text-xl mt-1 ${
             p.pipelineCoverage !== null && p.pipelineCoverage >= 3
-              ? "text-emerald-400"
+              ? "text-emerald-600"
               : p.pipelineCoverage !== null
-                ? "text-amber-400"
+                ? "text-amber-600"
                 : ""
           }`}>
             {p.pipelineCoverage !== null ? `${p.pipelineCoverage.toFixed(1)}x` : "—"}

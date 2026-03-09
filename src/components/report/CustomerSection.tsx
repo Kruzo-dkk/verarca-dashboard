@@ -59,11 +59,11 @@ export function CustomerSection({ data, formatValue }: CustomerSectionProps) {
         </GlassCard>
         <GlassCard className="text-center">
           <span className="text-xs text-[var(--text-muted)]">New Logos</span>
-          <div className="metric-value text-2xl mt-1 text-emerald-400">+{data.customers.newLogos}</div>
+          <div className="metric-value text-2xl mt-1 text-emerald-600">+{data.customers.newLogos}</div>
         </GlassCard>
         <GlassCard className="text-center">
           <span className="text-xs text-[var(--text-muted)]">Churned</span>
-          <div className="metric-value text-2xl mt-1 text-red-400">-{data.customers.churnedLogos}</div>
+          <div className="metric-value text-2xl mt-1 text-red-600">-{data.customers.churnedLogos}</div>
         </GlassCard>
         <GlassCard className="text-center">
           <span className="text-xs text-[var(--text-muted)]">ARPA</span>
@@ -88,7 +88,7 @@ export function CustomerSection({ data, formatValue }: CustomerSectionProps) {
               <YAxis {...CHART_AXIS_PROPS} />
               <Tooltip
                 contentStyle={{ background: CHART_COLORS.tooltipBg, border: `1px solid ${CHART_COLORS.grid}`, borderRadius: "0.5rem" }}
-                labelStyle={{ color: "#F8FAFC" }}
+                labelStyle={{ color: "#1A1A1A" }}
               />
               <Area type="monotone" dataKey="count" stroke={CHART_COLORS.purple} fill="url(#countGradient)" strokeWidth={2} isAnimationActive={false} />
             </AreaChart>
@@ -99,9 +99,9 @@ export function CustomerSection({ data, formatValue }: CustomerSectionProps) {
         <GlassCard>
           <h3 className="text-sm font-medium text-[var(--text-muted)] mb-4">Segments & Concentration</h3>
           {data.customers.top10Concentration !== null && (
-            <div className="mb-4 p-3 rounded-lg bg-[var(--bg-primary)]">
+            <div className="mb-4 p-3 rounded-lg bg-[var(--bg-secondary)]">
               <span className="text-xs text-[var(--text-muted)]">Top 10 Revenue Concentration</span>
-              <div className={`metric-value text-xl ${data.customers.top10Concentration > 30 ? "text-amber-400" : "text-emerald-400"}`}>
+              <div className={`metric-value text-xl ${data.customers.top10Concentration > 30 ? "text-amber-600" : "text-emerald-600"}`}>
                 {data.customers.top10Concentration.toFixed(1)}%
               </div>
               {data.customers.top10Concentration > 30 && (
@@ -126,7 +126,7 @@ export function CustomerSection({ data, formatValue }: CustomerSectionProps) {
       {/* Tabbed customer views */}
       <GlassCard className="mt-4">
         {/* Tab bar */}
-        <div className="flex gap-1 mb-4 p-1 rounded-lg bg-[var(--bg-primary)] w-fit">
+        <div className="flex gap-1 mb-4 p-1 rounded-lg bg-[var(--bg-secondary)] w-fit">
           {TABS.map((tab) => (
             <button
               key={tab.key}
@@ -236,7 +236,7 @@ function CustomerTable({
             ) : (
               <td className="py-2">
                 <span className={`text-xs px-2 py-0.5 rounded-full ${
-                  c.status === "active" ? "bg-emerald-950 text-emerald-400" : "bg-red-950 text-red-400"
+                  c.status === "active" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
                 }`}>
                   {c.status}
                 </span>

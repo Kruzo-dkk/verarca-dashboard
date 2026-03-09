@@ -43,7 +43,7 @@ export function ARRTrend({ data, formatValue }: ARRTrendProps) {
             border: `1px solid ${CHART_COLORS.grid}`,
             borderRadius: "0.5rem",
           }}
-          labelStyle={{ color: "#F8FAFC" }}
+          labelStyle={{ color: "#1A1A1A" }}
           formatter={(value: number | undefined) => [formatValue(value ?? 0), "ARR"]}
         />
         <Area

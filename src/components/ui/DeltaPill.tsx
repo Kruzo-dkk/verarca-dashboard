@@ -17,10 +17,10 @@ export function DeltaPill({ current, previous, format = "percent", invert = fals
   const isNeutral = delta === 0;
 
   const colorClass = isNeutral
-    ? "bg-slate-800 text-slate-400"
+    ? "bg-slate-100 text-slate-500"
     : isPositive
-      ? "bg-emerald-950/60 text-emerald-400"
-      : "bg-red-950/60 text-red-400";
+      ? "bg-emerald-50 text-emerald-600"
+      : "bg-red-50 text-red-600";
 
   const arrow = delta > 0 ? "\u2191" : delta < 0 ? "\u2193" : "";
 

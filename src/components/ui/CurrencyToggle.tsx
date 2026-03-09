@@ -18,7 +18,7 @@ export function CurrencyToggle({ value, onChange }: CurrencyToggleProps) {
           onClick={() => onChange(c)}
           className={`px-3 py-1.5 text-xs font-medium transition-colors ${
             value === c
-              ? "bg-[var(--accent-blue)] text-white"
+              ? "bg-[var(--accent-coral)] text-white"
               : "bg-[var(--bg-card)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]"
           }`}
         >

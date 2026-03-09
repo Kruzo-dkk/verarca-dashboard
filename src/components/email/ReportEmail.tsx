@@ -69,7 +69,7 @@ export function ReportEmail({ data, month, currency, fxRates }: ReportEmailProps
         <table cellPadding={0} cellSpacing={0} style={{ width: "100%", maxWidth: 600, margin: "0 auto", backgroundColor: "#FFFFFF" }}>
           {/* Header */}
           <tr>
-            <td style={{ padding: "32px 24px 20px", backgroundColor: "#1a1d21", color: "#F8FAFC" }}>
+            <td style={{ padding: "32px 24px 20px", backgroundColor: "#1A5C5A", color: "#FFFFFF" }}>
               <table cellPadding={0} cellSpacing={0} style={{ width: "100%" }}>
                 <tr>
                   <td>
@@ -147,11 +147,11 @@ export function ReportEmail({ data, month, currency, fxRates }: ReportEmailProps
               <h2 style={sectionTitle}>MRR Decomposition</h2>
               <table cellPadding={0} cellSpacing={0} style={{ width: "100%", fontSize: 13 }}>
                 {([
-                  ["New", data.revenue.decomposition.newMRR, "#10B981"],
-                  ["Expansion", data.revenue.decomposition.expansionMRR, "#3B82F6"],
+                  ["New", data.revenue.decomposition.newMRR, "#1A5C5A"],
+                  ["Expansion", data.revenue.decomposition.expansionMRR, "#FF6B4A"],
                   ["Contraction", -data.revenue.decomposition.contractionMRR, "#F59E0B"],
                   ["Churned", -data.revenue.decomposition.churnedMRR, "#EF4444"],
-                  ["Net New", data.revenue.netNewMRR, data.revenue.netNewMRR >= 0 ? "#10B981" : "#EF4444"],
+                  ["Net New", data.revenue.netNewMRR, data.revenue.netNewMRR >= 0 ? "#1A5C5A" : "#EF4444"],
                 ] as const).map(([label, value, color]) => (
                   <tr key={label}>
                     <td style={{ padding: "4px 8px 4px 0", width: 90, color: "#64748B" }}>{label}</td>

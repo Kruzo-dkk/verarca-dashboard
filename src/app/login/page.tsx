@@ -60,15 +60,15 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-950">
+    <div className="flex min-h-screen items-center justify-center bg-[#F8F8F8]">
       <form
         onSubmit={mode === "password" ? handlePasswordLogin : handleMagicLink}
-        className="w-full max-w-sm space-y-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-8"
+        className="w-full max-w-sm space-y-4 rounded-2xl border border-[#E8E8E8] bg-white p-8 shadow-sm"
       >
-        <h1 className="text-xl font-bold text-white">Sign in to Verarca</h1>
+        <h1 className="text-xl font-bold text-[#1A1A1A]">Sign in to Verarca</h1>
 
-        {error && <p className="text-sm text-red-400">{error}</p>}
-        {message && <p className="text-sm text-emerald-400">{message}</p>}
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        {message && <p className="text-sm text-emerald-600">{message}</p>}
 
         <input
           type="email"
@@ -76,7 +76,7 @@ export default function LoginPage() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
-          className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 text-white placeholder-zinc-500 focus:border-zinc-500 focus:outline-none"
+          className="w-full rounded-lg border border-[#E8E8E8] bg-[#F8F8F8] px-4 py-2 text-[#1A1A1A] placeholder-[#8A8A8A] focus:border-[#FF6B4A] focus:outline-none"
         />
 
         {mode === "password" && (
@@ -86,14 +86,14 @@ export default function LoginPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 text-white placeholder-zinc-500 focus:border-zinc-500 focus:outline-none"
+            className="w-full rounded-lg border border-[#E8E8E8] bg-[#F8F8F8] px-4 py-2 text-[#1A1A1A] placeholder-[#8A8A8A] focus:border-[#FF6B4A] focus:outline-none"
           />
         )}
 
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-lg bg-white px-4 py-2 font-medium text-zinc-900 transition-colors hover:bg-zinc-200 disabled:opacity-50"
+          className="w-full rounded-lg bg-[#FF6B4A] px-4 py-2 font-medium text-white transition-colors hover:bg-[#E85A3A] disabled:opacity-50"
         >
           {loading
             ? "Sending..."
@@ -109,7 +109,7 @@ export default function LoginPage() {
             setError(null);
             setMessage(null);
           }}
-          className="w-full text-sm text-zinc-400 hover:text-white transition-colors"
+          className="w-full text-sm text-[#8A8A8A] hover:text-[#1A1A1A] transition-colors"
         >
           {mode === "password"
             ? "Sign in with magic link instead"

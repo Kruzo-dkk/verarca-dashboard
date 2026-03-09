@@ -47,7 +47,7 @@ export function RevenueSection({ data, formatValue }: RevenueSectionProps) {
         </GlassCard>
         <GlassCard className="text-center">
           <span className="text-xs text-[var(--text-muted)]">Net New MRR</span>
-          <div className={`metric-value text-lg mt-1 ${data.revenue.netNewMRR >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+          <div className={`metric-value text-lg mt-1 ${data.revenue.netNewMRR >= 0 ? "text-emerald-600" : "text-red-600"}`}>
             {formatValue(data.revenue.netNewMRR)}
           </div>
         </GlassCard>

@@ -38,7 +38,7 @@ export function MRRWaterfall({ decomposition, formatValue }: MRRWaterfallProps) 
             border: `1px solid ${CHART_COLORS.grid}`,
             borderRadius: "0.5rem",
           }}
-          labelStyle={{ color: "#F8FAFC" }}
+          labelStyle={{ color: "#1A1A1A" }}
           itemStyle={{ color: CHART_COLORS.text }}
           formatter={(value: number | undefined) => [formatValue(Math.abs(value ?? 0)), ""]}
         />

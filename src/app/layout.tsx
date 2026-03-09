@@ -31,9 +31,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <body
-        className={`${dmSans.variable} ${dmSerif.variable} ${ibmPlexMono.variable} antialiased bg-[#1a1d21] text-white font-[family-name:var(--font-body)]`}
+        className={`${dmSans.variable} ${dmSerif.variable} ${ibmPlexMono.variable} antialiased bg-[#F8F8F8] text-[#1A1A1A] font-[family-name:var(--font-body)]`}
       >
         {children}
       </body>

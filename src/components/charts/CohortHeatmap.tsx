@@ -7,11 +7,11 @@ interface CohortHeatmapProps {
 }
 
 function getRetentionColor(pct: number): string {
-  if (pct >= 95) return "bg-emerald-900/80 text-emerald-300";
-  if (pct >= 85) return "bg-emerald-900/50 text-emerald-400";
-  if (pct >= 70) return "bg-amber-900/50 text-amber-400";
-  if (pct >= 50) return "bg-red-900/40 text-red-400";
-  return "bg-red-900/60 text-red-300";
+  if (pct >= 95) return "bg-emerald-100 text-emerald-700";
+  if (pct >= 85) return "bg-emerald-50 text-emerald-600";
+  if (pct >= 70) return "bg-amber-50 text-amber-700";
+  if (pct >= 50) return "bg-red-50 text-red-600";
+  return "bg-red-100 text-red-700";
 }
 
 export function CohortHeatmap({ data }: CohortHeatmapProps) {

@@ -90,7 +90,7 @@ function CommentaryField({
     <GlassCard>
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-sm font-medium text-[var(--text-muted)]">{label}</h3>
-        {saving && <span className="text-[10px] text-[var(--accent-blue)]">Saving...</span>}
+        {saving && <span className="text-[10px] text-[var(--accent-coral)]">Saving...</span>}
       </div>
       <textarea
         value={text}
@@ -98,7 +98,7 @@ function CommentaryField({
         onBlur={save}
         rows={rows}
         placeholder={`Add ${label.toLowerCase()}...`}
-        className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-lg p-3 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none focus:border-[var(--accent-blue)] resize-none"
+        className="w-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg p-3 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none focus:border-[var(--accent-coral)] resize-none"
       />
     </GlassCard>
   );
