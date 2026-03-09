@@ -118,15 +118,30 @@ export function calculatePipelineMetrics(
   const stageMap = new Map(stages.map(s => [s.stageId, s]));
 
   // Filter deals to month if specified
+  // For historical accuracy: a deal belongs in month M if:
+  //   1. It was CREATED on or before the last day of M, AND
+  //   2. It was still OPEN during M (no close date, or closed on/after first day of M)
+  // This reconstructs what the pipeline looked like during each month.
   let filtered = deals;
   if (month) {
+    const monthStart = `${month}-01`;
+    // Calculate last day of month
+    const [y, m] = month.split("-").map(Number);
+    const lastDay = new Date(y, m, 0).getDate();
+    const monthEnd = `${month}-${String(lastDay).padStart(2, "0")}`;
+
     filtered = deals.filter(d => {
-      const closeDate = d.properties.closedate;
-      if (closeDate && closeDate.startsWith(month)) return true;
-      // Include open deals regardless of month
-      const stage = stageMap.get(d.properties.dealstage);
-      if (stage && !stage.isClosed) return true;
-      return false;
+      const createDate = d.properties.createdate?.slice(0, 10);
+      const closeDate = d.properties.closedate?.slice(0, 10) ?? null;
+
+      // Deal must have been created on or before the end of this month
+      if (createDate && createDate > monthEnd) return false;
+
+      // If deal is closed, it must have closed on or after the start of this month
+      // (otherwise it was already closed before this month started)
+      if (closeDate && closeDate < monthStart) return false;
+
+      return true;
     });
   }
 
