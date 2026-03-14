@@ -130,12 +130,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* ── Mobile bottom nav ───────────────────────────────────── */}
       <BottomNav
         items={mobileNavItems}
-        {...{
-          overflowItems: mobileOverflowItems,
-          email,
-          displayName,
-          role,
-        } as Record<string, unknown>}
+        overflowItems={mobileOverflowItems}
+        email={email}
+        displayName={displayName}
+        role={role}
       />
     </div>
   );
