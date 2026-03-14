@@ -97,7 +97,7 @@ export async function getReportData(
     // 4. Customer snapshots for the end month
     supabase
       .from("customer_snapshots")
-      .select("customer_id, mrr, status, plan_handle")
+      .select("customer_id, mrr, status, plan_handle, plan_name")
       .eq("month", endMonth),
 
     // 5. All customers (for join / segment analysis)
@@ -245,15 +245,16 @@ export async function getReportData(
 
   // ------ Top customers --------------------------------------------------
 
-  const mapSnapshot = (cs: { customer_id: number; mrr: number; status: string; plan_handle: string | null }) => {
+  const mapSnapshot = (cs: { customer_id: number; mrr: number; status: string; plan_handle: string | null; plan_name?: string | null }) => {
     const cust = customerMap.get(cs.customer_id);
     return {
       id: cs.customer_id,
       name: cust?.name ?? `Customer ${cs.customer_id}`,
       mrr: cs.mrr,
-      plan: cs.plan_handle,
+      plan: cs.plan_name ?? cust?.plan_name ?? cs.plan_handle,
       status: cs.status,
       partner: cust?.partner ?? null,
+      segment: cust?.segment ?? null,
       matchConfidence: cust?.match_confidence ?? "unknown",
     };
   };
@@ -272,9 +273,10 @@ export async function getReportData(
       id: c.id,
       name: c.name ?? c.frisbii_handle,
       mrr: 0,
-      plan: c.plan_handle,
+      plan: c.plan_name ?? c.plan_handle,
       status: "churned",
       partner: c.partner ?? null,
+      segment: c.segment ?? null,
       matchConfidence: c.match_confidence ?? "unknown",
       churnDate: c.churn_date ?? null,
     }));

@@ -238,6 +238,7 @@ export async function backfillHistory(
         mrr: number;
         status: string;
         plan_handle: string | null;
+        plan_name: string | null;
       }[] = [];
 
       for (const customer of customers) {
@@ -252,12 +253,15 @@ export async function backfillHistory(
           planHandle = sub.plan;
         }
 
+        const planName = planHandle ? (planMap.get(planHandle)?.name ?? planHandle) : null;
+
         custSnapRows.push({
           customer_id: customer.id,
           month,
           mrr,
           status,
           plan_handle: planHandle,
+          plan_name: planName,
         });
       }
 

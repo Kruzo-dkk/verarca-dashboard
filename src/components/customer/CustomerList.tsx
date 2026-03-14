@@ -6,6 +6,13 @@ import { useReportContext } from "@/components/providers/ReportProvider";
 import { CustomerDetailRow } from "./CustomerDetailRow";
 import type { CustomerSummary } from "@/lib/types/report";
 
+interface SegmentBreakdown {
+  segment: string;
+  customerCount: number;
+  mrr: number;
+  percentOfTotal: number;
+}
+
 interface CustomerListData {
   month: string;
   count: number;
@@ -13,10 +20,11 @@ interface CustomerListData {
   churnedLogos: number;
   arpa: number;
   top10Concentration: number | null;
+  segments: SegmentBreakdown[];
   customers: CustomerSummary[];
 }
 
-type SortField = "name" | "mrr" | "plan" | "status" | "partner";
+type SortField = "name" | "mrr" | "plan" | "status" | "partner" | "segment";
 type SortDirection = "asc" | "desc";
 type StatusFilter = "all" | "active" | "churned";
 
@@ -79,7 +87,8 @@ export function CustomerList() {
         (c) =>
           c.name.toLowerCase().includes(q) ||
           (c.plan ?? "").toLowerCase().includes(q) ||
-          (c.partner ?? "").toLowerCase().includes(q)
+          (c.partner ?? "").toLowerCase().includes(q) ||
+          (c.segment ?? "").toLowerCase().includes(q)
       );
     }
 
@@ -97,6 +106,8 @@ export function CustomerList() {
           return dir * a.status.localeCompare(b.status);
         case "partner":
           return dir * (a.partner ?? "").localeCompare(b.partner ?? "");
+        case "segment":
+          return dir * (a.segment ?? "").localeCompare(b.segment ?? "");
         default:
           return 0;
       }
@@ -185,6 +196,38 @@ export function CustomerList() {
         </GlassCard>
       </div>
 
+      {/* Segment breakdown */}
+      {data.segments && data.segments.length > 0 && (
+        <GlassCard>
+          <h3 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-3">
+            Segment Breakdown
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {data.segments.map((seg) => (
+              <div
+                key={seg.segment}
+                className="flex items-center justify-between p-2.5 rounded-lg bg-[var(--bg-secondary)]"
+              >
+                <div>
+                  <div className="text-sm font-medium text-[var(--text-primary)]">
+                    {seg.segment}
+                  </div>
+                  <div className="text-xs text-[var(--text-muted)]">
+                    {seg.customerCount} customer{seg.customerCount !== 1 ? "s" : ""}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm metric-value">{formatValue(seg.mrr)}</div>
+                  <div className="text-xs text-[var(--text-muted)]">
+                    {seg.percentOfTotal.toFixed(0)}%
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </GlassCard>
+      )}
+
       {/* Filters */}
       <GlassCard>
         <div className="flex flex-col sm:flex-row gap-3">
@@ -242,6 +285,11 @@ export function CustomerList() {
                     Partner <SortIcon field="partner" />
                   </button>
                 </th>
+                <th className="pb-2 font-medium hidden lg:table-cell">
+                  <button onClick={() => handleSort("segment")} className="flex items-center hover:text-[var(--text-primary)] transition-colors">
+                    Segment <SortIcon field="segment" />
+                  </button>
+                </th>
                 <th className="pb-2 font-medium">
                   <button onClick={() => handleSort("status")} className="flex items-center hover:text-[var(--text-primary)] transition-colors">
                     Status <SortIcon field="status" />
@@ -263,7 +311,7 @@ export function CustomerList() {
               ))}
               {filteredCustomers.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-[var(--text-muted)]">
+                  <td colSpan={6} className="py-8 text-center text-[var(--text-muted)]">
                     No customers match your filters
                   </td>
                 </tr>
@@ -302,7 +350,15 @@ function CustomerRow({
             >
               ▸
             </span>
-            {customer.name}
+            <div>
+              {customer.name}
+              {/* Show plan as subtitle on mobile where the plan column is hidden */}
+              {customer.plan && (
+                <div className="text-[11px] text-[var(--text-muted)] font-normal sm:hidden">
+                  {customer.plan}
+                </div>
+              )}
+            </div>
           </div>
         </td>
         <td className="py-2.5 text-right metric-value">{formatValue(customer.mrr)}</td>
@@ -312,12 +368,15 @@ function CustomerRow({
         <td className="py-2.5 text-[var(--text-secondary)] hidden md:table-cell">
           {customer.partner ?? "—"}
         </td>
+        <td className="py-2.5 text-[var(--text-secondary)] hidden lg:table-cell">
+          {customer.segment ?? "—"}
+        </td>
         <td className="py-2.5">
           <span
-            className={`text-xs px-2 py-0.5 rounded-full ${
+            className={`text-xs px-2 py-0.5 rounded-full font-medium ${
               customer.status === "active"
-                ? "bg-emerald-50 text-emerald-700"
-                : "bg-red-50 text-red-700"
+                ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400"
+                : "bg-red-500/10 text-red-600 dark:bg-red-500/20 dark:text-red-400"
             }`}
           >
             {customer.status}
@@ -326,7 +385,7 @@ function CustomerRow({
       </tr>
       {expanded && (
         <tr>
-          <td colSpan={5} className="p-0">
+          <td colSpan={6} className="p-0">
             <CustomerDetailRow customerId={customer.id} formatValue={formatValue} />
           </td>
         </tr>

@@ -73,6 +73,7 @@ export type Database = {
           month: string
           mrr: number
           plan_handle: string | null
+          plan_name: string | null
           status: string
         }
         Insert: {
@@ -82,6 +83,7 @@ export type Database = {
           month: string
           mrr?: number
           plan_handle?: string | null
+          plan_name?: string | null
           status?: string
         }
         Update: {
@@ -91,6 +93,7 @@ export type Database = {
           month?: string
           mrr?: number
           plan_handle?: string | null
+          plan_name?: string | null
           status?: string
         }
         Relationships: [
@@ -118,6 +121,7 @@ export type Database = {
           name: string
           partner: string | null
           plan_handle: string | null
+          plan_name: string | null
           segment: string | null
           start_date: string | null
           status: string
@@ -137,6 +141,7 @@ export type Database = {
           name: string
           partner?: string | null
           plan_handle?: string | null
+          plan_name?: string | null
           segment?: string | null
           start_date?: string | null
           status?: string
@@ -156,6 +161,7 @@ export type Database = {
           name?: string
           partner?: string | null
           plan_handle?: string | null
+          plan_name?: string | null
           segment?: string | null
           start_date?: string | null
           status?: string

@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     const [snapshotsRes, customersRes, monthlyRes] = await Promise.all([
       supabase
         .from("customer_snapshots")
-        .select("customer_id, mrr, status, plan_handle")
+        .select("customer_id, mrr, status, plan_handle, plan_name")
         .eq("month", month),
       supabase.from("customers").select("*"),
       supabase
@@ -68,9 +68,10 @@ export async function GET(request: NextRequest) {
           id: cs.customer_id,
           name: cust?.name ?? `Customer ${cs.customer_id}`,
           mrr: cs.mrr,
-          plan: cs.plan_handle,
+          plan: cs.plan_name ?? cs.plan_handle,
           status: cs.status,
           partner: cust?.partner ?? null,
+          segment: cust?.segment ?? null,
           matchConfidence: cust?.match_confidence ?? "unknown",
         };
       });

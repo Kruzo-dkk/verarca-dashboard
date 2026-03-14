@@ -125,6 +125,7 @@ export async function syncCustomerSnapshots(month: string): Promise<void> {
     mrr: number;
     status: string;
     plan_handle: string | null;
+    plan_name: string | null;
   }[] = [];
 
   for (const customer of customers) {
@@ -140,12 +141,15 @@ export async function syncCustomerSnapshots(month: string): Promise<void> {
       planHandle = sub.plan;
     }
 
+    const planName = planHandle ? (planMap.get(planHandle)?.name ?? planHandle) : null;
+
     rows.push({
       customer_id: customer.id,
       month,
       mrr,
       status,
       plan_handle: planHandle,
+      plan_name: planName,
     });
   }
 

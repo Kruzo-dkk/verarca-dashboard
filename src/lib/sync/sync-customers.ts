@@ -1,6 +1,8 @@
 import {
   listCustomers,
   listSubscriptions,
+  listPlans,
+  buildPlanMap,
   type Customer,
   type Subscription,
 } from "@/lib/frisbii";
@@ -42,6 +44,7 @@ interface CustomerRow {
   cvr: string | null;
   segment: string | null;
   plan_handle: string | null;
+  plan_name: string | null;
   partner: string | null;
   status: string;
   start_date: string | null;
@@ -63,11 +66,14 @@ export async function syncCustomers(): Promise<void> {
   console.log("[sync-customers] Starting customer sync");
 
   // ── Fetch sources in parallel ──────────────────────────────
-  const [frisbiiCustomers, subscriptions, clickupFolders] = await Promise.all([
+  const [frisbiiCustomers, subscriptions, clickupFolders, plans] = await Promise.all([
     listCustomers(),
     listSubscriptions(),
     getAllCustomerData(),
+    listPlans(),
   ]);
+
+  const planMap = buildPlanMap(plans);
 
   console.log(
     `[sync-customers] Sources: ${frisbiiCustomers.length} Frisbii customers, ` +
@@ -178,6 +184,7 @@ export async function syncCustomers(): Promise<void> {
       cvr: vat || (clickupMatch?.cvr ? clickupMatch.cvr.replace(/\D/g, "") : null),
       segment: inferSegment(sub?.plan || null),
       plan_handle: sub?.plan || null,
+      plan_name: sub?.plan ? (planMap.get(sub.plan)?.name ?? sub.plan) : null,
       partner: clickupMatch?.partner || null,
       status,
       start_date: startDate,

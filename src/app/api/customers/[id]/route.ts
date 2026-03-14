@@ -38,7 +38,7 @@ export async function GET(
         .single(),
       supabase
         .from("customer_snapshots")
-        .select("month, mrr, status, plan_handle")
+        .select("month, mrr, status, plan_handle, plan_name")
         .eq("customer_id", customerId)
         .order("month", { ascending: true }),
     ]);
@@ -83,7 +83,7 @@ export async function GET(
       month: s.month,
       mrr: s.mrr,
       status: s.status,
-      plan: s.plan_handle,
+      plan: s.plan_name ?? s.plan_handle,
     }));
 
     return NextResponse.json({
@@ -93,7 +93,7 @@ export async function GET(
       email: customer.email,
       cvr: customer.cvr,
       segment: customer.segment,
-      plan: customer.plan_handle,
+      plan: customer.plan_name ?? customer.plan_handle,
       partner: customer.partner,
       status: customer.status,
       startDate: customer.start_date,

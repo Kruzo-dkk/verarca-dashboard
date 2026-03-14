@@ -13,6 +13,12 @@ interface PipelineSectionProps {
 export function PipelineSection({ data, formatValue }: PipelineSectionProps) {
   const p = data.pipeline;
 
+  const formatCloseDate = (d: string | null) => {
+    if (!d) return "—";
+    const date = new Date(d);
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  };
+
   return (
     <section>
       <h2 className="section-heading text-xl mb-4 text-[var(--text-primary)]">Pipeline</h2>
@@ -83,30 +89,33 @@ export function PipelineSection({ data, formatValue }: PipelineSectionProps) {
         {/* Deals table */}
         <GlassCard>
           <h3 className="text-sm font-medium text-[var(--text-muted)] mb-4">Deals</h3>
-          <div className="overflow-x-auto max-h-64">
-            <table className="w-full text-xs">
+          <div className="overflow-x-auto max-h-80">
+            <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-[var(--text-muted)]">
                   <th className="pb-2 font-medium">Deal</th>
                   <th className="pb-2 font-medium text-right">Amount</th>
                   <th className="pb-2 font-medium hidden sm:table-cell">Stage</th>
+                  <th className="pb-2 font-medium">Close</th>
                   <th className="pb-2 font-medium text-right">Prob.</th>
                 </tr>
               </thead>
               <tbody>
                 {p.deals.map((deal) => (
                   <tr key={deal.id} className="border-t border-[var(--border-subtle)]">
-                    <td className="py-1.5 text-[var(--text-primary)] truncate max-w-[120px] sm:max-w-[150px]">
-                      {deal.name}
+                    <td className="py-2 text-[var(--text-primary)] truncate max-w-[180px] sm:max-w-[220px]">
+                      <div>{deal.name}</div>
+                      <div className="text-[10px] text-[var(--text-muted)] sm:hidden">{deal.stage}</div>
                     </td>
-                    <td className="py-1.5 text-right metric-value">{formatValue(deal.amount)}</td>
-                    <td className="py-1.5 text-[var(--text-secondary)] hidden sm:table-cell">{deal.stage}</td>
-                    <td className="py-1.5 text-right metric-value">{(deal.probability * 100).toFixed(0)}%</td>
+                    <td className="py-2 text-right metric-value">{formatValue(deal.amount)}</td>
+                    <td className="py-2 text-[var(--text-secondary)] hidden sm:table-cell">{deal.stage}</td>
+                    <td className="py-2 text-[var(--text-secondary)]">{formatCloseDate(deal.closeDate)}</td>
+                    <td className="py-2 text-right metric-value">{(deal.probability * 100).toFixed(0)}%</td>
                   </tr>
                 ))}
                 {p.deals.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="py-4 text-center text-[var(--text-muted)]">No deals</td>
+                    <td colSpan={5} className="py-4 text-center text-[var(--text-muted)]">No deals</td>
                   </tr>
                 )}
               </tbody>

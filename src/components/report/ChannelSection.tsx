@@ -79,6 +79,15 @@ export function ChannelSection({ data, formatValue }: ChannelSectionProps) {
                   <th className="pb-2 font-medium text-right hidden sm:table-cell">
                     % of Total
                   </th>
+                  <th className="pb-2 font-medium text-right hidden lg:table-cell">
+                    Win Rate
+                  </th>
+                  <th className="pb-2 font-medium text-right hidden lg:table-cell">
+                    Avg Deal
+                  </th>
+                  <th className="pb-2 font-medium text-right hidden xl:table-cell">
+                    Avg Cycle
+                  </th>
                   <th className="pb-2 font-medium text-right hidden sm:table-cell">
                     CAC
                   </th>
@@ -105,6 +114,9 @@ export function ChannelSection({ data, formatValue }: ChannelSectionProps) {
                   <td className="pt-2 text-right metric-value hidden sm:table-cell">
                     100%
                   </td>
+                  <td className="pt-2 text-right hidden lg:table-cell">—</td>
+                  <td className="pt-2 text-right hidden lg:table-cell">—</td>
+                  <td className="pt-2 text-right hidden xl:table-cell">—</td>
                   <td className="pt-2 text-right hidden sm:table-cell">—</td>
                 </tr>
               </tbody>
@@ -200,6 +212,17 @@ function ChannelRow({
       <td className="py-2.5 text-right text-[var(--text-secondary)] hidden sm:table-cell">
         {pctOfTotal > 0 ? `${pctOfTotal}%` : "—"}
       </td>
+      <td className="py-2.5 text-right text-[var(--text-secondary)] hidden lg:table-cell">
+        {metrics.winRate != null ? `${Math.round(metrics.winRate)}%` : "—"}
+      </td>
+      <td className="py-2.5 text-right text-[var(--text-secondary)] hidden lg:table-cell">
+        {metrics.avgDealSize != null ? formatValue(metrics.avgDealSize) : "—"}
+      </td>
+      <td className="py-2.5 text-right text-[var(--text-secondary)] hidden xl:table-cell">
+        {metrics.avgSalesCycleDays != null
+          ? `${metrics.avgSalesCycleDays}d`
+          : "—"}
+      </td>
       <td className="py-2.5 text-right text-[var(--text-secondary)] hidden sm:table-cell">
         {metrics.cac != null ? formatValue(metrics.cac) : "—"}
       </td>
@@ -214,6 +237,8 @@ function PartnerPerformance({
   partners: ReportData["channels"]["byPartner"];
   formatValue: (v: number) => string;
 }) {
+  const totalPartnerMRR = partners.reduce((s, p) => s + p.totalMRR, 0);
+
   return (
     <GlassCard>
       <h3 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-3">
@@ -226,6 +251,9 @@ function PartnerPerformance({
               <th className="pb-2 font-medium">Partner</th>
               <th className="pb-2 font-medium text-right">Customers</th>
               <th className="pb-2 font-medium text-right">Total MRR</th>
+              <th className="pb-2 font-medium text-right hidden sm:table-cell">
+                % of Partner MRR
+              </th>
               <th className="pb-2 font-medium text-right hidden sm:table-cell">
                 Avg MRR
               </th>
@@ -248,6 +276,11 @@ function PartnerPerformance({
                 </td>
                 <td className="py-2.5 text-right metric-value">
                   {formatValue(p.totalMRR)}
+                </td>
+                <td className="py-2.5 text-right text-[var(--text-secondary)] hidden sm:table-cell">
+                  {totalPartnerMRR > 0
+                    ? `${Math.round((p.totalMRR / totalPartnerMRR) * 1000) / 10}%`
+                    : "—"}
                 </td>
                 <td className="py-2.5 text-right text-[var(--text-secondary)] hidden sm:table-cell">
                   {formatValue(p.avgMRR)}

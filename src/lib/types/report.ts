@@ -145,6 +145,7 @@ export interface CustomerSummary {
   plan: string | null;
   status: string;
   partner: string | null;
+  segment: string | null;
   matchConfidence: string;
   churnDate?: string | null;
 }
