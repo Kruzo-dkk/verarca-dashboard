@@ -17,10 +17,45 @@ interface ARRTrendProps {
   formatValue: (v: number) => string;
 }
 
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/**
+ * Format a YYYY-MM string for the X-axis.
+ * Shows "Jan '24" for January or when the dataset spans multiple years,
+ * otherwise just "Feb", "Mar", etc.
+ */
+function formatMonthTick(m: string, spansMultipleYears: boolean): string {
+  const [yr, mo] = m.split("-");
+  const monthName = MONTH_NAMES[parseInt(mo) - 1] ?? m;
+  // Always show year suffix on January, or on all ticks if data spans multiple years
+  if (spansMultipleYears || mo === "01") {
+    return `${monthName} '${yr.slice(2)}`;
+  }
+  return monthName;
+}
+
 export function ARRTrend({ data, formatValue }: ARRTrendProps) {
   const mobile = useIsMobile();
   const axisProps = mobile ? CHART_AXIS_PROPS_MOBILE : CHART_AXIS_PROPS;
   const margin = mobile ? CHART_MARGIN_MOBILE : CHART_MARGIN;
+
+  // Edge case: not enough data for a meaningful chart
+  if (!data || data.length < 2) {
+    return (
+      <div
+        className="flex items-center justify-center text-sm text-gray-400"
+        style={{ height: mobile ? 220 : 280 }}
+      >
+        {data.length === 0
+          ? "No ARR data available. Run a sync to populate data."
+          : "Only 1 month of data. More months needed for a trend."}
+      </div>
+    );
+  }
+
+  // Determine if the dataset spans multiple calendar years
+  const years = new Set(data.map((d) => d.month.split("-")[0]));
+  const spansMultipleYears = years.size > 1;
 
   return (
     <ResponsiveContainer width="100%" height={mobile ? 220 : 280}>
@@ -36,11 +71,7 @@ export function ARRTrend({ data, formatValue }: ARRTrendProps) {
           dataKey="month"
           {...axisProps}
           interval={mobile ? "equidistantPreserveStart" : undefined}
-          tickFormatter={(m: string) => {
-            const [, mo] = m.split("-");
-            const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-            return monthNames[parseInt(mo) - 1] ?? m;
-          }}
+          tickFormatter={(m: string) => formatMonthTick(m, spansMultipleYears)}
         />
         <YAxis {...axisProps} tickFormatter={(v: number) => formatValue(v)} width={mobile ? 50 : undefined} />
         <Tooltip
@@ -50,6 +81,11 @@ export function ARRTrend({ data, formatValue }: ARRTrendProps) {
             borderRadius: "0.5rem",
           }}
           labelStyle={{ color: "#1A1A1A" }}
+          labelFormatter={(label) => {
+            const m = String(label);
+            const [yr, mo] = m.split("-");
+            return `${MONTH_NAMES[parseInt(mo) - 1]} ${yr}`;
+          }}
           formatter={(value: number | undefined) => [formatValue(value ?? 0), "ARR"]}
         />
         <Area

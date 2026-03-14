@@ -8,6 +8,7 @@ import { RetentionSection } from "./RetentionSection";
 import { CustomerSection } from "./CustomerSection";
 import { PipelineSection } from "./PipelineSection";
 import { UnitEconomicsSection } from "./UnitEconomicsSection";
+import { ChannelSection } from "./ChannelSection";
 import { CommentarySection } from "./CommentarySection";
 
 /**
@@ -53,6 +54,7 @@ export function ReportShell() {
           <RetentionSection data={data} />
           <CustomerSection data={data} formatValue={formatValue} />
           <PipelineSection data={data} formatValue={formatValue} />
+          <ChannelSection data={data} formatValue={formatValue} />
           <UnitEconomicsSection data={data} formatValue={formatValue} />
           <CommentarySection
             month={month}

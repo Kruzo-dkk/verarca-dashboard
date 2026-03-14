@@ -10,6 +10,9 @@ import type {
   SegmentBreakdown,
   CustomerSummary,
   PipelineDeal,
+  ChannelMetrics,
+  PartnerMetrics,
+  LeadSource,
 } from "@/lib/types/report";
 
 // ---------------------------------------------------------------------------
@@ -64,6 +67,7 @@ export async function getReportData(
     fxRes,
     settingsRes,
     discountSnapshotsRes,
+    channelMetricsRes,
   ] = await Promise.all([
     // 1. End-month snapshot (point-in-time metrics)
     supabase
@@ -125,6 +129,12 @@ export async function getReportData(
       .from("discount_snapshots")
       .select("monthly_impact, discount_name, discount_percentage, discount_type, expires_at, subscription_handle, customer_id")
       .eq("month", endMonth),
+
+    // 10. Channel metrics for the end month
+    supabase
+      .from("channel_metrics")
+      .select("*")
+      .eq("month", endMonth),
   ]);
 
   // ------ Unpack & default values ----------------------------------------
@@ -138,6 +148,7 @@ export async function getReportData(
   const fxRow = fxRes.data;
   const settingsRow = settingsRes.data;
   const discountSnapshots = discountSnapshotsRes.data ?? [];
+  const channelMetricsRows = channelMetricsRes.data ?? [];
 
   const fxRates: FXRates = {
     EUR: fxRow?.eur_rate ?? 0,
@@ -146,14 +157,22 @@ export async function getReportData(
 
   // ------ History arrays -------------------------------------------------
 
-  const mrrHistory = trailing.map((r) => ({ month: r.month, mrr: r.mrr }));
-  const arrHistory = trailing.map((r) => ({ month: r.month, arr: r.arr }));
-  const countHistory = trailing.map((r) => ({
+  // Only include months that have real data — trim leading zero/null entries
+  // so charts start from the first month with actual revenue.
+  const firstValidIdx = trailing.findIndex((r) => r.mrr > 0 || r.arr > 0);
+  const validTrailing = firstValidIdx >= 0 ? trailing.slice(firstValidIdx) : [];
+
+  const mrrHistory = validTrailing.map((r) => ({ month: r.month, mrr: r.mrr }));
+  const arrHistory = validTrailing.map((r) => ({ month: r.month, arr: r.arr }));
+  const countHistory = validTrailing.map((r) => ({
     month: r.month,
     count: r.customer_count,
   }));
-  const arpaHistory = trailing.map((r) => ({ month: r.month, arpa: r.arpa }));
-  const nrrHistory = trailing
+  const arpaHistory = validTrailing.map((r) => ({
+    month: r.month,
+    arpa: r.arpa,
+  }));
+  const nrrHistory = validTrailing
     .filter((r) => r.nrr != null)
     .map((r) => ({ month: r.month, nrr: r.nrr as number }));
 
@@ -338,6 +357,66 @@ export async function getReportData(
     ltvCacRatio = Math.round((ltv / cac) * 100) / 100;
   }
 
+  // ------ Channel attribution ----------------------------------------------
+
+  const byChannel: ChannelMetrics[] = channelMetricsRows.map((row) => ({
+    channel: row.channel as LeadSource,
+    newLogos: row.new_logos ?? 0,
+    newMRR: row.new_mrr ?? 0,
+    pipelineValue: row.pipeline_value,
+    dealsCreated: row.deals_created,
+    dealsWon: row.deals_won,
+    dealsLost: row.deals_lost,
+    winRate: row.win_rate,
+    avgDealSize: row.avg_deal_size,
+    avgSalesCycleDays: row.avg_sales_cycle_days,
+    cac: row.cac,
+  }));
+
+  // Partner performance: group active customers by partner name
+  const partnerAgg = new Map<
+    string,
+    { customerCount: number; totalMRR: number; newLogos: number }
+  >();
+
+  const monthStart = `${endMonth}-01`;
+  const [endY, endM] = endMonth.split("-").map(Number);
+  const endLastDay = new Date(endY, endM, 0).getDate();
+  const monthEnd = `${endMonth}-${String(endLastDay).padStart(2, "0")}`;
+
+  for (const cs of customerSnapshots) {
+    if (cs.status !== "active") continue;
+    const cust = customerMap.get(cs.customer_id);
+    if (!cust?.partner) continue;
+
+    const existing = partnerAgg.get(cust.partner) ?? {
+      customerCount: 0,
+      totalMRR: 0,
+      newLogos: 0,
+    };
+
+    existing.customerCount += 1;
+    existing.totalMRR += cs.mrr;
+
+    // Check if this is a new logo in the target month
+    const startDate = cust.start_date?.slice(0, 10);
+    if (startDate && startDate >= monthStart && startDate <= monthEnd) {
+      existing.newLogos += 1;
+    }
+
+    partnerAgg.set(cust.partner, existing);
+  }
+
+  const byPartner: PartnerMetrics[] = Array.from(partnerAgg.entries())
+    .map(([partner, data]) => ({
+      partner,
+      customerCount: data.customerCount,
+      totalMRR: data.totalMRR,
+      avgMRR: data.customerCount > 0 ? Math.round(data.totalMRR / data.customerCount) : 0,
+      newLogos: data.newLogos,
+    }))
+    .sort((a, b) => b.totalMRR - a.totalMRR);
+
   // ------ Committed MRR ---------------------------------------------------
 
   const committedMRR =
@@ -398,6 +477,11 @@ export async function getReportData(
       avgSalesCycleDays: pipeline?.avg_sales_cycle_days ?? 0,
       avgDealSize: pipeline?.avg_deal_size ?? 0,
       deals,
+    },
+
+    channels: {
+      byChannel,
+      byPartner,
     },
 
     unitEconomics: {

@@ -92,6 +92,73 @@ export function SettingsIcon({ className }: IconProps) {
   );
 }
 
+/** Document / board report icon */
+export function BoardReportIcon({ className }: IconProps) {
+  return (
+    <svg
+      className={className}
+      width="20"
+      height="20"
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3" y="2" width="14" height="16" rx="2" />
+      <line x1="7" y1="6" x2="13" y2="6" />
+      <line x1="7" y1="10" x2="13" y2="10" />
+      <line x1="7" y1="14" x2="11" y2="14" />
+    </svg>
+  );
+}
+
+/** Chart bar / investor icon */
+export function InvestorIcon({ className }: IconProps) {
+  return (
+    <svg
+      className={className}
+      width="20"
+      height="20"
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="2" y="12" width="3" height="6" rx="0.5" />
+      <rect x="7" y="8" width="3" height="10" rx="0.5" />
+      <rect x="12" y="4" width="3" height="14" rx="0.5" />
+      <line x1="17" y1="2" x2="17" y2="18" />
+      <polyline points="15,4 17,2 19,4" />
+    </svg>
+  );
+}
+
+/** User group / team management icon */
+export function UsersIcon({ className }: IconProps) {
+  return (
+    <svg
+      className={className}
+      width="20"
+      height="20"
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="10" cy="5" r="3" />
+      <path d="M4 18c0-3.5 2.7-6 6-6s6 2.5 6 6" />
+      <line x1="16" y1="7" x2="16" y2="13" />
+      <line x1="13" y1="10" x2="19" y2="10" />
+    </svg>
+  );
+}
+
 /** Refresh icon */
 export function RefreshIcon({ className }: IconProps) {
   return (

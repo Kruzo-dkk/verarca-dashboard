@@ -100,3 +100,63 @@ body {
 ::selection {
   background: rgba(255, 107, 74, 0.15);
 }
+
+/* ─── Print styles ──────────────────────────────────────────── */
+@media print {
+  /* Reset background and remove noise */
+  body {
+    background: white !important;
+    color: #1A1A1A !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Hide navigation, sidebars, and interactive elements */
+  nav,
+  aside {
+    display: none !important;
+  }
+
+  /* Cards: remove shadow and reduce border for clean print */
+  .glass-card {
+    box-shadow: none !important;
+    border: 1px solid #E0E0E0 !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Prevent orphaned sections */
+  section {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Ensure charts/tables don't split across pages */
+  table,
+  .recharts-wrapper {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Page setup */
+  @page {
+    margin: 1.5cm;
+    size: A4;
+  }
+
+  /* Metric values should be high-contrast for print */
+  .metric-value {
+    color: #1A1A1A !important;
+  }
+
+  /* Reduce spacing for print density */
+  .space-y-10 > * + * {
+    margin-top: 1.5rem !important;
+  }
+
+  /* Footer always at bottom */
+  footer {
+    margin-top: 1rem !important;
+    padding-top: 0.5rem !important;
+  }
+}

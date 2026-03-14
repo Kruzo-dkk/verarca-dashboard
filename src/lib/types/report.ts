@@ -82,6 +82,12 @@ export interface ReportData {
     ruleOf40: null;
   };
 
+  // Channel Attribution (management only)
+  channels: {
+    byChannel: ChannelMetrics[];
+    byPartner: PartnerMetrics[];
+  };
+
   // Commentary
   commentary: {
     executiveSummary: string | null;
@@ -89,6 +95,32 @@ export interface ReportData {
     lowlights: string | null;
     whatsAhead: string | null;
   };
+}
+
+// ─── Channel Attribution Types ─────────────────────────────────
+
+export type LeadSource = "outbound" | "partner" | "inbound";
+
+export interface ChannelMetrics {
+  channel: LeadSource;
+  newLogos: number;
+  newMRR: number; // DKK øre
+  pipelineValue: number | null;
+  dealsCreated: number | null;
+  dealsWon: number | null;
+  dealsLost: number | null;
+  winRate: number | null;
+  avgDealSize: number | null;
+  avgSalesCycleDays: number | null;
+  cac: number | null; // DKK øre
+}
+
+export interface PartnerMetrics {
+  partner: string;
+  customerCount: number;
+  totalMRR: number; // DKK øre
+  avgMRR: number; // DKK øre
+  newLogos: number; // new in this month
 }
 
 // ─── Supporting Types ──────────────────────────────────────────

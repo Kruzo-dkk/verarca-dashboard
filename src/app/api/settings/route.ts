@@ -42,6 +42,9 @@ export async function GET(request: NextRequest) {
     data ?? {
       month,
       total_cac: 0,
+      cac_outbound: null,
+      cac_partner: null,
+      cac_inbound: null,
       employee_count: null,
       notes: null,
     }
@@ -66,7 +69,7 @@ export async function PUT(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { month, total_cac, employee_count, notes } = body;
+  const { month, total_cac, cac_outbound, cac_partner, cac_inbound, employee_count, notes } = body;
 
   if (!month || !/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
     return NextResponse.json(
@@ -81,6 +84,9 @@ export async function PUT(request: NextRequest) {
       {
         month,
         total_cac: total_cac ?? 0,
+        cac_outbound: cac_outbound ?? null,
+        cac_partner: cac_partner ?? null,
+        cac_inbound: cac_inbound ?? null,
         employee_count: employee_count ?? null,
         notes: notes ?? null,
       },

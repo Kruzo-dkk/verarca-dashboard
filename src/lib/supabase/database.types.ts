@@ -14,58 +14,56 @@ export type Database = {
   }
   public: {
     Tables: {
-      discount_snapshots: {
+      channel_metrics: {
         Row: {
+          avg_deal_size: number | null
+          avg_sales_cycle_days: number | null
+          cac: number | null
+          channel: string
+          created_at: string | null
+          deals_created: number | null
+          deals_lost: number | null
+          deals_won: number | null
           id: number
           month: string
-          subscription_handle: string
-          customer_id: number | null
-          discount_handle: string
-          discount_name: string | null
-          discount_amount: number
-          discount_percentage: number | null
-          discount_type: string
-          monthly_impact: number
-          expires_at: string | null
-          created_at: string
+          new_logos: number | null
+          new_mrr: number | null
+          pipeline_value: number | null
+          win_rate: number | null
         }
         Insert: {
-          id?: never
+          avg_deal_size?: number | null
+          avg_sales_cycle_days?: number | null
+          cac?: number | null
+          channel: string
+          created_at?: string | null
+          deals_created?: number | null
+          deals_lost?: number | null
+          deals_won?: number | null
+          id?: number
           month: string
-          subscription_handle: string
-          customer_id?: number | null
-          discount_handle: string
-          discount_name?: string | null
-          discount_amount?: number
-          discount_percentage?: number | null
-          discount_type?: string
-          monthly_impact?: number
-          expires_at?: string | null
-          created_at?: string
+          new_logos?: number | null
+          new_mrr?: number | null
+          pipeline_value?: number | null
+          win_rate?: number | null
         }
         Update: {
-          id?: never
+          avg_deal_size?: number | null
+          avg_sales_cycle_days?: number | null
+          cac?: number | null
+          channel?: string
+          created_at?: string | null
+          deals_created?: number | null
+          deals_lost?: number | null
+          deals_won?: number | null
+          id?: number
           month?: string
-          subscription_handle?: string
-          customer_id?: number | null
-          discount_handle?: string
-          discount_name?: string | null
-          discount_amount?: number
-          discount_percentage?: number | null
-          discount_type?: string
-          monthly_impact?: number
-          expires_at?: string | null
-          created_at?: string
+          new_logos?: number | null
+          new_mrr?: number | null
+          pipeline_value?: number | null
+          win_rate?: number | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "discount_snapshots_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "customers"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       customer_snapshots: {
         Row: {
@@ -115,6 +113,7 @@ export type Database = {
           frisbii_handle: string
           hubspot_company_id: string | null
           id: number
+          lead_source: string | null
           match_confidence: string
           name: string
           partner: string | null
@@ -133,6 +132,7 @@ export type Database = {
           frisbii_handle: string
           hubspot_company_id?: string | null
           id?: never
+          lead_source?: string | null
           match_confidence?: string
           name: string
           partner?: string | null
@@ -151,6 +151,7 @@ export type Database = {
           frisbii_handle?: string
           hubspot_company_id?: string | null
           id?: never
+          lead_source?: string | null
           match_confidence?: string
           name?: string
           partner?: string | null
@@ -159,6 +160,95 @@ export type Database = {
           start_date?: string | null
           status?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      discount_snapshots: {
+        Row: {
+          created_at: string | null
+          customer_id: number | null
+          discount_amount: number | null
+          discount_handle: string
+          discount_name: string | null
+          discount_percentage: number | null
+          discount_type: string | null
+          expires_at: string | null
+          id: number
+          month: string
+          monthly_impact: number | null
+          subscription_handle: string
+        }
+        Insert: {
+          created_at?: string | null
+          customer_id?: number | null
+          discount_amount?: number | null
+          discount_handle: string
+          discount_name?: string | null
+          discount_percentage?: number | null
+          discount_type?: string | null
+          expires_at?: string | null
+          id?: never
+          month: string
+          monthly_impact?: number | null
+          subscription_handle: string
+        }
+        Update: {
+          created_at?: string | null
+          customer_id?: number | null
+          discount_amount?: number | null
+          discount_handle?: string
+          discount_name?: string | null
+          discount_percentage?: number | null
+          discount_type?: string | null
+          expires_at?: string | null
+          id?: never
+          month?: string
+          monthly_impact?: number | null
+          subscription_handle?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discount_snapshots_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      forecast_assumptions: {
+        Row: {
+          avg_new_deal_size: number
+          created_at: string | null
+          id: number
+          monthly_churn_pct: number
+          monthly_expansion_pct: number
+          new_logos_per_month: number
+          pipeline_conversion_pct: number
+          scenario: string
+          updated_at: string | null
+        }
+        Insert: {
+          avg_new_deal_size?: number
+          created_at?: string | null
+          id?: never
+          monthly_churn_pct?: number
+          monthly_expansion_pct?: number
+          new_logos_per_month?: number
+          pipeline_conversion_pct?: number
+          scenario: string
+          updated_at?: string | null
+        }
+        Update: {
+          avg_new_deal_size?: number
+          created_at?: string | null
+          id?: never
+          monthly_churn_pct?: number
+          monthly_expansion_pct?: number
+          new_logos_per_month?: number
+          pipeline_conversion_pct?: number
+          scenario?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -186,6 +276,39 @@ export type Database = {
           locked_at?: string
           month?: string
           usd_rate?: number
+        }
+        Relationships: []
+      }
+      invitations: {
+        Row: {
+          accepted_at: string | null
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          invited_by: string
+          role: string
+          token: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string
+          email: string
+          expires_at?: string
+          id?: string
+          invited_by: string
+          role: string
+          token?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          invited_by?: string
+          role?: string
+          token?: string
         }
         Relationships: []
       }
@@ -369,44 +492,11 @@ export type Database = {
         }
         Relationships: []
       }
-      forecast_assumptions: {
-        Row: {
-          id: number
-          scenario: string
-          monthly_churn_pct: number
-          monthly_expansion_pct: number
-          new_logos_per_month: number
-          avg_new_deal_size: number
-          pipeline_conversion_pct: number
-          created_at: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          id?: never
-          scenario: string
-          monthly_churn_pct?: number
-          monthly_expansion_pct?: number
-          new_logos_per_month?: number
-          avg_new_deal_size?: number
-          pipeline_conversion_pct?: number
-          created_at?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          id?: never
-          scenario?: string
-          monthly_churn_pct?: number
-          monthly_expansion_pct?: number
-          new_logos_per_month?: number
-          avg_new_deal_size?: number
-          pipeline_conversion_pct?: number
-          created_at?: string | null
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
       settings: {
         Row: {
+          cac_inbound: number | null
+          cac_outbound: number | null
+          cac_partner: number | null
           created_at: string | null
           employee_count: number | null
           id: number
@@ -416,6 +506,9 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          cac_inbound?: number | null
+          cac_outbound?: number | null
+          cac_partner?: number | null
           created_at?: string | null
           employee_count?: number | null
           id?: never
@@ -425,6 +518,9 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          cac_inbound?: number | null
+          cac_outbound?: number | null
+          cac_partner?: number | null
           created_at?: string | null
           employee_count?: number | null
           id?: never
@@ -435,12 +531,45 @@ export type Database = {
         }
         Relationships: []
       }
+      user_profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          email: string
+          id: string
+          invited_at: string | null
+          invited_by: string | null
+          role: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          email: string
+          id: string
+          invited_at?: string | null
+          invited_by?: string | null
+          role?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          email?: string
+          id?: string
+          invited_at?: string | null
+          invited_by?: string | null
+          role?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_user_role: { Args: never; Returns: string }
     }
     Enums: {
       [_ in never]: never

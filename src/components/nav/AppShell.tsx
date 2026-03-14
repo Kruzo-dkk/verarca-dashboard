@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useReportContext } from "@/components/providers/ReportProvider";
+import { useUserRole } from "@/hooks/useUserRole";
 import { PeriodSelector } from "@/components/ui/PeriodSelector";
 import { CurrencyToggle } from "@/components/ui/CurrencyToggle";
 import { BottomNav } from "./BottomNav";
@@ -12,26 +13,54 @@ import {
   ForecastIcon,
   SettingsIcon,
   RefreshIcon,
+  BoardReportIcon,
+  InvestorIcon,
+  UsersIcon,
 } from "./NavIcons";
+import type { UserRole } from "@/lib/auth/roles";
 
-const navItems = [
-  { href: "/", label: "Dashboard", icon: DashboardIcon },
-  { href: "/customers", label: "Customers", icon: CustomersIcon },
-  { href: "/forecast", label: "Forecast", icon: ForecastIcon },
-  { href: "/settings", label: "Settings", icon: SettingsIcon },
+export interface NavItem {
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  roles: UserRole[];
+}
+
+const allNavItems: NavItem[] = [
+  { href: "/", label: "Dashboard", icon: DashboardIcon, roles: ["management"] },
+  { href: "/customers", label: "Customers", icon: CustomersIcon, roles: ["management"] },
+  { href: "/forecast", label: "Forecast", icon: ForecastIcon, roles: ["management"] },
+  { href: "/board-report", label: "Board Report", icon: BoardReportIcon, roles: ["management", "board"] },
+  { href: "/investor", label: "Investor", icon: InvestorIcon, roles: ["management", "investor"] },
+  { href: "/settings", label: "Settings", icon: SettingsIcon, roles: ["management"] },
+  { href: "/users", label: "Users", icon: UsersIcon, roles: ["management"] },
 ];
+
+function getNavItems(role: UserRole | null): NavItem[] {
+  if (!role) return [];
+  return allNavItems.filter((item) => item.roles.includes(role));
+}
 
 /**
  * AppShell wraps all dashboard pages with:
  * - Desktop: horizontal header (title + tabs + controls)
  * - Mobile: top header (title + controls) + fixed bottom nav
  *
- * Content area has bottom padding on mobile to clear the BottomNav.
+ * Navigation items are filtered by the user's role.
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { period, setPeriod, currency, setCurrency, loading, refresh } =
     useReportContext();
+  const { role } = useUserRole();
+
+  const navItems = getNavItems(role);
+  const homeHref =
+    role === "board"
+      ? "/board-report"
+      : role === "investor"
+        ? "/investor"
+        : "/";
 
   return (
     <div className="min-h-screen">
@@ -40,7 +69,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="mx-auto max-w-[1400px] px-4 sm:px-6">
           <div className="flex h-14 items-center justify-between gap-4">
             {/* Left: Brand */}
-            <Link href="/" className="shrink-0">
+            <Link href={homeHref} className="shrink-0">
               <h1 className="section-heading text-lg text-[var(--text-primary)]">
                 Verarca
               </h1>
@@ -74,16 +103,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <div className="hidden sm:block">
                 <CurrencyToggle value={currency} onChange={setCurrency} />
               </div>
-              <button
-                onClick={refresh}
-                disabled={loading}
-                className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] p-2 text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-card-hover)] disabled:opacity-50"
-                aria-label="Refresh data"
-              >
-                <RefreshIcon
-                  className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
-                />
-              </button>
+              {role === "management" && (
+                <button
+                  onClick={refresh}
+                  disabled={loading}
+                  className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] p-2 text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-card-hover)] disabled:opacity-50"
+                  aria-label="Refresh data"
+                >
+                  <RefreshIcon
+                    className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
+                  />
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -95,7 +126,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </main>
 
       {/* ── Mobile bottom nav ───────────────────────────────────── */}
-      <BottomNav />
+      <BottomNav items={navItems} />
     </div>
   );
 }

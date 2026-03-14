@@ -4,6 +4,7 @@ import { syncCustomers } from "./sync-customers";
 import { syncCustomerSnapshots } from "./sync-customer-snapshots";
 import { syncDiscounts } from "./sync-discounts";
 import { syncMonthlySnapshot } from "./sync-frisbii";
+import { syncChannelMetrics } from "./sync-channel-metrics";
 
 // ─── Types ─────────────────────────────────────────────────────
 
@@ -55,6 +56,7 @@ async function runModule(
  *   4. Customer snapshots -- depends on customers existing in DB
  *   5. Discount snapshots -- depends on customers for ID mapping
  *   6. Monthly snapshot   -- depends on customer snapshots for MRR decomposition
+ *   7. Channel metrics   -- depends on customers + customer snapshots
  *
  * Each module is wrapped in try/catch so that a failure in one module
  * does not prevent subsequent modules from running. The summary reports
@@ -106,6 +108,12 @@ export async function runMonthlySyncAll(
     syncMonthlySnapshot(month)
   );
   results.push(monthlyResult);
+
+  // ── Step 7: Channel metrics (depends on customers + customer snapshots) ──
+  const channelResult = await runModule("sync-channel-metrics", () =>
+    syncChannelMetrics(month)
+  );
+  results.push(channelResult);
 
   // ── Summary ────────────────────────────────────────────────
   const completedAt = new Date().toISOString();

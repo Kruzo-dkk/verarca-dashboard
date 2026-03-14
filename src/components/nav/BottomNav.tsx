@@ -2,28 +2,23 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  DashboardIcon,
-  CustomersIcon,
-  ForecastIcon,
-  SettingsIcon,
-} from "./NavIcons";
+import type { NavItem } from "./AppShell";
 
-const navItems = [
-  { href: "/", label: "Dashboard", icon: DashboardIcon },
-  { href: "/customers", label: "Customers", icon: CustomersIcon },
-  { href: "/forecast", label: "Forecast", icon: ForecastIcon },
-  { href: "/settings", label: "Settings", icon: SettingsIcon },
-];
+interface BottomNavProps {
+  items: NavItem[];
+}
 
 /** Fixed bottom navigation bar for mobile (<lg breakpoint). */
-export function BottomNav() {
+export function BottomNav({ items }: BottomNavProps) {
   const pathname = usePathname();
+
+  // On mobile, limit to 5 items max to avoid crowding
+  const visibleItems = items.slice(0, 5);
 
   return (
     <nav className="fixed bottom-0 inset-x-0 z-50 border-t border-[var(--border-subtle)] bg-[var(--bg-card)]/95 backdrop-blur-sm lg:hidden pb-[env(safe-area-inset-bottom)]">
       <div className="flex items-center justify-around h-16">
-        {navItems.map(({ href, label, icon: Icon }) => {
+        {visibleItems.map(({ href, label, icon: Icon }) => {
           const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
           return (
             <Link

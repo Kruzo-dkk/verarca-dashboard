@@ -13,10 +13,10 @@
  */
 
 export interface DiscountSnapshotRow {
-  monthly_impact: number;     // DKK øre
+  monthly_impact: number | null;     // DKK øre
   discount_name: string | null;
   discount_percentage: number | null;
-  discount_type: string;
+  discount_type: string | null;
   expires_at: string | null;
   subscription_handle: string;
   customer_id: number | null;

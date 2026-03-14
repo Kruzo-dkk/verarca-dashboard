@@ -1,10 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -12,6 +20,9 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<"password" | "magic">("magic");
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlMessage = searchParams.get("message");
+  const urlError = searchParams.get("error");
 
   async function handlePasswordLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -67,8 +78,12 @@ export default function LoginPage() {
       >
         <h1 className="text-xl font-bold text-[#1A1A1A]">Sign in to Verarca</h1>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        {message && <p className="text-sm text-emerald-600">{message}</p>}
+        {(error || urlError) && (
+          <p className="text-sm text-red-600">{error || urlError}</p>
+        )}
+        {(message || urlMessage) && (
+          <p className="text-sm text-emerald-600">{message || urlMessage}</p>
+        )}
 
         <input
           type="email"

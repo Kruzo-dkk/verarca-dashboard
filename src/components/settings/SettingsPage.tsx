@@ -7,6 +7,9 @@ import { useReportContext } from "@/components/providers/ReportProvider";
 interface SettingsRow {
   month: string;
   total_cac: number; // DKK øre
+  cac_outbound: number | null; // DKK øre
+  cac_partner: number | null; // DKK øre
+  cac_inbound: number | null; // DKK øre
   employee_count: number | null;
   notes: string | null;
 }
@@ -21,6 +24,9 @@ export function SettingsPage() {
 
   // Form state (amounts in DKK kroner for display, stored as øre)
   const [cacKroner, setCacKroner] = useState("");
+  const [cacOutbound, setCacOutbound] = useState("");
+  const [cacPartner, setCacPartner] = useState("");
+  const [cacInbound, setCacInbound] = useState("");
   const [employeeCount, setEmployeeCount] = useState("");
   const [notes, setNotes] = useState("");
 
@@ -35,6 +41,9 @@ export function SettingsPage() {
         const data: SettingsRow = await res.json();
         setSettings(data);
         setCacKroner(data.total_cac > 0 ? (data.total_cac / 100).toString() : "");
+        setCacOutbound(data.cac_outbound != null && data.cac_outbound > 0 ? (data.cac_outbound / 100).toString() : "");
+        setCacPartner(data.cac_partner != null && data.cac_partner > 0 ? (data.cac_partner / 100).toString() : "");
+        setCacInbound(data.cac_inbound != null && data.cac_inbound > 0 ? (data.cac_inbound / 100).toString() : "");
         setEmployeeCount(data.employee_count !== null ? data.employee_count.toString() : "");
         setNotes(data.notes ?? "");
       }
@@ -81,6 +90,9 @@ export function SettingsPage() {
 
     try {
       const totalCacOre = cacKroner ? Math.round(parseFloat(cacKroner) * 100) : 0;
+      const cacOutboundOre = cacOutbound ? Math.round(parseFloat(cacOutbound) * 100) : null;
+      const cacPartnerOre = cacPartner ? Math.round(parseFloat(cacPartner) * 100) : null;
+      const cacInboundOre = cacInbound ? Math.round(parseFloat(cacInbound) * 100) : null;
       const empCount = employeeCount ? parseInt(employeeCount) : null;
 
       const res = await fetch("/api/settings", {
@@ -89,6 +101,9 @@ export function SettingsPage() {
         body: JSON.stringify({
           month,
           total_cac: totalCacOre,
+          cac_outbound: cacOutboundOre,
+          cac_partner: cacPartnerOre,
+          cac_inbound: cacInboundOre,
           employee_count: empCount,
           notes: notes || null,
         }),
@@ -159,6 +174,69 @@ export function SettingsPage() {
                 placeholder="0"
                 className="w-full pl-8 pr-3 py-2.5 sm:py-2 text-sm bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-teal)] focus:border-transparent"
               />
+            </div>
+          </div>
+
+          {/* Per-channel CAC breakdown */}
+          <div className="sm:col-span-2">
+            <label className="block text-xs font-medium text-[var(--text-muted)] mb-1.5">
+              Per-Channel CAC (DKK, optional)
+            </label>
+            <p className="text-[10px] text-[var(--text-muted)] mb-3">
+              Optional override for per-channel customer acquisition cost. Used in Channel Attribution section.
+            </p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div>
+                <label className="block text-[10px] font-medium text-[var(--text-muted)] mb-1">
+                  Outbound CAC
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--text-muted)]">
+                    kr
+                  </span>
+                  <input
+                    type="number"
+                    value={cacOutbound}
+                    onChange={(e) => setCacOutbound(e.target.value)}
+                    placeholder="0"
+                    className="w-full pl-8 pr-3 py-2.5 sm:py-2 text-sm bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-teal)] focus:border-transparent"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-medium text-[var(--text-muted)] mb-1">
+                  Partner CAC
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--text-muted)]">
+                    kr
+                  </span>
+                  <input
+                    type="number"
+                    value={cacPartner}
+                    onChange={(e) => setCacPartner(e.target.value)}
+                    placeholder="0"
+                    className="w-full pl-8 pr-3 py-2.5 sm:py-2 text-sm bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-teal)] focus:border-transparent"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-medium text-[var(--text-muted)] mb-1">
+                  Inbound CAC
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--text-muted)]">
+                    kr
+                  </span>
+                  <input
+                    type="number"
+                    value={cacInbound}
+                    onChange={(e) => setCacInbound(e.target.value)}
+                    placeholder="0"
+                    className="w-full pl-8 pr-3 py-2.5 sm:py-2 text-sm bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-teal)] focus:border-transparent"
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
