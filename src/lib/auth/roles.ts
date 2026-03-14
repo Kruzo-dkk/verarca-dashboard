@@ -39,9 +39,8 @@ export const ROUTE_ACCESS: RouteRule[] = [
   { prefix: "/users", roles: ["management"] },
   { prefix: "/customers", roles: ["management"] },
   { prefix: "/forecast", roles: ["management"] },
-  { prefix: "/settings", roles: ["management"] },
-  { prefix: "/board-report", roles: ["management", "board"] },
-  { prefix: "/investor", roles: ["management", "investor"] },
+  { prefix: "/monthly-input", roles: ["management"] },
+  { prefix: "/reports", roles: ["management", "board", "investor"] },
 
   // Main dashboard — management only (board/investor have their own landing)
   { prefix: "/", roles: ["management"] },
@@ -75,8 +74,8 @@ export function getDefaultRoute(role: UserRole): string {
     case "management":
       return "/";
     case "board":
-      return "/board-report";
+      return "/reports";
     case "investor":
-      return "/investor";
+      return "/reports";
   }
 }

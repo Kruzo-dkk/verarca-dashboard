@@ -31,45 +31,36 @@ describe("canAccess", () => {
     it("can access everything", () => {
       expect(canAccess("management", "/")).toBe(true);
       expect(canAccess("management", "/customers")).toBe(true);
-      expect(canAccess("management", "/settings")).toBe(true);
+      expect(canAccess("management", "/monthly-input")).toBe(true);
       expect(canAccess("management", "/forecast")).toBe(true);
-      expect(canAccess("management", "/board-report")).toBe(true);
-      expect(canAccess("management", "/investor")).toBe(true);
+      expect(canAccess("management", "/reports")).toBe(true);
       expect(canAccess("management", "/users")).toBe(true);
     });
   });
 
   describe("board role", () => {
-    it("can access board report", () => {
-      expect(canAccess("board", "/board-report")).toBe(true);
+    it("can access reports", () => {
+      expect(canAccess("board", "/reports")).toBe(true);
     });
 
     it("cannot access management-only pages", () => {
       expect(canAccess("board", "/")).toBe(false);
       expect(canAccess("board", "/customers")).toBe(false);
-      expect(canAccess("board", "/settings")).toBe(false);
+      expect(canAccess("board", "/monthly-input")).toBe(false);
       expect(canAccess("board", "/forecast")).toBe(false);
       expect(canAccess("board", "/users")).toBe(false);
-    });
-
-    it("cannot access investor page", () => {
-      expect(canAccess("board", "/investor")).toBe(false);
     });
   });
 
   describe("investor role", () => {
-    it("can access investor dashboard", () => {
-      expect(canAccess("investor", "/investor")).toBe(true);
+    it("can access reports", () => {
+      expect(canAccess("investor", "/reports")).toBe(true);
     });
 
     it("cannot access management-only pages", () => {
       expect(canAccess("investor", "/")).toBe(false);
       expect(canAccess("investor", "/customers")).toBe(false);
-      expect(canAccess("investor", "/settings")).toBe(false);
-    });
-
-    it("cannot access board report", () => {
-      expect(canAccess("investor", "/board-report")).toBe(false);
+      expect(canAccess("investor", "/monthly-input")).toBe(false);
     });
   });
 
@@ -127,12 +118,12 @@ describe("getDefaultRoute", () => {
     expect(getDefaultRoute("management")).toBe("/");
   });
 
-  it("returns /board-report for board", () => {
-    expect(getDefaultRoute("board")).toBe("/board-report");
+  it("returns /reports for board", () => {
+    expect(getDefaultRoute("board")).toBe("/reports");
   });
 
-  it("returns /investor for investor", () => {
-    expect(getDefaultRoute("investor")).toBe("/investor");
+  it("returns /reports for investor", () => {
+    expect(getDefaultRoute("investor")).toBe("/reports");
   });
 });
 
