@@ -225,12 +225,19 @@ function CustomerTable({
   }
 
   return (
-    <table className="w-full text-sm">
+    <table className="w-full text-sm table-fixed">
+      <colgroup>
+        <col style={{ width: "35%" }} />
+        <col style={{ width: "15%" }} />
+        <col style={{ width: "25%" }} />
+        <col style={{ width: "15%" }} />
+        <col style={{ width: "10%" }} />
+      </colgroup>
       <thead>
-        <tr className="text-left text-[var(--text-muted)]">
+        <tr className="text-left text-[var(--text-muted)] text-xs uppercase tracking-wider">
           <th className="pb-2 font-medium">Customer</th>
-          <th className="pb-2 font-medium text-right">MRR</th>
-          <th className="pb-2 font-medium hidden sm:table-cell">Plan</th>
+          <th className="pb-2 font-medium text-right pr-4">MRR</th>
+          <th className="pb-2 font-medium hidden sm:table-cell pl-4">Plan</th>
           <th className="pb-2 font-medium hidden md:table-cell">Partner</th>
           {showChurnDate ? (
             <th className="pb-2 font-medium">Closed</th>
@@ -242,27 +249,26 @@ function CustomerTable({
       <tbody>
         {customers.map((c) => (
           <tr key={c.id} className="border-t border-[var(--border-subtle)]">
-            <td className="py-2.5 text-[var(--text-primary)] font-medium">
-              <div>
+            <td className="py-1.5 text-[var(--text-primary)] font-medium truncate">
+              <div className="truncate">
                 {c.name}
-                {/* Show plan as subtitle on mobile */}
                 {c.plan && (
-                  <div className="text-[11px] text-[var(--text-muted)] font-normal sm:hidden">
+                  <span className="text-[11px] text-[var(--text-muted)] font-normal sm:hidden block truncate">
                     {c.plan}
-                  </div>
+                  </span>
                 )}
               </div>
             </td>
-            <td className="py-2.5 text-right metric-value">{formatValue(c.mrr)}</td>
-            <td className="py-2.5 text-[var(--text-secondary)] hidden sm:table-cell">{c.plan ?? "—"}</td>
-            <td className="py-2.5 text-[var(--text-secondary)] hidden md:table-cell">{c.partner ?? "—"}</td>
+            <td className="py-1.5 text-right metric-value pr-4 tabular-nums">{formatValue(c.mrr)}</td>
+            <td className="py-1.5 text-[var(--text-secondary)] hidden sm:table-cell pl-4 truncate" title={c.plan ?? undefined}>{c.plan ?? "—"}</td>
+            <td className="py-1.5 text-[var(--text-secondary)] hidden md:table-cell truncate">{c.partner ?? "—"}</td>
             {showChurnDate ? (
-              <td className="py-2.5 text-[var(--text-secondary)] text-xs">
+              <td className="py-1.5 text-[var(--text-secondary)] text-xs">
                 {formatChurnDate(c.churnDate)}
               </td>
             ) : (
-              <td className="py-2.5 hidden sm:table-cell">
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+              <td className="py-1.5 hidden sm:table-cell">
+                <span className={`text-[11px] px-1.5 py-0.5 rounded-full font-medium ${
                   c.status === "active"
                     ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400"
                     : "bg-red-500/10 text-red-600 dark:bg-red-500/20 dark:text-red-400"

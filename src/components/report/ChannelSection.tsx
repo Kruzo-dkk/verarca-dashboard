@@ -72,21 +72,21 @@ export function ChannelSection({ data, formatValue }: ChannelSectionProps) {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-[var(--text-muted)] border-b border-[var(--border-subtle)]">
+                <tr className="text-left text-[var(--text-muted)] text-xs uppercase tracking-wider border-b border-[var(--border-subtle)]">
                   <th className="pb-2 font-medium">Channel</th>
-                  <th className="pb-2 font-medium text-right">New Logos</th>
+                  <th className="pb-2 font-medium text-right">Logos</th>
                   <th className="pb-2 font-medium text-right">New MRR</th>
                   <th className="pb-2 font-medium text-right hidden sm:table-cell">
-                    % of Total
+                    %
                   </th>
                   <th className="pb-2 font-medium text-right hidden lg:table-cell">
-                    Win Rate
+                    Win %
                   </th>
                   <th className="pb-2 font-medium text-right hidden lg:table-cell">
                     Avg Deal
                   </th>
                   <th className="pb-2 font-medium text-right hidden xl:table-cell">
-                    Avg Cycle
+                    Cycle
                   </th>
                   <th className="pb-2 font-medium text-right hidden sm:table-cell">
                     CAC
@@ -196,7 +196,7 @@ function ChannelRow({
 
   return (
     <tr className="border-b border-[var(--border-subtle)] last:border-b-0">
-      <td className="py-2.5 flex items-center gap-2">
+      <td className="py-1.5 flex items-center gap-2">
         <span
           className="w-2.5 h-2.5 rounded-full flex-shrink-0"
           style={{ backgroundColor: CHANNEL_COLORS[metrics.channel] }}
@@ -205,25 +205,25 @@ function ChannelRow({
           {CHANNEL_LABELS[metrics.channel]}
         </span>
       </td>
-      <td className="py-2.5 text-right metric-value">{metrics.newLogos}</td>
-      <td className="py-2.5 text-right metric-value">
+      <td className="py-1.5 text-right metric-value">{metrics.newLogos}</td>
+      <td className="py-1.5 text-right metric-value">
         {formatValue(metrics.newMRR)}
       </td>
-      <td className="py-2.5 text-right text-[var(--text-secondary)] hidden sm:table-cell">
+      <td className="py-1.5 text-right text-[var(--text-secondary)] hidden sm:table-cell">
         {pctOfTotal > 0 ? `${pctOfTotal}%` : "—"}
       </td>
-      <td className="py-2.5 text-right text-[var(--text-secondary)] hidden lg:table-cell">
+      <td className="py-1.5 text-right text-[var(--text-secondary)] hidden lg:table-cell">
         {metrics.winRate != null ? `${Math.round(metrics.winRate)}%` : "—"}
       </td>
-      <td className="py-2.5 text-right text-[var(--text-secondary)] hidden lg:table-cell">
+      <td className="py-1.5 text-right text-[var(--text-secondary)] hidden lg:table-cell">
         {metrics.avgDealSize != null ? formatValue(metrics.avgDealSize) : "—"}
       </td>
-      <td className="py-2.5 text-right text-[var(--text-secondary)] hidden xl:table-cell">
+      <td className="py-1.5 text-right text-[var(--text-secondary)] hidden xl:table-cell">
         {metrics.avgSalesCycleDays != null
           ? `${metrics.avgSalesCycleDays}d`
           : "—"}
       </td>
-      <td className="py-2.5 text-right text-[var(--text-secondary)] hidden sm:table-cell">
+      <td className="py-1.5 text-right text-[var(--text-secondary)] hidden sm:table-cell">
         {metrics.cac != null ? formatValue(metrics.cac) : "—"}
       </td>
     </tr>
@@ -247,7 +247,7 @@ function PartnerPerformance({
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-[var(--text-muted)] border-b border-[var(--border-subtle)]">
+            <tr className="text-left text-[var(--text-muted)] text-xs uppercase tracking-wider border-b border-[var(--border-subtle)]">
               <th className="pb-2 font-medium">Partner</th>
               <th className="pb-2 font-medium text-right">Customers</th>
               <th className="pb-2 font-medium text-right">Total MRR</th>
@@ -271,21 +271,21 @@ function PartnerPerformance({
                 <td className="py-2.5 text-[var(--text-primary)] font-medium">
                   {p.partner}
                 </td>
-                <td className="py-2.5 text-right metric-value">
+                <td className="py-1.5 text-right metric-value">
                   {p.customerCount}
                 </td>
-                <td className="py-2.5 text-right metric-value">
+                <td className="py-1.5 text-right metric-value">
                   {formatValue(p.totalMRR)}
                 </td>
-                <td className="py-2.5 text-right text-[var(--text-secondary)] hidden sm:table-cell">
+                <td className="py-1.5 text-right text-[var(--text-secondary)] hidden sm:table-cell">
                   {totalPartnerMRR > 0
                     ? `${Math.round((p.totalMRR / totalPartnerMRR) * 1000) / 10}%`
                     : "—"}
                 </td>
-                <td className="py-2.5 text-right text-[var(--text-secondary)] hidden sm:table-cell">
+                <td className="py-1.5 text-right text-[var(--text-secondary)] hidden sm:table-cell">
                   {formatValue(p.avgMRR)}
                 </td>
-                <td className="py-2.5 text-right text-[var(--text-secondary)] hidden sm:table-cell">
+                <td className="py-1.5 text-right text-[var(--text-secondary)] hidden sm:table-cell">
                   {p.newLogos > 0 ? p.newLogos : "—"}
                 </td>
               </tr>

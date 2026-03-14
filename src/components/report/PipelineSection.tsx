@@ -90,12 +90,19 @@ export function PipelineSection({ data, formatValue }: PipelineSectionProps) {
         <GlassCard>
           <h3 className="text-sm font-medium text-[var(--text-muted)] mb-4">Deals</h3>
           <div className="overflow-x-auto max-h-80">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm table-fixed">
+              <colgroup>
+                <col style={{ width: "40%" }} />
+                <col style={{ width: "15%" }} />
+                <col style={{ width: "20%" }} />
+                <col style={{ width: "15%" }} />
+                <col style={{ width: "10%" }} />
+              </colgroup>
               <thead>
-                <tr className="text-left text-[var(--text-muted)]">
+                <tr className="text-left text-[var(--text-muted)] text-xs uppercase tracking-wider">
                   <th className="pb-2 font-medium">Deal</th>
-                  <th className="pb-2 font-medium text-right">Amount</th>
-                  <th className="pb-2 font-medium hidden sm:table-cell">Stage</th>
+                  <th className="pb-2 font-medium text-right pr-3">Amount</th>
+                  <th className="pb-2 font-medium hidden sm:table-cell pl-3">Stage</th>
                   <th className="pb-2 font-medium">Close</th>
                   <th className="pb-2 font-medium text-right">Prob.</th>
                 </tr>
@@ -103,14 +110,14 @@ export function PipelineSection({ data, formatValue }: PipelineSectionProps) {
               <tbody>
                 {p.deals.map((deal) => (
                   <tr key={deal.id} className="border-t border-[var(--border-subtle)]">
-                    <td className="py-2 text-[var(--text-primary)] truncate max-w-[180px] sm:max-w-[220px]">
-                      <div>{deal.name}</div>
-                      <div className="text-[10px] text-[var(--text-muted)] sm:hidden">{deal.stage}</div>
+                    <td className="py-1.5 text-[var(--text-primary)] truncate">
+                      <div className="truncate">{deal.name}</div>
+                      <div className="text-[10px] text-[var(--text-muted)] sm:hidden truncate">{deal.stage}</div>
                     </td>
-                    <td className="py-2 text-right metric-value">{formatValue(deal.amount)}</td>
-                    <td className="py-2 text-[var(--text-secondary)] hidden sm:table-cell">{deal.stage}</td>
-                    <td className="py-2 text-[var(--text-secondary)]">{formatCloseDate(deal.closeDate)}</td>
-                    <td className="py-2 text-right metric-value">{(deal.probability * 100).toFixed(0)}%</td>
+                    <td className="py-1.5 text-right metric-value pr-3 tabular-nums">{formatValue(deal.amount)}</td>
+                    <td className="py-1.5 text-[var(--text-secondary)] hidden sm:table-cell pl-3 truncate">{deal.stage}</td>
+                    <td className="py-1.5 text-[var(--text-secondary)] text-xs">{formatCloseDate(deal.closeDate)}</td>
+                    <td className="py-1.5 text-right metric-value tabular-nums">{(deal.probability * 100).toFixed(0)}%</td>
                   </tr>
                 ))}
                 {p.deals.length === 0 && (

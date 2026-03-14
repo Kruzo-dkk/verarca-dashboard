@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getTeamMemberCount } from "@/lib/clickup";
 import { calculateLTV, calculateRevenuePerEmployee } from "@/lib/metrics";
 import { computeCommittedMRR } from "@/lib/committed-mrr";
+import { formatPlanName } from "@/lib/format-plan-name";
 import type { MRRDecomposition } from "@/lib/metrics";
 import type { Currency, FXRates } from "@/lib/currency";
 import type {
@@ -251,7 +252,7 @@ export async function getReportData(
       id: cs.customer_id,
       name: cust?.name ?? `Customer ${cs.customer_id}`,
       mrr: cs.mrr,
-      plan: cs.plan_name ?? cust?.plan_name ?? cs.plan_handle,
+      plan: formatPlanName(cs.plan_name ?? cust?.plan_name ?? cs.plan_handle),
       status: cs.status,
       partner: cust?.partner ?? null,
       segment: cust?.segment ?? null,
@@ -273,7 +274,7 @@ export async function getReportData(
       id: c.id,
       name: c.name ?? c.frisbii_handle,
       mrr: 0,
-      plan: c.plan_name ?? c.plan_handle,
+      plan: formatPlanName(c.plan_name ?? c.plan_handle),
       status: "churned",
       partner: c.partner ?? null,
       segment: c.segment ?? null,

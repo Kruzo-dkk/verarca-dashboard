@@ -25,14 +25,10 @@ function normalizeName(name: string): string {
 
 // ─── Segment inference ─────────────────────────────────────────
 
+import { inferSegmentFromPlan } from "@/lib/format-plan-name";
+
 function inferSegment(planHandle: string | null): string {
-  if (!planHandle) return "unknown";
-  const lower = planHandle.toLowerCase();
-  if (lower.includes("enterprise")) return "enterprise";
-  if (lower.includes("professional") || lower.includes("pro")) return "professional";
-  if (lower.includes("starter") || lower.includes("basic")) return "starter";
-  if (lower.includes("free") || lower.includes("trial")) return "trial";
-  return "standard";
+  return inferSegmentFromPlan(planHandle).toLowerCase();
 }
 
 // ─── Main sync ─────────────────────────────────────────────────
@@ -171,11 +167,12 @@ export async function syncCustomers(): Promise<void> {
         ? sub.cancelled.substring(0, 10)
         : null;
 
-    // Prefer ClickUp folder name (company name) over Frisbii contact name
-    const companyName = clickupMatch?.name
-      || customer.handle;
-    // Also keep contact name as a reference but we don't store it separately
-    // The handle is typically a company slug
+    // Prefer ClickUp folder name, then Frisbii contact name, then handle
+    const frisbiiName = [customer.first_name, customer.last_name]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+    const companyName = clickupMatch?.name || frisbiiName || customer.handle;
 
     rows.push({
       frisbii_handle: customer.handle,

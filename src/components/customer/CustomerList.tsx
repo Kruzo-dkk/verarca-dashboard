@@ -262,20 +262,28 @@ export function CustomerList() {
 
         {/* Table */}
         <div className="overflow-x-auto mt-4">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm table-fixed">
+            <colgroup>
+              <col style={{ width: "30%" }} />
+              <col style={{ width: "12%" }} />
+              <col style={{ width: "22%" }} />
+              <col style={{ width: "14%" }} />
+              <col style={{ width: "12%" }} />
+              <col style={{ width: "10%" }} />
+            </colgroup>
             <thead>
-              <tr className="text-left text-[var(--text-muted)]">
+              <tr className="text-left text-[var(--text-muted)] text-xs uppercase tracking-wider">
                 <th className="pb-2 font-medium">
                   <button onClick={() => handleSort("name")} className="flex items-center hover:text-[var(--text-primary)] transition-colors">
                     Customer <SortIcon field="name" />
                   </button>
                 </th>
-                <th className="pb-2 font-medium text-right">
+                <th className="pb-2 font-medium text-right pr-4">
                   <button onClick={() => handleSort("mrr")} className="flex items-center justify-end hover:text-[var(--text-primary)] transition-colors ml-auto">
                     MRR <SortIcon field="mrr" />
                   </button>
                 </th>
-                <th className="pb-2 font-medium hidden sm:table-cell">
+                <th className="pb-2 font-medium hidden sm:table-cell pl-4">
                   <button onClick={() => handleSort("plan")} className="flex items-center hover:text-[var(--text-primary)] transition-colors">
                     Plan <SortIcon field="plan" />
                   </button>
@@ -341,39 +349,38 @@ function CustomerRow({
     <>
       <tr
         onClick={onToggle}
-        className="border-t border-[var(--border-subtle)] cursor-pointer hover:bg-[var(--bg-secondary)] transition-colors"
+        className="border-t border-[var(--border-subtle)] cursor-pointer hover:bg-[var(--bg-secondary)]/50 transition-colors"
       >
-        <td className="py-2.5 text-[var(--text-primary)] font-medium">
-          <div className="flex items-center gap-2">
+        <td className="py-2 text-[var(--text-primary)] font-medium truncate">
+          <div className="flex items-center gap-1.5">
             <span
-              className={`text-xs transition-transform ${expanded ? "rotate-90" : ""}`}
+              className={`text-[10px] text-[var(--text-muted)] transition-transform flex-shrink-0 ${expanded ? "rotate-90" : ""}`}
             >
               ▸
             </span>
-            <div>
-              {customer.name}
-              {/* Show plan as subtitle on mobile where the plan column is hidden */}
+            <div className="truncate">
+              <span className="truncate block">{customer.name}</span>
               {customer.plan && (
-                <div className="text-[11px] text-[var(--text-muted)] font-normal sm:hidden">
+                <span className="text-[11px] text-[var(--text-muted)] font-normal sm:hidden block truncate">
                   {customer.plan}
-                </div>
+                </span>
               )}
             </div>
           </div>
         </td>
-        <td className="py-2.5 text-right metric-value">{formatValue(customer.mrr)}</td>
-        <td className="py-2.5 text-[var(--text-secondary)] hidden sm:table-cell">
+        <td className="py-2 text-right metric-value pr-4 tabular-nums">{formatValue(customer.mrr)}</td>
+        <td className="py-2 text-[var(--text-secondary)] hidden sm:table-cell pl-4 truncate" title={customer.plan ?? undefined}>
           {customer.plan ?? "—"}
         </td>
-        <td className="py-2.5 text-[var(--text-secondary)] hidden md:table-cell">
+        <td className="py-2 text-[var(--text-secondary)] hidden md:table-cell truncate">
           {customer.partner ?? "—"}
         </td>
-        <td className="py-2.5 text-[var(--text-secondary)] hidden lg:table-cell">
+        <td className="py-2 text-[var(--text-secondary)] hidden lg:table-cell truncate">
           {customer.segment ?? "—"}
         </td>
-        <td className="py-2.5">
+        <td className="py-2">
           <span
-            className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+            className={`text-[11px] px-1.5 py-0.5 rounded-full font-medium ${
               customer.status === "active"
                 ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400"
                 : "bg-red-500/10 text-red-600 dark:bg-red-500/20 dark:text-red-400"

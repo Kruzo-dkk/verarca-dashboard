@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { formatPlanName } from "@/lib/format-plan-name";
 
 /**
  * GET /api/customers/[id]
@@ -83,7 +84,7 @@ export async function GET(
       month: s.month,
       mrr: s.mrr,
       status: s.status,
-      plan: s.plan_name ?? s.plan_handle,
+      plan: formatPlanName(s.plan_name ?? s.plan_handle),
     }));
 
     return NextResponse.json({
@@ -93,7 +94,7 @@ export async function GET(
       email: customer.email,
       cvr: customer.cvr,
       segment: customer.segment,
-      plan: customer.plan_name ?? customer.plan_handle,
+      plan: formatPlanName(customer.plan_name ?? customer.plan_handle),
       partner: customer.partner,
       status: customer.status,
       startDate: customer.start_date,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { formatPlanName } from "@/lib/format-plan-name";
 import type { SegmentBreakdown, CustomerSummary } from "@/lib/types/report";
 
 /**
@@ -68,7 +69,7 @@ export async function GET(request: NextRequest) {
           id: cs.customer_id,
           name: cust?.name ?? `Customer ${cs.customer_id}`,
           mrr: cs.mrr,
-          plan: cs.plan_name ?? cs.plan_handle,
+          plan: formatPlanName(cs.plan_name ?? cs.plan_handle),
           status: cs.status,
           partner: cust?.partner ?? null,
           segment: cust?.segment ?? null,
