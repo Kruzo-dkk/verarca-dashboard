@@ -9,6 +9,7 @@ import { PipelineFunnel } from "@/components/charts/PipelineFunnel";
 import { MetricTooltip } from "@/components/ui/MetricTooltip";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useReportContext } from "@/components/providers/ReportProvider";
+import { useUserRole } from "@/hooks/useUserRole";
 import type { BoardReportData } from "@/lib/types/board-report";
 import type { MetricKey } from "@/lib/tooltip-registry";
 
@@ -22,6 +23,7 @@ import type { MetricKey } from "@/lib/tooltip-registry";
  */
 export function BoardReport() {
   const { month, formatValue, currency, fxRates } = useReportContext();
+  const { role, displayName } = useUserRole();
   const [data, setData] = useState<BoardReportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -68,6 +70,17 @@ export function BoardReport() {
 
   return (
     <div className="space-y-10 print:space-y-6">
+      {role && role !== "management" && (
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+            Welcome{displayName ? `, ${displayName}` : ""}
+          </h2>
+          <p className="text-sm text-[var(--text-muted)] mt-1">
+            Viewing data as of {month}
+          </p>
+        </div>
+      )}
+
       {/* Title + print button */}
       <div className="flex items-center justify-between">
         <div>

@@ -6,6 +6,7 @@ import { ARRTrend } from "@/components/charts/ARRTrend";
 import { MetricTooltip } from "@/components/ui/MetricTooltip";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useReportContext } from "@/components/providers/ReportProvider";
+import { useUserRole } from "@/hooks/useUserRole";
 import { BenchmarkSection } from "./BenchmarkSection";
 import type { InvestorReportData } from "@/lib/types/investor-report";
 import type { BenchmarkMetricKey } from "@/lib/benchmarks";
@@ -21,6 +22,7 @@ import type { MetricKey } from "@/lib/tooltip-registry";
  */
 export function InvestorDashboard() {
   const { month, formatValue, currency } = useReportContext();
+  const { role, displayName } = useUserRole();
   const [data, setData] = useState<InvestorReportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -70,6 +72,17 @@ export function InvestorDashboard() {
 
   return (
     <div className="space-y-10">
+      {role && role !== "management" && (
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+            Welcome{displayName ? `, ${displayName}` : ""}
+          </h2>
+          <p className="text-sm text-[var(--text-muted)] mt-1">
+            Viewing data as of {month}
+          </p>
+        </div>
+      )}
+
       {/* Title */}
       <div>
         <h1 className="text-2xl font-bold text-[var(--text-primary)]">
