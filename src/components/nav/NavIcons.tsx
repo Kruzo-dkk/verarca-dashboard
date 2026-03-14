@@ -180,3 +180,129 @@ export function RefreshIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+/** Clipboard with bar chart / combined reports icon */
+export function ReportsIcon({ className }: IconProps) {
+  return (
+    <svg
+      className={className}
+      width="20"
+      height="20"
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M7 2h6v2H7z" />
+      <rect x="4" y="3" width="12" height="15" rx="2" />
+      <line x1="7" y1="14" x2="7" y2="10" />
+      <line x1="10" y1="14" x2="10" y2="8" />
+      <line x1="13" y1="14" x2="13" y2="11" />
+    </svg>
+  );
+}
+
+/** Three horizontal dots (more menu) icon */
+export function MoreIcon({ className }: IconProps) {
+  return (
+    <svg
+      className={className}
+      width="20"
+      height="20"
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="5" cy="10" r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="10" cy="10" r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="10" r="1.5" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+/** Calendar with pencil / monthly input icon */
+export function MonthlyInputIcon({ className }: IconProps) {
+  return (
+    <svg
+      className={className}
+      width="20"
+      height="20"
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="2" y="4" width="16" height="14" rx="2" />
+      <line x1="6" y1="2" x2="6" y2="6" />
+      <line x1="14" y1="2" x2="14" y2="6" />
+      <line x1="2" y1="8" x2="18" y2="8" />
+      <path d="M12 12l3-3 1.5 1.5-3 3H12v-1.5z" />
+    </svg>
+  );
+}
+
+/** Door with arrow / sign-out icon */
+export function SignOutIcon({ className }: IconProps) {
+  return (
+    <svg
+      className={className}
+      width="20"
+      height="20"
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3" y="2" width="9" height="16" rx="2" />
+      <path d="M12 10H18" />
+      <polyline points="15,7 18,10 15,13" />
+    </svg>
+  );
+}
+
+/** Left chevron (16×16) */
+export function ChevronLeftIcon({ className }: IconProps) {
+  return (
+    <svg
+      className={className}
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <polyline points="10,3 5,8 10,13" />
+    </svg>
+  );
+}
+
+/** Right chevron (16×16) */
+export function ChevronRightIcon({ className }: IconProps) {
+  return (
+    <svg
+      className={className}
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <polyline points="6,3 11,8 6,13" />
+    </svg>
+  );
+}
