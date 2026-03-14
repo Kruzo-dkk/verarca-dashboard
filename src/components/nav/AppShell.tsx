@@ -11,12 +11,11 @@ import {
   DashboardIcon,
   CustomersIcon,
   ForecastIcon,
-  SettingsIcon,
   RefreshIcon,
-  BoardReportIcon,
-  InvestorIcon,
-  UsersIcon,
+  ReportsIcon,
+  MonthlyInputIcon,
 } from "./NavIcons";
+import UserMenu from "./UserMenu";
 import type { UserRole } from "@/lib/auth/roles";
 
 export interface NavItem {
@@ -30,10 +29,8 @@ const allNavItems: NavItem[] = [
   { href: "/", label: "Dashboard", icon: DashboardIcon, roles: ["management"] },
   { href: "/customers", label: "Customers", icon: CustomersIcon, roles: ["management"] },
   { href: "/forecast", label: "Forecast", icon: ForecastIcon, roles: ["management"] },
-  { href: "/board-report", label: "Board Report", icon: BoardReportIcon, roles: ["management", "board"] },
-  { href: "/investor", label: "Investor", icon: InvestorIcon, roles: ["management", "investor"] },
-  { href: "/settings", label: "Settings", icon: SettingsIcon, roles: ["management"] },
-  { href: "/users", label: "Users", icon: UsersIcon, roles: ["management"] },
+  { href: "/reports", label: "Reports", icon: ReportsIcon, roles: ["management", "board", "investor"] },
+  { href: "/monthly-input", label: "Monthly Input", icon: MonthlyInputIcon, roles: ["management"] },
 ];
 
 function getNavItems(role: UserRole | null): NavItem[] {
@@ -52,15 +49,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { period, setPeriod, currency, setCurrency, loading, refresh } =
     useReportContext();
-  const { role } = useUserRole();
+  const { role, email, displayName, loading: _roleLoading } = useUserRole();
 
   const navItems = getNavItems(role);
   const homeHref =
-    role === "board"
-      ? "/board-report"
-      : role === "investor"
-        ? "/investor"
-        : "/";
+    role === "board" || role === "investor" ? "/reports" : "/";
+
+  // Mobile bottom nav: primary items shown as icons, overflow in More sheet
+  const mobileNavItems = navItems.filter(
+    (item) => item.href === "/" || item.href === "/customers" || item.href === "/reports"
+  );
+  const mobileOverflowItems = navItems.filter(
+    (item) => item.href === "/forecast" || item.href === "/monthly-input"
+  );
 
   return (
     <div className="min-h-screen">
@@ -115,6 +116,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   />
                 </button>
               )}
+              <UserMenu email={email} displayName={displayName} role={role} />
             </div>
           </div>
         </div>
@@ -126,7 +128,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </main>
 
       {/* ── Mobile bottom nav ───────────────────────────────────── */}
-      <BottomNav items={navItems} />
+      <BottomNav
+        items={mobileNavItems}
+        {...{
+          overflowItems: mobileOverflowItems,
+          email,
+          displayName,
+          role,
+        } as Record<string, unknown>}
+      />
     </div>
   );
 }
