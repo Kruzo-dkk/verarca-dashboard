@@ -6,6 +6,8 @@ import type { UserRole } from "@/lib/auth/roles";
 
 interface UseUserRoleResult {
   role: UserRole | null;
+  email: string | null;
+  displayName: string | null;
   loading: boolean;
 }
 
@@ -14,9 +16,13 @@ interface UseUserRoleResult {
  * Caches the result for the session to avoid repeated DB queries.
  */
 let cachedRole: UserRole | null = null;
+let cachedEmail: string | null = null;
+let cachedDisplayName: string | null = null;
 
 export function useUserRole(): UseUserRoleResult {
   const [role, setRole] = useState<UserRole | null>(cachedRole);
+  const [email, setEmail] = useState<string | null>(cachedEmail);
+  const [displayName, setDisplayName] = useState<string | null>(cachedDisplayName);
   const [loading, setLoading] = useState(cachedRole === null);
 
   useEffect(() => {
@@ -34,9 +40,12 @@ export function useUserRole(): UseUserRoleResult {
         return;
       }
 
+      cachedEmail = user.email ?? null;
+      if (!cancelled) setEmail(cachedEmail);
+
       const { data } = await supabase
         .from("user_profiles")
-        .select("role")
+        .select("role, display_name")
         .eq("id", user.id)
         .single();
 
@@ -44,6 +53,9 @@ export function useUserRole(): UseUserRoleResult {
         const r = data.role as UserRole;
         cachedRole = r;
         setRole(r);
+
+        cachedDisplayName = data.display_name ?? null;
+        setDisplayName(cachedDisplayName);
       }
       if (!cancelled) setLoading(false);
     }
@@ -54,5 +66,5 @@ export function useUserRole(): UseUserRoleResult {
     };
   }, []);
 
-  return { role, loading };
+  return { role, email, displayName, loading };
 }
