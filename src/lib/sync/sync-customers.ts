@@ -64,7 +64,7 @@ export async function syncCustomers(): Promise<void> {
   // ── Fetch sources in parallel ──────────────────────────────
   const [frisbiiCustomers, subscriptions, clickupFolders, plans] = await Promise.all([
     listCustomers(),
-    listSubscriptions(),
+    listSubscriptions({ state: ["active", "expired", "cancelled", "on_hold"] }),
     getAllCustomerData(),
     listPlans(),
   ]);
@@ -79,9 +79,16 @@ export async function syncCustomers(): Promise<void> {
   // ── Build lookup maps ──────────────────────────────────────
 
   // Map customer handle -> their active subscription (pick first active)
+  // Build subscription map: prefer active, fall back to most recent expired/cancelled
   const subByCustomer = new Map<string, Subscription>();
-  for (const sub of subscriptions) {
-    if (sub.state === "active" && !subByCustomer.has(sub.customer)) {
+  // Sort so active comes first, then by created descending (most recent first)
+  const sortedSubs = [...subscriptions].sort((a, b) => {
+    if (a.state === "active" && b.state !== "active") return -1;
+    if (b.state === "active" && a.state !== "active") return 1;
+    return b.created.localeCompare(a.created);
+  });
+  for (const sub of sortedSubs) {
+    if (!subByCustomer.has(sub.customer)) {
       subByCustomer.set(sub.customer, sub);
     }
   }
@@ -144,7 +151,7 @@ export async function syncCustomers(): Promise<void> {
       status = "churned";
     }
 
-    // Determine start date
+    // Determine start date: subscription activated > sub created > ClickUp > Frisbii customer created
     let startDate: string | null = null;
     if (sub?.activated) {
       startDate = sub.activated.substring(0, 10);
@@ -158,6 +165,8 @@ export async function syncCustomers(): Promise<void> {
       } else {
         startDate = clickupMatch.startDate.substring(0, 10);
       }
+    } else if (customer.created) {
+      startDate = customer.created.substring(0, 10);
     }
 
     // Churn date from subscription

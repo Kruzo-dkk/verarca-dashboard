@@ -15,11 +15,20 @@ export interface ClickUpFolder {
   statuses: { status: string; type: string }[];
 }
 
+export interface ClickUpCustomFieldOption {
+  id: string;
+  name: string;
+  orderindex: number;
+}
+
 export interface ClickUpCustomField {
   id: string;
   name: string;
   type: string;
   value?: string | number | { id: string; name: string } | null;
+  type_config?: {
+    options?: ClickUpCustomFieldOption[];
+  };
 }
 
 export interface ClickUpTask {
@@ -82,6 +91,30 @@ export async function getFolderTasks(folderId: string): Promise<ClickUpTask[]> {
 }
 
 /**
+ * Resolve a ClickUp custom field value to a display string.
+ * Handles dropdown fields (value = orderindex, names in type_config.options)
+ * and label/text fields (value = string or {name}).
+ */
+function resolveFieldValue(field: ClickUpCustomField): string | null {
+  const val = field.value;
+  if (val == null) return null;
+
+  // Dropdown fields: value is the option orderindex (number)
+  if (field.type === "drop_down" && typeof val === "number" && field.type_config?.options) {
+    const option = field.type_config.options.find((o) => o.orderindex === val);
+    return option?.name ?? null;
+  }
+
+  // Label / user fields: value is an object with a name
+  if (typeof val === "object" && val !== null && "name" in val) {
+    return (val as { name: string }).name;
+  }
+
+  // Text / number fields
+  return String(val);
+}
+
+/**
  * Extract customer data from a folder's tasks (custom fields).
  * Looks for the onboarding form task which has CVR, start date, partner fields.
  */
@@ -110,13 +143,8 @@ export async function getCustomerDataFromFolder(
         if (field.name === "Kunde start dato" && field.value) {
           result.startDate = String(field.value);
         }
-        if (field.name === "Partner" && field.value) {
-          const val = field.value;
-          if (typeof val === "object" && val !== null && "name" in val) {
-            result.partner = (val as { name: string }).name;
-          } else {
-            result.partner = String(val);
-          }
+        if (field.name === "Partner" && field.value != null) {
+          result.partner = resolveFieldValue(field);
         }
       }
 

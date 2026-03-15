@@ -451,7 +451,11 @@ export async function getReportData(
       nrr: snap?.nrr ?? null,
       grr: snap?.grr ?? null,
       logoRetentionRate: snap?.logo_retention_rate ?? null,
-      quickRatio: snap?.quick_ratio ?? null,
+      quickRatio: snap?.quick_ratio
+        ?? (snap && (snap.churned_mrr === 0 && snap.contraction_mrr === 0)
+            && (snap.new_mrr > 0 || snap.expansion_mrr > 0)
+          ? Infinity
+          : null),
       cohortData,
       nrrHistory,
     },
