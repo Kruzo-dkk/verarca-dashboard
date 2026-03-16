@@ -191,8 +191,16 @@ export function CustomerList() {
           </div>
         </GlassCard>
         <GlassCard className="text-center py-3">
-          <span className="text-xs text-[var(--text-muted)]">Showing</span>
-          <div className="metric-value text-xl mt-1">{filteredCustomers.length}</div>
+          <span className="text-xs text-[var(--text-muted)]">Net New Logos</span>
+          <div className={`metric-value text-xl mt-1 ${
+            data.newLogos - data.churnedLogos > 0
+              ? "text-emerald-600"
+              : data.newLogos - data.churnedLogos < 0
+                ? "text-red-600"
+                : ""
+          }`}>
+            {data.newLogos - data.churnedLogos > 0 ? "+" : ""}{data.newLogos - data.churnedLogos}
+          </div>
         </GlassCard>
       </div>
 
