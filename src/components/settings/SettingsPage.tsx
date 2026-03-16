@@ -11,6 +11,7 @@ interface SettingsRow {
   cac_partner: number | null; // DKK øre
   cac_inbound: number | null; // DKK øre
   employee_count: number | null;
+  monthly_cogs: number; // DKK øre
   notes: string | null;
 }
 
@@ -28,6 +29,7 @@ export function SettingsPage() {
   const [cacPartner, setCacPartner] = useState("");
   const [cacInbound, setCacInbound] = useState("");
   const [employeeCount, setEmployeeCount] = useState("");
+  const [cogsKroner, setCogsKroner] = useState("");
   const [notes, setNotes] = useState("");
 
   // History of recent settings
@@ -45,6 +47,7 @@ export function SettingsPage() {
         setCacPartner(data.cac_partner != null && data.cac_partner > 0 ? (data.cac_partner / 100).toString() : "");
         setCacInbound(data.cac_inbound != null && data.cac_inbound > 0 ? (data.cac_inbound / 100).toString() : "");
         setEmployeeCount(data.employee_count !== null ? data.employee_count.toString() : "");
+        setCogsKroner(data.monthly_cogs > 0 ? (data.monthly_cogs / 100).toString() : "");
         setNotes(data.notes ?? "");
       }
     } catch (err) {
@@ -68,7 +71,7 @@ export function SettingsPage() {
         const res = await fetch(`/api/settings?month=${m}`);
         if (res.ok) {
           const data: SettingsRow = await res.json();
-          if (data.total_cac > 0 || data.employee_count !== null) {
+          if (data.total_cac > 0 || data.employee_count !== null || data.monthly_cogs > 0) {
             results.push(data);
           }
         }
@@ -94,6 +97,7 @@ export function SettingsPage() {
       const cacPartnerOre = cacPartner ? Math.round(parseFloat(cacPartner) * 100) : null;
       const cacInboundOre = cacInbound ? Math.round(parseFloat(cacInbound) * 100) : null;
       const empCount = employeeCount ? parseInt(employeeCount) : null;
+      const cogsOre = cogsKroner ? Math.round(parseFloat(cogsKroner) * 100) : 0;
 
       const res = await fetch("/api/settings", {
         method: "PUT",
@@ -105,6 +109,7 @@ export function SettingsPage() {
           cac_partner: cacPartnerOre,
           cac_inbound: cacInboundOre,
           employee_count: empCount,
+          monthly_cogs: cogsOre,
           notes: notes || null,
         }),
       });
@@ -257,6 +262,28 @@ export function SettingsPage() {
             />
           </div>
 
+          {/* Monthly COGS */}
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-muted)] mb-1.5">
+              Monthly COGS (DKK)
+            </label>
+            <p className="text-[10px] text-[var(--text-muted)] mb-2">
+              Cost of goods sold: hosting, data providers, direct service costs. Used for Gross Margin and Rule of 40.
+            </p>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--text-muted)]">
+                kr
+              </span>
+              <input
+                type="number"
+                value={cogsKroner}
+                onChange={(e) => setCogsKroner(e.target.value)}
+                placeholder="0"
+                className="w-full pl-8 pr-3 py-2.5 sm:py-2 text-sm bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-teal)] focus:border-transparent"
+              />
+            </div>
+          </div>
+
           {/* Notes */}
           <div className="sm:col-span-2">
             <label className="block text-xs font-medium text-[var(--text-muted)] mb-1.5">
@@ -302,7 +329,8 @@ export function SettingsPage() {
                   <th className="pb-2 font-medium">Month</th>
                   <th className="pb-2 font-medium text-right">S&M Spend</th>
                   <th className="pb-2 font-medium text-right">Employees</th>
-                  <th className="pb-2 font-medium hidden sm:table-cell">Notes</th>
+                  <th className="pb-2 font-medium text-right hidden sm:table-cell">COGS</th>
+                  <th className="pb-2 font-medium hidden md:table-cell">Notes</th>
                 </tr>
               </thead>
               <tbody>
@@ -315,7 +343,10 @@ export function SettingsPage() {
                     <td className="py-2 text-right metric-value">
                       {row.employee_count ?? "—"}
                     </td>
-                    <td className="py-2 text-[var(--text-secondary)] truncate max-w-[200px] hidden sm:table-cell">
+                    <td className="py-2 text-right metric-value hidden sm:table-cell">
+                      {row.monthly_cogs > 0 ? `kr ${(row.monthly_cogs / 100).toLocaleString()}` : "—"}
+                    </td>
+                    <td className="py-2 text-[var(--text-secondary)] truncate max-w-[200px] hidden md:table-cell">
                       {row.notes ?? "—"}
                     </td>
                   </tr>

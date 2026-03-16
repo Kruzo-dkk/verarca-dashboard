@@ -121,7 +121,7 @@ export async function getReportData(
     // 8. Settings for the end month (CAC spend, employee override)
     supabase
       .from("settings")
-      .select("total_cac, employee_count")
+      .select("total_cac, employee_count, monthly_cogs")
       .eq("month", endMonth)
       .maybeSingle(),
 
@@ -332,14 +332,13 @@ export async function getReportData(
   const customerCount = snap?.customer_count ?? 0;
 
   // Derive monthly logo churn rate for LTV calculation
-  if (customerCount > 0 && snap?.churned_logos != null) {
+  // When churn is 0, calculateLTV caps lifetime at 60 months (investor standard)
+  if (customerCount > 0) {
     const monthlyChurnRate =
-      customerCount + snap.churned_logos > 0
+      snap?.churned_logos != null && customerCount + snap.churned_logos > 0
         ? (snap.churned_logos / (customerCount + snap.churned_logos)) * 100
         : 0;
-    if (monthlyChurnRate > 0) {
-      ltv = calculateLTV(arpa, monthlyChurnRate);
-    }
+    ltv = calculateLTV(arpa, monthlyChurnRate);
   }
 
   if (employeeCount != null && employeeCount > 0) {
@@ -358,6 +357,27 @@ export async function getReportData(
   // LTV/CAC ratio (both must be available)
   if (ltv !== null && cac !== null && cac > 0) {
     ltvCacRatio = Math.round((ltv / cac) * 100) / 100;
+  }
+
+  // Gross Margin: (MRR - COGS) / MRR as a percentage
+  let grossMargin: number | null = null;
+  const monthlyCogs = settingsRow?.monthly_cogs ?? 0;
+  const currentMrr = snap?.mrr ?? 0;
+  if (monthlyCogs > 0 && currentMrr > 0) {
+    grossMargin = Math.round(((currentMrr - monthlyCogs) / currentMrr) * 10000) / 100;
+  }
+
+  // Rule of 40: MRR Growth % (MoM annualised) + Gross Margin %
+  let ruleOf40: number | null = null;
+  if (grossMargin !== null) {
+    // Use MoM growth rate, annualised: ((1 + monthly_growth)^12 - 1) * 100
+    const prevMonth = monthsAgo(endMonth, 1);
+    const prevSnap = trailing.find((s) => s.month === prevMonth);
+    if (prevSnap && prevSnap.mrr > 0) {
+      const monthlyGrowth = (currentMrr - prevSnap.mrr) / prevSnap.mrr;
+      const annualisedGrowth = (Math.pow(1 + monthlyGrowth, 12) - 1) * 100;
+      ruleOf40 = Math.round((annualisedGrowth + grossMargin) * 10) / 10;
+    }
   }
 
   // ------ Channel attribution ----------------------------------------------
@@ -497,8 +517,8 @@ export async function getReportData(
       employeeCount,
       cac,
       ltvCacRatio,
-      grossMargin: null,
-      ruleOf40: null,
+      grossMargin,
+      ruleOf40,
     },
 
     commentary: {

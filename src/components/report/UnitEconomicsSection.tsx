@@ -26,6 +26,7 @@ export function UnitEconomicsSection({ data, formatValue }: UnitEconomicsSection
       metric: "ltv",
       value: ue.ltv !== null ? formatValue(ue.ltv) : null,
       available: ue.ltv !== null,
+      subtitle: ue.ltv !== null ? "60-month cap (0% churn)" : undefined,
     },
     {
       label: "Revenue / Employee",
@@ -54,16 +55,19 @@ export function UnitEconomicsSection({ data, formatValue }: UnitEconomicsSection
     {
       label: "Gross Margin",
       metric: "grossMargin",
-      value: null,
-      available: false,
-      stub: "Not yet integrated",
+      value: ue.grossMargin !== null ? `${ue.grossMargin.toFixed(1)}%` : null,
+      available: ue.grossMargin !== null,
+      stub: ue.grossMargin === null ? "Enter COGS in Settings" : undefined,
     },
     {
       label: "Rule of 40",
       metric: "ruleOf40",
-      value: null,
-      available: false,
-      stub: "Not yet integrated",
+      value: ue.ruleOf40 !== null ? ue.ruleOf40.toFixed(1) : null,
+      available: ue.ruleOf40 !== null,
+      subtitle: ue.ruleOf40 !== null
+        ? ue.ruleOf40 >= 40 ? "Above target" : ue.ruleOf40 >= 30 ? "Approaching" : "Below target"
+        : undefined,
+      stub: ue.ruleOf40 === null ? "Enter COGS in Settings" : undefined,
     },
   ];
 

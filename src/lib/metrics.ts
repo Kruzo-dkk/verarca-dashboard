@@ -361,12 +361,20 @@ export function calculateConcentration(
 
 /**
  * Customer Lifetime Value (LTV).
- * LTV = ARPA / Monthly Churn Rate
+ *
+ * When churn rate > 0: LTV = ARPA / Monthly Churn Rate
+ * When churn rate = 0: LTV = ARPA × MAX_LIFETIME_MONTHS (capped at 60 months)
+ *
+ * The 60-month cap is a conservative, investor-standard assumption for
+ * early-stage SaaS with zero observed churn.
  *
  * Both ARPA and result are in minor units (øre).
  */
+const MAX_LIFETIME_MONTHS = 60;
+
 export function calculateLTV(arpa: number, monthlyChurnRate: number): number {
-  if (monthlyChurnRate <= 0) return 0; // Cannot calculate if no churn
+  if (arpa <= 0) return 0;
+  if (monthlyChurnRate <= 0) return Math.round(arpa * MAX_LIFETIME_MONTHS);
   // monthlyChurnRate is a percentage (e.g., 2.5 = 2.5%)
   return Math.round(arpa / (monthlyChurnRate / 100));
 }

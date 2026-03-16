@@ -507,6 +507,7 @@ export type Database = {
           employee_count: number | null
           id: number
           month: string
+          monthly_cogs: number | null
           notes: string | null
           total_cac: number | null
           updated_at: string | null
@@ -519,6 +520,7 @@ export type Database = {
           employee_count?: number | null
           id?: never
           month: string
+          monthly_cogs?: number | null
           notes?: string | null
           total_cac?: number | null
           updated_at?: string | null
@@ -531,6 +533,7 @@ export type Database = {
           employee_count?: number | null
           id?: never
           month?: string
+          monthly_cogs?: number | null
           notes?: string | null
           total_cac?: number | null
           updated_at?: string | null

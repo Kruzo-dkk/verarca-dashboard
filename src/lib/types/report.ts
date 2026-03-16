@@ -77,9 +77,8 @@ export interface ReportData {
     employeeCount: number | null;
     cac: number | null;
     ltvCacRatio: number | null;
-    // Stubbed - requires accounting integration
-    grossMargin: null;
-    ruleOf40: null;
+    grossMargin: number | null;
+    ruleOf40: number | null;
   };
 
   // Channel Attribution (management only)

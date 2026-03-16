@@ -46,6 +46,7 @@ export async function GET(request: NextRequest) {
       cac_partner: null,
       cac_inbound: null,
       employee_count: null,
+      monthly_cogs: 0,
       notes: null,
     }
   );
@@ -69,7 +70,7 @@ export async function PUT(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { month, total_cac, cac_outbound, cac_partner, cac_inbound, employee_count, notes } = body;
+  const { month, total_cac, cac_outbound, cac_partner, cac_inbound, employee_count, monthly_cogs, notes } = body;
 
   if (!month || !/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
     return NextResponse.json(
@@ -88,6 +89,7 @@ export async function PUT(request: NextRequest) {
         cac_partner: cac_partner ?? null,
         cac_inbound: cac_inbound ?? null,
         employee_count: employee_count ?? null,
+        monthly_cogs: monthly_cogs ?? 0,
         notes: notes ?? null,
       },
       { onConflict: "month" }
