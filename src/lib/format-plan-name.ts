@@ -129,29 +129,43 @@ function capitalize(s: string): string {
 }
 
 /**
- * Infer a meaningful segment from the plan handle based on size indicators.
+ * Infer Danish accounting class (Regnskabsklasse) from the plan handle.
+ *
+ * Danish accounting classes:
+ *   B (Mikro) — smallest companies (a-b-mikro plans)
+ *   B         — small companies (b plans)
+ *   C (Mellem) — medium companies (c-mellem plans)
+ *   C (Stor)   — large companies (c-stor plans)
+ *
+ * Samhandel (indkøbsforening) customers are classified by their
+ * underlying size, not as a separate segment.
  */
 export function inferSegmentFromPlan(planHandle: string | null): string {
   if (!planHandle) return "Unknown";
   const lower = planHandle.toLowerCase();
 
-  if (lower.includes("mikro")) return "Mikro";
-  if (lower.includes("stor")) return "Stor";
-  if (lower.includes("mellem")) return "Mellem";
-  if (lower.includes("samhandel")) return "Samhandel";
-  if (lower.includes("managed") || lower.includes("prime")) return "Managed";
+  // Check for size qualifiers first (most specific)
+  if (lower.includes("mikro")) return "B (Mikro)";
+  if (lower.includes("stor")) return "C (Stor)";
+  if (lower.includes("mellem")) return "C (Mellem)";
+
+  // Strip samhandel prefix to check underlying size
+  const stripped = lower.replace(/^samhandel-?/, "");
 
   // Single-letter size prefix before "scope"
-  const sizeMatch = lower.match(/^([a-c])-scope/);
+  const sizeMatch = stripped.match(/^([a-c])-scope/);
   if (sizeMatch) {
-    const letter = sizeMatch[1].toUpperCase();
-    if (letter === "A") return "Mikro";
-    if (letter === "B") return "Standard";
-    if (letter === "C") return "Mellem";
+    const letter = sizeMatch[1];
+    if (letter === "a") return "B (Mikro)";
+    if (letter === "b") return "B";
+    if (letter === "c") return "C (Mellem)"; // bare "c" defaults to mellem
   }
 
-  // a-b prefix
-  if (lower.startsWith("a-b-")) return "Mikro";
+  // a-b prefix (mikro range)
+  if (stripped.startsWith("a-b-") || stripped.startsWith("a-b")) return "B (Mikro)";
 
-  return "Standard";
+  // Bare "scope-" without size prefix (e.g. "scope-1-2-3-standard")
+  if (stripped.startsWith("scope-")) return "B";
+
+  return "Unknown";
 }

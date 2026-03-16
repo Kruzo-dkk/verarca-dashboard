@@ -208,7 +208,7 @@ export function CustomerList() {
       {data.segments && data.segments.length > 0 && (
         <GlassCard>
           <h3 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-3">
-            Segment Breakdown
+            Accounting Class
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {data.segments.map((seg) => (
@@ -303,7 +303,7 @@ export function CustomerList() {
                 </th>
                 <th className="pb-2 font-medium hidden lg:table-cell">
                   <button onClick={() => handleSort("segment")} className="flex items-center hover:text-[var(--text-primary)] transition-colors">
-                    Segment <SortIcon field="segment" />
+                    Class <SortIcon field="segment" />
                   </button>
                 </th>
                 <th className="pb-2 font-medium">

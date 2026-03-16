@@ -28,7 +28,7 @@ function normalizeName(name: string): string {
 import { inferSegmentFromPlan } from "@/lib/format-plan-name";
 
 function inferSegment(planHandle: string | null): string {
-  return inferSegmentFromPlan(planHandle).toLowerCase();
+  return inferSegmentFromPlan(planHandle);
 }
 
 // ─── Main sync ─────────────────────────────────────────────────
