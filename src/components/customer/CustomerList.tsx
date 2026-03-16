@@ -293,7 +293,7 @@ export function CustomerList() {
                 </th>
                 <th className="pb-2 font-medium hidden sm:table-cell pl-4">
                   <button onClick={() => handleSort("plan")} className="flex items-center hover:text-[var(--text-primary)] transition-colors">
-                    Plan <SortIcon field="plan" />
+                    Scope <SortIcon field="plan" />
                   </button>
                 </th>
                 <th className="pb-2 font-medium hidden md:table-cell">
@@ -368,9 +368,9 @@ function CustomerRow({
             </span>
             <div className="truncate">
               <span className="truncate block">{customer.name}</span>
-              {customer.plan && (
+              {customer.scope && (
                 <span className="text-[11px] text-[var(--text-muted)] font-normal sm:hidden block truncate">
-                  {customer.plan}
+                  {customer.scope}{customer.tier && customer.tier !== "Standard" ? ` · ${customer.tier}` : ""}
                 </span>
               )}
             </div>
@@ -378,7 +378,12 @@ function CustomerRow({
         </td>
         <td className="py-2 text-right metric-value pr-4 tabular-nums">{formatValue(customer.mrr)}</td>
         <td className="py-2 text-[var(--text-secondary)] hidden sm:table-cell pl-4 truncate" title={customer.plan ?? undefined}>
-          {customer.plan ?? "—"}
+          <span>{customer.scope ?? "—"}</span>
+          {customer.tier && customer.tier !== "Standard" && (
+            <span className="ml-1.5 text-[10px] px-1 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:bg-purple-500/20 dark:text-purple-400 font-medium">
+              {customer.tier}
+            </span>
+          )}
         </td>
         <td className="py-2 text-[var(--text-secondary)] hidden md:table-cell truncate">
           {customer.partner ?? "—"}

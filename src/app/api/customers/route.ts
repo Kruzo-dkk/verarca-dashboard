@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { formatPlanName } from "@/lib/format-plan-name";
+import { formatPlanName, inferScopeFromPlan, inferTierFromPlan } from "@/lib/format-plan-name";
 import type { SegmentBreakdown, CustomerSummary } from "@/lib/types/report";
 
 /**
@@ -65,11 +65,14 @@ export async function GET(request: NextRequest) {
       .sort((a, b) => b.mrr - a.mrr)
       .map((cs) => {
         const cust = customerMap.get(cs.customer_id);
+        const planHandle = cs.plan_handle ?? cust?.plan_handle;
         return {
           id: cs.customer_id,
           name: cust?.name ?? `Customer ${cs.customer_id}`,
           mrr: cs.mrr,
-          plan: formatPlanName(cs.plan_name ?? cs.plan_handle),
+          plan: formatPlanName(cs.plan_name ?? planHandle),
+          scope: inferScopeFromPlan(planHandle),
+          tier: inferTierFromPlan(planHandle),
           status: cs.status,
           partner: cust?.partner ?? null,
           segment: cust?.segment ?? null,

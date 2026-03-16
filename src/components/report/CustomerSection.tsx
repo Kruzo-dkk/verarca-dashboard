@@ -237,7 +237,7 @@ function CustomerTable({
         <tr className="text-left text-[var(--text-muted)] text-xs uppercase tracking-wider">
           <th className="pb-2 font-medium">Customer</th>
           <th className="pb-2 font-medium text-right pr-4">MRR</th>
-          <th className="pb-2 font-medium hidden sm:table-cell pl-4">Plan</th>
+          <th className="pb-2 font-medium hidden sm:table-cell pl-4">Scope</th>
           <th className="pb-2 font-medium hidden md:table-cell">Partner</th>
           {showChurnDate ? (
             <th className="pb-2 font-medium">Closed</th>
@@ -252,15 +252,25 @@ function CustomerTable({
             <td className="py-1.5 text-[var(--text-primary)] font-medium truncate">
               <div className="truncate">
                 {c.name}
-                {c.plan && (
+                {c.scope && (
                   <span className="text-[11px] text-[var(--text-muted)] font-normal sm:hidden block truncate">
-                    {c.plan}
+                    {c.scope}
+                    {c.tier && c.tier !== "Standard" && (
+                      <span className="ml-1 text-[10px] text-purple-500 font-medium">{c.tier}</span>
+                    )}
                   </span>
                 )}
               </div>
             </td>
             <td className="py-1.5 text-right metric-value pr-4 tabular-nums">{formatValue(c.mrr)}</td>
-            <td className="py-1.5 text-[var(--text-secondary)] hidden sm:table-cell pl-4 truncate" title={c.plan ?? undefined}>{c.plan ?? "—"}</td>
+            <td className="py-1.5 text-[var(--text-secondary)] hidden sm:table-cell pl-4 truncate">
+              <span>{c.scope ?? "—"}</span>
+              {c.tier && c.tier !== "Standard" && (
+                <span className="ml-1.5 text-[10px] font-medium text-purple-500 bg-purple-500/10 px-1.5 py-0.5 rounded-full">
+                  {c.tier}
+                </span>
+              )}
+            </td>
             <td className="py-1.5 text-[var(--text-secondary)] hidden md:table-cell truncate">{c.partner ?? "—"}</td>
             {showChurnDate ? (
               <td className="py-1.5 text-[var(--text-secondary)] text-xs">

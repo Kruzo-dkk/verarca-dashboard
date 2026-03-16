@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getTeamMemberCount } from "@/lib/clickup";
 import { calculateLTV, calculateRevenuePerEmployee } from "@/lib/metrics";
 import { computeCommittedMRR } from "@/lib/committed-mrr";
-import { formatPlanName } from "@/lib/format-plan-name";
+import { formatPlanName, inferScopeFromPlan, inferTierFromPlan } from "@/lib/format-plan-name";
 import type { MRRDecomposition } from "@/lib/metrics";
 import type { Currency, FXRates } from "@/lib/currency";
 import type {
@@ -248,11 +248,14 @@ export async function getReportData(
 
   const mapSnapshot = (cs: { customer_id: number; mrr: number; status: string; plan_handle: string | null; plan_name?: string | null }) => {
     const cust = customerMap.get(cs.customer_id);
+    const planHandle = cs.plan_handle ?? cust?.plan_handle;
     return {
       id: cs.customer_id,
       name: cust?.name ?? `Customer ${cs.customer_id}`,
       mrr: cs.mrr,
-      plan: formatPlanName(cs.plan_name ?? cust?.plan_name ?? cs.plan_handle),
+      plan: formatPlanName(cs.plan_name ?? cust?.plan_name ?? planHandle),
+      scope: inferScopeFromPlan(planHandle),
+      tier: inferTierFromPlan(planHandle),
       status: cs.status,
       partner: cust?.partner ?? null,
       segment: cust?.segment ?? null,
@@ -275,6 +278,8 @@ export async function getReportData(
       name: c.name ?? c.frisbii_handle,
       mrr: 0,
       plan: formatPlanName(c.plan_name ?? c.plan_handle),
+      scope: inferScopeFromPlan(c.plan_handle),
+      tier: inferTierFromPlan(c.plan_handle),
       status: "churned",
       partner: c.partner ?? null,
       segment: c.segment ?? null,

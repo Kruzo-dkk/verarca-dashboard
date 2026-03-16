@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { formatPlanName } from "@/lib/format-plan-name";
+import { formatPlanName, inferScopeFromPlan, inferTierFromPlan } from "@/lib/format-plan-name";
 
 /**
  * GET /api/customers/[id]
@@ -87,6 +87,7 @@ export async function GET(
       plan: formatPlanName(s.plan_name ?? s.plan_handle),
     }));
 
+    const planHandle = customer.plan_handle;
     return NextResponse.json({
       id: customer.id,
       name: customer.name,
@@ -94,7 +95,9 @@ export async function GET(
       email: customer.email,
       cvr: customer.cvr,
       segment: customer.segment,
-      plan: formatPlanName(customer.plan_name ?? customer.plan_handle),
+      plan: formatPlanName(customer.plan_name ?? planHandle),
+      scope: inferScopeFromPlan(planHandle),
+      tier: inferTierFromPlan(planHandle),
       partner: customer.partner,
       status: customer.status,
       startDate: customer.start_date,

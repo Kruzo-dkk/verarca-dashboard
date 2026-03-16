@@ -142,6 +142,8 @@ export interface CustomerSummary {
   name: string;
   mrr: number;
   plan: string | null;
+  scope: string | null;
+  tier: string | null;
   status: string;
   partner: string | null;
   segment: string | null;

@@ -169,3 +169,29 @@ export function inferSegmentFromPlan(planHandle: string | null): string {
 
   return "Unknown";
 }
+
+/**
+ * Extract scope coverage from plan handle.
+ * Returns "Scope 1-2-3", "Scope 1-2", or null for non-scope plans.
+ */
+export function inferScopeFromPlan(planHandle: string | null | undefined): string | null {
+  if (!planHandle) return null;
+  const match = planHandle.toLowerCase().match(/scope-([\d]+(?:-[\d]+)*)/);
+  if (!match) return null;
+  return `Scope ${match[1]}`;
+}
+
+/**
+ * Extract service tier from plan handle.
+ * Returns "Standard", "Managed", or null.
+ */
+export function inferTierFromPlan(planHandle: string | null | undefined): string | null {
+  if (!planHandle) return null;
+  const lower = planHandle.toLowerCase();
+  if (lower.includes("managed")) return "Managed";
+  if (lower.includes("standard")) return "Standard";
+  // Service plans without explicit tier
+  if (lower.includes("supported")) return "Managed";
+  if (lower.includes("prime")) return "Managed";
+  return null;
+}
