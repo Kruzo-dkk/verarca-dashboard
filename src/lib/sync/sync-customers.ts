@@ -209,14 +209,24 @@ export async function syncCustomers(): Promise<void> {
   );
 
   // ── Upsert in batches ──────────────────────────────────────
+  // For customers where segment inference returns "Unknown", strip the
+  // segment field so the upsert preserves any manually-set DB value.
+  const cleanedRows = rows.map((row) => {
+    if (row.segment === "Unknown") {
+      const { segment: _, ...rest } = row;
+      return rest;
+    }
+    return row;
+  });
+
   const supabase = createAdminClient();
   const BATCH_SIZE = 50;
 
-  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-    const batch = rows.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < cleanedRows.length; i += BATCH_SIZE) {
+    const batch = cleanedRows.slice(i, i + BATCH_SIZE);
     const { error } = await supabase
       .from("customers")
-      .upsert(batch, { onConflict: "frisbii_handle" });
+      .upsert(batch as typeof rows, { onConflict: "frisbii_handle" });
 
     if (error) {
       console.error(
