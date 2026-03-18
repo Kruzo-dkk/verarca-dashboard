@@ -57,6 +57,30 @@ export function CustomerList() {
     }
   }, []);
 
+  // Save manual override for scope, tier, or segment
+  const handleOverride = useCallback(async (id: number, field: string, value: string | null) => {
+    // Optimistic update
+    setData((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        customers: prev.customers.map((c) =>
+          c.id === id ? { ...c, [field]: value } : c
+        ),
+      };
+    });
+    try {
+      await fetch(`/api/customers/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [field]: value }),
+      });
+    } catch {
+      // Revert on failure by re-fetching
+      fetchData(month);
+    }
+  }, [fetchData, month]);
+
   // Trigger fetch on mount and month change
   useState(() => {
     fetchData(month);
@@ -323,6 +347,7 @@ export function CustomerList() {
                   onToggle={() =>
                     setExpandedId(expandedId === customer.id ? null : customer.id)
                   }
+                  onOverride={handleOverride}
                 />
               ))}
               {filteredCustomers.length === 0 && (
@@ -340,6 +365,38 @@ export function CustomerList() {
   );
 }
 
+// ─── Inline override select ────────────────────────────────────────
+
+const SCOPE_OPTIONS = ["Scope 1-2", "Scope 1-2-3"];
+const SEGMENT_OPTIONS = ["B (Mikro)", "B", "C (Mellem)", "C (Stor)"];
+
+function InlineSelect({
+  value,
+  options,
+  placeholder,
+  onChange,
+}: {
+  value: string | null;
+  options: string[];
+  placeholder: string;
+  onChange: (val: string | null) => void;
+}) {
+  return (
+    <select
+      value={value ?? ""}
+      onClick={(e) => e.stopPropagation()}
+      onChange={(e) => onChange(e.target.value || null)}
+      className="text-[11px] bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 rounded px-1.5 py-0.5 cursor-pointer hover:bg-amber-500/20 focus:outline-none focus:ring-1 focus:ring-amber-500/40 appearance-none"
+      style={{ backgroundImage: "none" }}
+    >
+      <option value="">{placeholder}</option>
+      {options.map((opt) => (
+        <option key={opt} value={opt}>{opt}</option>
+      ))}
+    </select>
+  );
+}
+
 // ─── Individual customer row ────────────────────────────────────────
 
 function CustomerRow({
@@ -347,11 +404,13 @@ function CustomerRow({
   formatValue,
   expanded,
   onToggle,
+  onOverride,
 }: {
   customer: CustomerSummary;
   formatValue: (v: number) => string;
   expanded: boolean;
   onToggle: () => void;
+  onOverride: (id: number, field: string, value: string | null) => Promise<void>;
 }) {
   return (
     <>
@@ -377,19 +436,39 @@ function CustomerRow({
           </div>
         </td>
         <td className="py-2 text-right metric-value pr-4 tabular-nums">{formatValue(customer.mrr)}</td>
-        <td className="py-2 text-[var(--text-secondary)] hidden sm:table-cell pl-4 truncate" title={customer.plan ?? undefined}>
-          <span>{customer.scope ?? "—"}</span>
-          {customer.tier && customer.tier !== "Standard" && (
-            <span className="ml-1.5 text-[10px] px-1 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:bg-purple-500/20 dark:text-purple-400 font-medium">
-              {customer.tier}
-            </span>
+        <td className="py-2 text-[var(--text-secondary)] hidden sm:table-cell pl-4 truncate">
+          {customer.scope ? (
+            <>
+              <span>{customer.scope}</span>
+              {customer.tier && customer.tier !== "Standard" && (
+                <span className="ml-1.5 text-[10px] px-1 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:bg-purple-500/20 dark:text-purple-400 font-medium">
+                  {customer.tier}
+                </span>
+              )}
+            </>
+          ) : (
+            <InlineSelect
+              value={null}
+              options={SCOPE_OPTIONS}
+              placeholder="Set scope…"
+              onChange={(val) => onOverride(customer.id, "scope", val)}
+            />
           )}
         </td>
         <td className="py-2 text-[var(--text-secondary)] hidden md:table-cell truncate">
           {customer.partner ?? "—"}
         </td>
         <td className="py-2 text-[var(--text-secondary)] hidden lg:table-cell truncate">
-          {customer.segment ?? "—"}
+          {customer.segment ? (
+            <span>{customer.segment}</span>
+          ) : (
+            <InlineSelect
+              value={null}
+              options={SEGMENT_OPTIONS}
+              placeholder="Set class…"
+              onChange={(val) => onOverride(customer.id, "segment", val)}
+            />
+          )}
         </td>
         <td className="py-2">
           <span

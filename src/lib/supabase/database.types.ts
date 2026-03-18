@@ -122,9 +122,11 @@ export type Database = {
           partner: string | null
           plan_handle: string | null
           plan_name: string | null
+          scope_override: string | null
           segment: string | null
           start_date: string | null
           status: string
+          tier_override: string | null
           updated_at: string
         }
         Insert: {
@@ -142,9 +144,11 @@ export type Database = {
           partner?: string | null
           plan_handle?: string | null
           plan_name?: string | null
+          scope_override?: string | null
           segment?: string | null
           start_date?: string | null
           status?: string
+          tier_override?: string | null
           updated_at?: string
         }
         Update: {
@@ -162,9 +166,11 @@ export type Database = {
           partner?: string | null
           plan_handle?: string | null
           plan_name?: string | null
+          scope_override?: string | null
           segment?: string | null
           start_date?: string | null
           status?: string
+          tier_override?: string | null
           updated_at?: string
         }
         Relationships: []

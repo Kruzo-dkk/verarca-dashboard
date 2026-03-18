@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { formatPlanName, inferScopeFromPlan, inferTierFromPlan } from "@/lib/format-plan-name";
+
+const VALID_SCOPES = ["Scope 1-2", "Scope 1-2-3"];
+const VALID_TIERS = ["Standard", "Managed"];
+const VALID_SEGMENTS = ["B (Mikro)", "B", "C (Mellem)", "C (Stor)"];
 
 /**
  * GET /api/customers/[id]
@@ -96,8 +101,8 @@ export async function GET(
       cvr: customer.cvr,
       segment: customer.segment,
       plan: formatPlanName(customer.plan_name ?? planHandle),
-      scope: inferScopeFromPlan(planHandle),
-      tier: inferTierFromPlan(planHandle),
+      scope: customer.scope_override ?? inferScopeFromPlan(planHandle),
+      tier: customer.tier_override ?? inferTierFromPlan(planHandle),
       partner: customer.partner,
       status: customer.status,
       startDate: customer.start_date,
@@ -112,5 +117,76 @@ export async function GET(
       { error: "Failed to fetch customer detail" },
       { status: 500 }
     );
+  }
+}
+
+/**
+ * PATCH /api/customers/[id]
+ *
+ * Update manual overrides for scope, tier, and/or segment.
+ */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { id } = await params;
+    const customerId = parseInt(id, 10);
+    if (isNaN(customerId)) {
+      return NextResponse.json({ error: "Invalid customer ID" }, { status: 400 });
+    }
+
+    const body = await request.json();
+    const updateData: Record<string, string | null> = {};
+
+    if ("scope" in body) {
+      if (body.scope !== null && !VALID_SCOPES.includes(body.scope)) {
+        return NextResponse.json({ error: `Invalid scope. Must be one of: ${VALID_SCOPES.join(", ")}` }, { status: 400 });
+      }
+      updateData.scope_override = body.scope;
+    }
+
+    if ("tier" in body) {
+      if (body.tier !== null && !VALID_TIERS.includes(body.tier)) {
+        return NextResponse.json({ error: `Invalid tier. Must be one of: ${VALID_TIERS.join(", ")}` }, { status: 400 });
+      }
+      updateData.tier_override = body.tier;
+    }
+
+    if ("segment" in body) {
+      if (body.segment !== null && !VALID_SEGMENTS.includes(body.segment)) {
+        return NextResponse.json({ error: `Invalid segment. Must be one of: ${VALID_SEGMENTS.join(", ")}` }, { status: 400 });
+      }
+      updateData.segment = body.segment;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
+    }
+
+    const admin = createAdminClient();
+    const { error } = await admin
+      .from("customers")
+      .update(updateData)
+      .eq("id", customerId);
+
+    if (error) {
+      console.error("Failed to update customer:", error);
+      return NextResponse.json({ error: "Failed to update customer" }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true, updated: updateData });
+  } catch (error) {
+    console.error("Failed to update customer:", error);
+    return NextResponse.json({ error: "Failed to update customer" }, { status: 500 });
   }
 }
