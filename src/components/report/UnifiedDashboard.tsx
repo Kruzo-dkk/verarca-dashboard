@@ -8,12 +8,15 @@ import { BoardReport } from "@/components/board/BoardReport";
 import { InvestorDashboard } from "@/components/investor/InvestorDashboard";
 import { SalesProvider } from "@/components/sales/SalesProvider";
 import { SalesDashboard } from "@/components/sales/SalesDashboard";
+import { CSProvider } from "@/components/cs/CSProvider";
+import { CSDashboard } from "@/components/cs/CSDashboard";
 
-type ViewTab = "dashboard" | "sales" | "board" | "investor";
+type ViewTab = "dashboard" | "sales" | "cs" | "board" | "investor";
 
 const TABS: { key: ViewTab; label: string }[] = [
   { key: "dashboard", label: "Dashboard" },
   { key: "sales", label: "Sales" },
+  { key: "cs", label: "Customer Success" },
   { key: "board", label: "Board Report" },
   { key: "investor", label: "Investor View" },
 ];
@@ -74,6 +77,11 @@ function DashboardWithTabs() {
         <SalesProvider>
           <SalesDashboard />
         </SalesProvider>
+      )}
+      {tab === "cs" && (
+        <CSProvider>
+          <CSDashboard />
+        </CSProvider>
       )}
       {tab === "board" && <BoardReport />}
       {tab === "investor" && <InvestorDashboard />}
