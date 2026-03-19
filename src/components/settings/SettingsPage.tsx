@@ -15,6 +15,16 @@ interface SettingsRow {
   notes: string | null;
 }
 
+interface SalesTargetsRow {
+  month: string;
+  target_new_mrr: number;
+  target_new_logos: number;
+  target_pipeline: number;
+  target_meetings: number;
+  target_calls: number;
+  use_hubspot_defaults: boolean;
+}
+
 export function SettingsPage() {
   const { month } = useReportContext();
 
@@ -31,6 +41,16 @@ export function SettingsPage() {
   const [employeeCount, setEmployeeCount] = useState("");
   const [cogsKroner, setCogsKroner] = useState("");
   const [notes, setNotes] = useState("");
+
+  // Sales targets state
+  const [targetMrrKroner, setTargetMrrKroner] = useState("");
+  const [targetLogos, setTargetLogos] = useState("");
+  const [targetPipelineKroner, setTargetPipelineKroner] = useState("");
+  const [targetMeetings, setTargetMeetings] = useState("");
+  const [targetCalls, setTargetCalls] = useState("");
+  const [useHubspotDefaults, setUseHubspotDefaults] = useState(true);
+  const [savingTargets, setSavingTargets] = useState(false);
+  const [targetMessage, setTargetMessage] = useState<string | null>(null);
 
   // History of recent settings
   const [history, setHistory] = useState<SettingsRow[]>([]);
@@ -49,6 +69,17 @@ export function SettingsPage() {
         setEmployeeCount(data.employee_count !== null ? data.employee_count.toString() : "");
         setCogsKroner(data.monthly_cogs > 0 ? (data.monthly_cogs / 100).toString() : "");
         setNotes(data.notes ?? "");
+      }
+      // Also fetch sales targets
+      const tRes = await fetch(`/api/sales/targets?month=${m}`);
+      if (tRes.ok) {
+        const t: SalesTargetsRow = await tRes.json();
+        setTargetMrrKroner(t.target_new_mrr > 0 ? (t.target_new_mrr / 100).toString() : "");
+        setTargetLogos(t.target_new_logos > 0 ? t.target_new_logos.toString() : "");
+        setTargetPipelineKroner(t.target_pipeline > 0 ? (t.target_pipeline / 100).toString() : "");
+        setTargetMeetings(t.target_meetings > 0 ? t.target_meetings.toString() : "");
+        setTargetCalls(t.target_calls > 0 ? t.target_calls.toString() : "");
+        setUseHubspotDefaults(t.use_hubspot_defaults);
       }
     } catch (err) {
       console.error("Failed to fetch settings:", err);
@@ -311,6 +342,100 @@ export function SettingsPage() {
           {saveMessage && (
             <span className={`text-xs ${saveMessage.startsWith("Error") ? "text-red-600" : "text-emerald-600"}`}>
               {saveMessage}
+            </span>
+          )}
+        </div>
+      </GlassCard>
+
+      {/* Sales Targets */}
+      <GlassCard>
+        <h2 className="text-sm font-semibold text-[var(--text-primary)] mb-4">
+          Sales Targets
+        </h2>
+        <p className="text-[10px] text-[var(--text-muted)] mb-4">
+          Monthly targets for the sales dashboard. Shown as progress rings on /sales.
+        </p>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div>
+            <label className="block text-[10px] font-medium text-[var(--text-muted)] mb-1">New MRR Target (DKK)</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--text-muted)]">kr</span>
+              <input type="number" value={targetMrrKroner} onChange={(e) => setTargetMrrKroner(e.target.value)} placeholder="0"
+                className="w-full pl-8 pr-3 py-2.5 sm:py-2 text-sm bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-teal)] focus:border-transparent" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-[10px] font-medium text-[var(--text-muted)] mb-1">New Logos Target</label>
+            <input type="number" value={targetLogos} onChange={(e) => setTargetLogos(e.target.value)} placeholder="0"
+              className="w-full px-3 py-2.5 sm:py-2 text-sm bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-teal)] focus:border-transparent" />
+          </div>
+          <div>
+            <label className="block text-[10px] font-medium text-[var(--text-muted)] mb-1">Pipeline Target (DKK)</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--text-muted)]">kr</span>
+              <input type="number" value={targetPipelineKroner} onChange={(e) => setTargetPipelineKroner(e.target.value)} placeholder="0"
+                className="w-full pl-8 pr-3 py-2.5 sm:py-2 text-sm bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-teal)] focus:border-transparent" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-[10px] font-medium text-[var(--text-muted)] mb-1">Meetings Target</label>
+            <input type="number" value={targetMeetings} onChange={(e) => setTargetMeetings(e.target.value)} placeholder="0"
+              className="w-full px-3 py-2.5 sm:py-2 text-sm bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-teal)] focus:border-transparent" />
+          </div>
+          <div>
+            <label className="block text-[10px] font-medium text-[var(--text-muted)] mb-1">Calls Target</label>
+            <input type="number" value={targetCalls} onChange={(e) => setTargetCalls(e.target.value)} placeholder="0"
+              className="w-full px-3 py-2.5 sm:py-2 text-sm bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-teal)] focus:border-transparent" />
+          </div>
+          <div className="flex items-end pb-1">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={useHubspotDefaults} onChange={(e) => setUseHubspotDefaults(e.target.checked)}
+                className="w-4 h-4 rounded border-[var(--border-subtle)] text-[var(--accent-teal)] focus:ring-[var(--accent-teal)]" />
+              <span className="text-xs text-[var(--text-secondary)]">Use HubSpot data as defaults</span>
+            </label>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 mt-4">
+          <button
+            onClick={async () => {
+              setSavingTargets(true);
+              setTargetMessage(null);
+              try {
+                const res = await fetch("/api/sales/targets", {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    month,
+                    target_new_mrr: targetMrrKroner ? Math.round(parseFloat(targetMrrKroner) * 100) : 0,
+                    target_new_logos: targetLogos ? parseInt(targetLogos) : 0,
+                    target_pipeline: targetPipelineKroner ? Math.round(parseFloat(targetPipelineKroner) * 100) : 0,
+                    target_meetings: targetMeetings ? parseInt(targetMeetings) : 0,
+                    target_calls: targetCalls ? parseInt(targetCalls) : 0,
+                    use_hubspot_defaults: useHubspotDefaults,
+                  }),
+                });
+                if (res.ok) {
+                  setTargetMessage("Targets saved");
+                  setTimeout(() => setTargetMessage(null), 3000);
+                } else {
+                  const err = await res.json();
+                  setTargetMessage(`Error: ${err.error}`);
+                }
+              } catch {
+                setTargetMessage("Failed to save targets");
+              }
+              setSavingTargets(false);
+            }}
+            disabled={savingTargets}
+            className="px-5 py-2.5 sm:px-4 sm:py-2 text-sm font-medium text-white bg-[var(--accent-teal)] rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
+          >
+            {savingTargets ? "Saving..." : "Save Targets"}
+          </button>
+          {targetMessage && (
+            <span className={`text-xs ${targetMessage.startsWith("Error") ? "text-red-600" : "text-emerald-600"}`}>
+              {targetMessage}
             </span>
           )}
         </div>
