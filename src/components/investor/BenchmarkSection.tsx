@@ -113,7 +113,7 @@ export function BenchmarkSection({
             </label>
             <div className="flex gap-1 flex-wrap">
               {ARR_STAGES.filter(
-                (s) => s !== "0-1M" && s !== "50M+" // No benchmark data for these
+                (s) => s !== "50M+" // No benchmark data for 50M+
               ).map((s) => (
                 <button
                   key={s}

@@ -10,7 +10,6 @@ import { BottomNav } from "./BottomNav";
 import {
   DashboardIcon,
   CustomersIcon,
-  SalesIcon,
   ForecastIcon,
   RefreshIcon,
   MonthlyInputIcon,
@@ -28,7 +27,6 @@ export interface NavItem {
 const allNavItems: NavItem[] = [
   { href: "/", label: "Dashboard", icon: DashboardIcon, roles: ["management", "board", "investor"] },
   { href: "/customers", label: "Customers", icon: CustomersIcon, roles: ["management"] },
-  { href: "/sales", label: "Sales", icon: SalesIcon, roles: ["management"] },
   { href: "/forecast", label: "Forecast", icon: ForecastIcon, roles: ["management"] },
   { href: "/monthly-input", label: "Monthly Input", icon: MonthlyInputIcon, roles: ["management"] },
 ];

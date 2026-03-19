@@ -6,11 +6,14 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { ReportShell } from "@/components/report/ReportShell";
 import { BoardReport } from "@/components/board/BoardReport";
 import { InvestorDashboard } from "@/components/investor/InvestorDashboard";
+import { SalesProvider } from "@/components/sales/SalesProvider";
+import { SalesDashboard } from "@/components/sales/SalesDashboard";
 
-type ViewTab = "dashboard" | "board" | "investor";
+type ViewTab = "dashboard" | "sales" | "board" | "investor";
 
 const TABS: { key: ViewTab; label: string }[] = [
   { key: "dashboard", label: "Dashboard" },
+  { key: "sales", label: "Sales" },
   { key: "board", label: "Board Report" },
   { key: "investor", label: "Investor View" },
 ];
@@ -67,6 +70,11 @@ function DashboardWithTabs() {
       </div>
 
       {tab === "dashboard" && <ReportShell />}
+      {tab === "sales" && (
+        <SalesProvider>
+          <SalesDashboard />
+        </SalesProvider>
+      )}
       {tab === "board" && <BoardReport />}
       {tab === "investor" && <InvestorDashboard />}
     </div>

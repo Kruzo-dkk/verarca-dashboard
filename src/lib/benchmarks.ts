@@ -140,6 +140,19 @@ export const BENCHMARK_DATA: BenchmarkSourceData[] = [
     url: "https://www.bvp.com/cloud-index",
     stages: [
       {
+        stage: "0-1M",
+        label: "<$1M ARR",
+        metrics: {
+          nrr: { median: 90, topQuartile: 105 },
+          grr: { median: 80, topQuartile: 90 },
+          growthRate: { median: 100, topQuartile: 200 },
+          ltvCac: { median: 1.5, topQuartile: 3.0 },
+          cacPayback: { median: 30, topQuartile: 18 },
+          burnMultiple: { median: 4.0, topQuartile: 2.0 },
+          grossMargin: { median: 65, topQuartile: 75 },
+        },
+      },
+      {
         stage: "1-5M",
         label: "$1-5M ARR",
         metrics: {
@@ -203,6 +216,20 @@ export const BENCHMARK_DATA: BenchmarkSourceData[] = [
     year: 2024,
     url: "https://openviewpartners.com/saas-benchmarks",
     stages: [
+      {
+        stage: "0-1M",
+        label: "<$1M ARR",
+        metrics: {
+          nrr: { median: 88, topQuartile: 102 },
+          grr: { median: 78, topQuartile: 88 },
+          logoRetention: { median: 80, topQuartile: 90 },
+          growthRate: { median: 90, topQuartile: 180 },
+          ltvCac: { median: 1.3, topQuartile: 2.8 },
+          cacPayback: { median: 28, topQuartile: 16 },
+          magicNumber: { median: 0.3, topQuartile: 0.7 },
+          grossMargin: { median: 62, topQuartile: 73 },
+        },
+      },
       {
         stage: "1-5M",
         label: "$1-5M ARR",
@@ -271,6 +298,19 @@ export const BENCHMARK_DATA: BenchmarkSourceData[] = [
     year: 2024,
     url: "https://www.key.com/kbcm/our-insights/saas-survey.html",
     stages: [
+      {
+        stage: "0-1M",
+        label: "<$1M ARR",
+        metrics: {
+          nrr: { median: 89, topQuartile: 103 },
+          grr: { median: 79, topQuartile: 89 },
+          logoRetention: { median: 81, topQuartile: 91 },
+          growthRate: { median: 85, topQuartile: 170 },
+          ltvCac: { median: 1.4, topQuartile: 2.5 },
+          cacPayback: { median: 30, topQuartile: 18 },
+          grossMargin: { median: 63, topQuartile: 74 },
+        },
+      },
       {
         stage: "1-5M",
         label: "$1-5M ARR",
