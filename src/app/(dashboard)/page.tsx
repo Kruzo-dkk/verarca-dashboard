@@ -1,5 +1,5 @@
-import { ReportShell } from "@/components/report/ReportShell";
+import { UnifiedDashboard } from "@/components/report/UnifiedDashboard";
 
 export default function Dashboard() {
-  return <ReportShell />;
+  return <UnifiedDashboard />;
 }

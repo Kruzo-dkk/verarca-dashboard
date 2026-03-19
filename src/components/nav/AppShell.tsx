@@ -12,7 +12,6 @@ import {
   CustomersIcon,
   ForecastIcon,
   RefreshIcon,
-  ReportsIcon,
   MonthlyInputIcon,
 } from "./NavIcons";
 import UserMenu from "./UserMenu";
@@ -26,10 +25,9 @@ export interface NavItem {
 }
 
 const allNavItems: NavItem[] = [
-  { href: "/", label: "Dashboard", icon: DashboardIcon, roles: ["management"] },
+  { href: "/", label: "Dashboard", icon: DashboardIcon, roles: ["management", "board", "investor"] },
   { href: "/customers", label: "Customers", icon: CustomersIcon, roles: ["management"] },
   { href: "/forecast", label: "Forecast", icon: ForecastIcon, roles: ["management"] },
-  { href: "/reports", label: "Reports", icon: ReportsIcon, roles: ["management", "board", "investor"] },
   { href: "/monthly-input", label: "Monthly Input", icon: MonthlyInputIcon, roles: ["management"] },
 ];
 
@@ -52,12 +50,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { role, email, displayName, loading: _roleLoading } = useUserRole();
 
   const navItems = getNavItems(role);
-  const homeHref =
-    role === "board" || role === "investor" ? "/reports" : "/";
+  const homeHref = "/";
 
   // Mobile bottom nav: primary items shown as icons, overflow in More sheet
   const mobileNavItems = navItems.filter(
-    (item) => item.href === "/" || item.href === "/customers" || item.href === "/reports"
+    (item) => item.href === "/" || item.href === "/customers"
   );
   const mobileOverflowItems = navItems.filter(
     (item) => item.href === "/forecast" || item.href === "/monthly-input"
