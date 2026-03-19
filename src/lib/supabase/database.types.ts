@@ -537,6 +537,62 @@ export type Database = {
         }
         Relationships: []
       }
+      ticket_snapshots: {
+        Row: {
+          id: number
+          month: string
+          customer_id: number | null
+          hubspot_ticket_id: string
+          subject: string | null
+          status: string | null
+          priority: string | null
+          category: string | null
+          created_date: string | null
+          closed_date: string | null
+          resolution_time_hours: number | null
+          owner_id: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: never
+          month: string
+          customer_id?: number | null
+          hubspot_ticket_id: string
+          subject?: string | null
+          status?: string | null
+          priority?: string | null
+          category?: string | null
+          created_date?: string | null
+          closed_date?: string | null
+          resolution_time_hours?: number | null
+          owner_id?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: never
+          month?: string
+          customer_id?: number | null
+          hubspot_ticket_id?: string
+          subject?: string | null
+          status?: string | null
+          priority?: string | null
+          category?: string | null
+          created_date?: string | null
+          closed_date?: string | null
+          resolution_time_hours?: number | null
+          owner_id?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_snapshots_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       sales_targets: {
         Row: {
           id: number

@@ -6,6 +6,7 @@ import { syncDiscounts } from "./sync-discounts";
 import { syncMonthlySnapshot } from "./sync-frisbii";
 import { syncChannelMetrics } from "./sync-channel-metrics";
 import { syncActivities } from "./sync-activities";
+import { syncTickets } from "./sync-tickets";
 
 // ─── Types ─────────────────────────────────────────────────────
 
@@ -78,13 +79,14 @@ export async function runMonthlySyncAll(
 
   const results: ModuleResult[] = [];
 
-  // ── Step 1, 2 & 2b: FX, Pipeline, Activities (independent, run in parallel) ──
-  const [fxResult, pipelineResult, activitiesResult] = await Promise.all([
+  // ── Step 1: Independent syncs (FX, Pipeline, Activities, Tickets) ──
+  const [fxResult, pipelineResult, activitiesResult, ticketsResult] = await Promise.all([
     runModule("sync-fx", () => syncFXRates(month)),
     runModule("sync-pipeline", () => syncPipeline(month)),
     runModule("sync-activities", () => syncActivities(month)),
+    runModule("sync-tickets", () => syncTickets(month)),
   ]);
-  results.push(fxResult, pipelineResult, activitiesResult);
+  results.push(fxResult, pipelineResult, activitiesResult, ticketsResult);
 
   // ── Step 3: Customers (current state sync, no month param) ──
   const customersResult = await runModule("sync-customers", () =>
