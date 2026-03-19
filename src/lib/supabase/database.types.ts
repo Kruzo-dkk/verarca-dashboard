@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_snapshots: {
+        Row: {
+          id: number
+          date: string
+          owner_id: string
+          owner_name: string | null
+          calls_made: number
+          meetings_booked: number
+          emails_sent: number
+          created_at: string
+        }
+        Insert: {
+          id?: never
+          date: string
+          owner_id: string
+          owner_name?: string | null
+          calls_made?: number
+          meetings_booked?: number
+          emails_sent?: number
+          created_at?: string
+        }
+        Update: {
+          id?: never
+          date?: string
+          owner_id?: string
+          owner_name?: string | null
+          calls_made?: number
+          meetings_booked?: number
+          emails_sent?: number
+          created_at?: string
+        }
+        Relationships: []
+      }
       channel_metrics: {
         Row: {
           avg_deal_size: number | null
@@ -501,6 +534,45 @@ export type Database = {
           updated_at?: string
           weighted_pipeline?: number
           win_rate?: number | null
+        }
+        Relationships: []
+      }
+      sales_targets: {
+        Row: {
+          id: number
+          month: string
+          target_new_mrr: number
+          target_new_logos: number
+          target_pipeline: number
+          target_meetings: number
+          target_calls: number
+          use_hubspot_defaults: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: never
+          month: string
+          target_new_mrr?: number
+          target_new_logos?: number
+          target_pipeline?: number
+          target_meetings?: number
+          target_calls?: number
+          use_hubspot_defaults?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: never
+          month?: string
+          target_new_mrr?: number
+          target_new_logos?: number
+          target_pipeline?: number
+          target_meetings?: number
+          target_calls?: number
+          use_hubspot_defaults?: boolean
+          created_at?: string
+          updated_at?: string
         }
         Relationships: []
       }
