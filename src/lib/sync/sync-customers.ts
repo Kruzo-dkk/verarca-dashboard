@@ -7,6 +7,8 @@ import {
   type Subscription,
 } from "@/lib/frisbii";
 import { getAllCustomerData, type CustomerFolderData } from "@/lib/clickup";
+import { getAllCompanies, buildCompanyIndex } from "@/lib/hubspot-companies";
+import { matchCustomerToHubSpot } from "@/lib/sync/match-hubspot";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // ─── Name normalisation helpers ────────────────────────────────
@@ -62,18 +64,24 @@ export async function syncCustomers(): Promise<void> {
   console.log("[sync-customers] Starting customer sync");
 
   // ── Fetch sources in parallel ──────────────────────────────
-  const [frisbiiCustomers, subscriptions, clickupFolders, plans] = await Promise.all([
+  const [frisbiiCustomers, subscriptions, clickupFolders, plans, hubspotCompanies] = await Promise.all([
     listCustomers(),
     listSubscriptions({ state: ["active", "expired", "cancelled", "on_hold"] }),
     getAllCustomerData(),
     listPlans(),
+    getAllCompanies().catch((err) => {
+      console.warn("[sync-customers] HubSpot company fetch failed, skipping matching:", err);
+      return [];
+    }),
   ]);
 
   const planMap = buildPlanMap(plans);
+  const hubspotIndex = buildCompanyIndex(hubspotCompanies);
 
   console.log(
     `[sync-customers] Sources: ${frisbiiCustomers.length} Frisbii customers, ` +
-      `${subscriptions.length} subscriptions, ${clickupFolders.length} ClickUp folders`
+      `${subscriptions.length} subscriptions, ${clickupFolders.length} ClickUp folders, ` +
+      `${hubspotCompanies.length} HubSpot companies`
   );
 
   // ── Build lookup maps ──────────────────────────────────────
@@ -196,7 +204,10 @@ export async function syncCustomers(): Promise<void> {
       start_date: startDate,
       churn_date: churnDate,
       clickup_folder_id: clickupMatch?.folderId || null,
-      hubspot_company_id: null, // HubSpot matching is a future enhancement
+      hubspot_company_id: matchCustomerToHubSpot(
+        { cvr: vat || (clickupMatch?.cvr ? clickupMatch.cvr.replace(/\D/g, "") : null), email: customer.email || null, name: companyName },
+        hubspotIndex
+      )?.hubspotCompanyId ?? null,
       match_confidence: confidence,
     });
   }
@@ -209,14 +220,21 @@ export async function syncCustomers(): Promise<void> {
   );
 
   // ── Upsert in batches ──────────────────────────────────────
-  // For customers where segment inference returns "Unknown", strip the
-  // segment field so the upsert preserves any manually-set DB value.
+  // Strip fields that should not overwrite manually-set DB values:
+  // - segment: when inference returns "Unknown"
+  // - hubspot_company_id: when matching returns null (preserve existing)
   const cleanedRows = rows.map((row) => {
-    if (row.segment === "Unknown") {
-      const { segment: _, ...rest } = row;
-      return rest;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let cleaned: any = row;
+    if (cleaned.segment === "Unknown") {
+      const { segment: _, ...rest } = cleaned;
+      cleaned = rest;
     }
-    return row;
+    if (cleaned.hubspot_company_id === null) {
+      const { hubspot_company_id: _, ...rest } = cleaned;
+      cleaned = rest;
+    }
+    return cleaned;
   });
 
   const supabase = createAdminClient();
