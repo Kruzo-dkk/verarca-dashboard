@@ -159,6 +159,31 @@ export function UsersIcon({ className }: IconProps) {
   );
 }
 
+/** Target / bullseye sales icon */
+export function SalesIcon({ className }: IconProps) {
+  return (
+    <svg
+      className={className}
+      width="20"
+      height="20"
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="10" cy="10" r="8" />
+      <circle cx="10" cy="10" r="5" />
+      <circle cx="10" cy="10" r="2" />
+      <line x1="10" y1="2" x2="10" y2="4" />
+      <line x1="10" y1="16" x2="10" y2="18" />
+      <line x1="2" y1="10" x2="4" y2="10" />
+      <line x1="16" y1="10" x2="18" y2="10" />
+    </svg>
+  );
+}
+
 /** Refresh icon */
 export function RefreshIcon({ className }: IconProps) {
   return (

@@ -101,6 +101,28 @@ body {
   background: rgba(255, 107, 74, 0.15);
 }
 
+/* ─── TV Mode ──────────────────────────────────────────────── */
+.tv-mode {
+  --bg-primary: #0A0A0A;
+  --bg-secondary: #1A1A1A;
+  --bg-card: #111111;
+  --bg-card-hover: #1A1A1A;
+  --bg-surface: #0A0A0A;
+  --border-subtle: #2A2A2A;
+  --border-medium: #333333;
+  --text-primary: #F0F0F0;
+  --text-secondary: #B0B0B0;
+  --text-muted: #707070;
+}
+
+.tv-mode .metric-value {
+  font-size: 1.75rem;
+}
+
+.tv-mode .section-heading {
+  font-size: 1.5rem;
+}
+
 /* ─── Print styles ──────────────────────────────────────────── */
 @media print {
   /* Reset background and remove noise */
