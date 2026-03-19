@@ -5,7 +5,7 @@ import { formatPlanName, inferScopeFromPlan, inferTierFromPlan } from "@/lib/for
 
 const VALID_SCOPES = ["Scope 1-2", "Scope 1-2-3"];
 const VALID_TIERS = ["Standard", "Managed"];
-const VALID_SEGMENTS = ["B (Mikro)", "B", "C (Mellem)", "C (Stor)"];
+const VALID_SEGMENTS = ["A", "B (Mikro)", "B", "C (Mellem)", "C (Stor)", "D"];
 
 /**
  * GET /api/customers/[id]

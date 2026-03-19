@@ -368,7 +368,7 @@ export function CustomerList() {
 // ─── Inline override select ────────────────────────────────────────
 
 const SCOPE_OPTIONS = ["Scope 1-2", "Scope 1-2-3"];
-const SEGMENT_OPTIONS = ["B (Mikro)", "B", "C (Mellem)", "C (Stor)"];
+const SEGMENT_OPTIONS = ["A", "B (Mikro)", "B", "C (Mellem)", "C (Stor)", "D"];
 
 function InlineSelect({
   value,
