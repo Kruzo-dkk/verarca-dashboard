@@ -162,7 +162,9 @@ export async function GET(request: NextRequest) {
   let frisbiiError: string | null = null;
   try {
     const activeSubs = await listSubscriptions({ state: "active" });
-    const frisbiiCount = activeSubs.length;
+    // Count unique customers, not subscriptions (customers can have multiple subs)
+    const uniqueCustomers = new Set(activeSubs.map((s) => s.customer));
+    const frisbiiCount = uniqueCustomers.size;
     const sbCount = supabaseActiveCount ?? 0;
 
     frisbiiComparison = {

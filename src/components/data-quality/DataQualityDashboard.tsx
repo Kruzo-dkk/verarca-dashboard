@@ -159,10 +159,15 @@ function FrisbiiComparisonCard() {
   return (
     <GlassCard>
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-medium text-[var(--text-secondary)]">
-          Frisbii vs Supabase
-        </h2>
-        <StatusBadge status={match ? "pass" : "warn"} />
+        <div>
+          <h2 className="text-sm font-medium text-[var(--text-secondary)]">
+            Active Customers
+          </h2>
+          <p className="text-xs text-[var(--text-muted)]">
+            Unique customers across systems
+          </p>
+        </div>
+        <StatusBadge status={f.error ? "warn" : match ? "pass" : "warn"} />
       </div>
 
       {f.error ? (
@@ -171,13 +176,13 @@ function FrisbiiComparisonCard() {
         <>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-xs text-[var(--text-muted)]">Frisbii Active</p>
+              <p className="text-xs text-[var(--text-muted)]">Frisbii</p>
               <p className="text-lg font-semibold text-[var(--text-primary)]">
                 {f.frisbiiActiveCount}
               </p>
             </div>
             <div>
-              <p className="text-xs text-[var(--text-muted)]">Supabase Active</p>
+              <p className="text-xs text-[var(--text-muted)]">Supabase</p>
               <p className="text-lg font-semibold text-[var(--text-primary)]">
                 {f.supabaseActiveCount}
               </p>
@@ -187,7 +192,7 @@ function FrisbiiComparisonCard() {
           {f.delta !== 0 && (
             <p className="text-xs text-[var(--text-muted)] mt-2">
               Delta: {f.delta > 0 ? "+" : ""}
-              {f.delta}
+              {f.delta} — check for unsynced or recently churned customers
             </p>
           )}
         </>
