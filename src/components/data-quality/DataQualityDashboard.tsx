@@ -154,7 +154,20 @@ function FrisbiiComparisonCard() {
   if (!data) return null;
 
   const { frisbiiComparison: f } = data;
-  const match = f.delta === 0;
+
+  // Frisbii = currently active customers (point-in-time)
+  // Supabase = customers active at any point this month (month-boundary)
+  // Supabase >= Frisbii is expected (includes mid-month churn)
+  // Frisbii > Supabase is a problem (customers not synced)
+  const supabaseAhead = f.supabaseActiveCount > f.frisbiiActiveCount;
+  const frisbiiAhead = f.frisbiiActiveCount > f.supabaseActiveCount;
+
+  let status: string;
+  if (f.error) status = "warn";
+  else if (frisbiiAhead) status = "warn"; // customers in Frisbii missing from sync
+  else status = "pass"; // match or Supabase ahead (expected)
+
+  const absDelta = Math.abs(f.delta);
 
   return (
     <GlassCard>
@@ -164,10 +177,10 @@ function FrisbiiComparisonCard() {
             Active Customers
           </h2>
           <p className="text-xs text-[var(--text-muted)]">
-            Unique customers across systems
+            Frisbii (current) vs Supabase (this month)
           </p>
         </div>
-        <StatusBadge status={f.error ? "warn" : match ? "pass" : "warn"} />
+        <StatusBadge status={status} />
       </div>
 
       {f.error ? (
@@ -176,23 +189,30 @@ function FrisbiiComparisonCard() {
         <>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-xs text-[var(--text-muted)]">Frisbii</p>
+              <p className="text-xs text-[var(--text-muted)]">
+                Frisbii (now)
+              </p>
               <p className="text-lg font-semibold text-[var(--text-primary)]">
                 {f.frisbiiActiveCount}
               </p>
             </div>
             <div>
-              <p className="text-xs text-[var(--text-muted)]">Supabase</p>
+              <p className="text-xs text-[var(--text-muted)]">
+                Supabase (month)
+              </p>
               <p className="text-lg font-semibold text-[var(--text-primary)]">
                 {f.supabaseActiveCount}
               </p>
             </div>
           </div>
 
-          {f.delta !== 0 && (
+          {absDelta > 0 && (
             <p className="text-xs text-[var(--text-muted)] mt-2">
-              Delta: {f.delta > 0 ? "+" : ""}
-              {f.delta} — check for unsynced or recently churned customers
+              {supabaseAhead
+                ? `${absDelta} customer${absDelta !== 1 ? "s" : ""} churned this month (still counted in monthly snapshot)`
+                : frisbiiAhead
+                  ? `${absDelta} customer${absDelta !== 1 ? "s" : ""} in Frisbii not yet synced to Supabase`
+                  : null}
             </p>
           )}
         </>
