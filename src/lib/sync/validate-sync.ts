@@ -16,9 +16,13 @@ interface ValidationCheck {
 // ─── Individual checks ───────────────────────────────────────
 
 /**
- * Compare monthly_snapshots.mrr with the sum of customer_snapshots.mrr
- * for active customers. They should match; divergence means the two
- * code paths computed different subscription sets.
+ * Verify monthly_snapshots.mrr matches the sum of customer_snapshots.mrr
+ * for active customers. Since both are derived from the same source
+ * (customer_snapshots), a divergence indicates a sync pipeline bug.
+ *
+ * Thresholds are tight because rounding is the only expected source of delta:
+ *   - warn: delta > 100 øre (>1 DKK — possible rounding accumulation)
+ *   - fail: delta > 1000 øre (>10 DKK — likely a bug)
  */
 async function checkMRRReconciliation(
   month: string
@@ -57,8 +61,8 @@ async function checkMRRReconciliation(
   const delta = Math.abs(snapshotMRR - sumCustomerMRR);
 
   let status: "pass" | "warn" | "fail" = "pass";
-  if (delta > 10000) status = "fail"; // >100 DKK
-  else if (delta > 100) status = "warn"; // >1 DKK
+  if (delta > 1000) status = "fail"; // >10 DKK — likely a bug
+  else if (delta > 100) status = "warn"; // >1 DKK — rounding accumulation
 
   return {
     checkName: "mrr_reconciliation",

@@ -145,9 +145,8 @@ export async function syncMonthlySnapshot(month: string): Promise<void> {
     `[sync-frisbii] Active: ${activeSubscriptions.length}, New: ${newThisMonth.length}, Churned: ${churnedThisMonth.length}`
   );
 
-  // ── 2. Core MRR metrics ────────────────────────────────────
-  const mrr = Math.round(calculateMRR(activeSubscriptions, planMap, addOnTotals));
-  const arr = calculateARR(mrr);
+  // ── 2. Frisbii API MRR (for cross-system comparison) ───────
+  const frisbiiMRR = Math.round(calculateMRR(activeSubscriptions, planMap, addOnTotals));
 
   // ── 3. MRR decomposition from customer snapshots ───────────
   const prevMonthKey = previousMonth(month);
@@ -176,10 +175,20 @@ export async function syncMonthlySnapshot(month: string): Promise<void> {
   const currentSnapshots = toMRRSnap(currentSnaps);
   const prevSnapshots = toMRRSnap(prevSnaps);
 
-  // Derive customer count from snapshots (not Frisbii API) for consistency
-  // with backfill-history.ts and MRR decomposition
+  // Derive all aggregate metrics from customer snapshots (single source of truth)
+  // This ensures monthly_snapshots always matches SUM(customer_snapshots)
+  const mrr = currentSnapshots
+    .filter((s) => s.status === "active")
+    .reduce((sum, s) => sum + s.mrr, 0);
+  const arr = calculateARR(mrr);
   const customerCount = countActiveCustomers(currentSnapshots);
   const arpa = Math.round(calculateARPC(mrr, customerCount));
+
+  if (frisbiiMRR !== mrr) {
+    syncLog.info(
+      `[sync-frisbii] MRR: snapshot=${mrr}, frisbii=${frisbiiMRR}, delta=${Math.abs(mrr - frisbiiMRR)}`
+    );
+  }
 
   // Build customer links for replacement subscriptions (old ID → new ID)
   // so that decomposeMRR treats them as continuity, not churn+new
