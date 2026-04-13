@@ -8,6 +8,7 @@ import {
 } from "@/lib/frisbii";
 import { calculateMRR } from "@/lib/metrics";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { syncLog } from "./logger";
 
 /**
  * Compute MRR for a single subscription, normalised to monthly.
@@ -38,7 +39,13 @@ function singleSubMRR(
  *
  * A subscription was active during month M if:
  *   1. It was activated/created on or before the last day of M, AND
- *   2. It had not expired/cancelled before the first day of M
+ *   2. EITHER it is currently active (state === "active"),
+ *      OR it has an end date on or after the first day of M
+ *      (i.e., it was properly terminated during or after this month)
+ *
+ * Subscriptions that are expired/on_hold WITHOUT end dates are excluded —
+ * these are typically manually deactivated in Frisbii without a billing
+ * lifecycle event and should not count as active.
  */
 function wasActiveDuringMonth(sub: Subscription, month: string): boolean {
   const monthStart = `${month}-01`;
@@ -50,9 +57,14 @@ function wasActiveDuringMonth(sub: Subscription, month: string): boolean {
   const activatedDate = (sub.activated || sub.created)?.slice(0, 10);
   if (!activatedDate || activatedDate > monthEnd) return false;
 
-  // When did it end?
+  // Currently active subscriptions are always included
+  if (sub.state === "active") return true;
+
+  // For non-active subscriptions, require an end date to prove they were
+  // active during this month (not a ghost with no termination record)
   const endDate = (sub.expired || sub.cancelled)?.slice(0, 10) ?? null;
-  if (endDate && endDate < monthStart) return false;
+  if (!endDate) return false; // no end date + not active = ghost subscription
+  if (endDate < monthStart) return false; // ended before this month
 
   return true;
 }
@@ -67,7 +79,7 @@ function wasActiveDuringMonth(sub: Subscription, month: string): boolean {
  * @param month - YYYY-MM format
  */
 export async function syncCustomerSnapshots(month: string): Promise<void> {
-  console.log(`[sync-customer-snapshots] Starting snapshot sync for ${month}`);
+  syncLog.info(`[sync-customer-snapshots] Starting snapshot sync for ${month}`);
 
   const supabase = createAdminClient();
 
@@ -83,11 +95,11 @@ export async function syncCustomerSnapshots(month: string): Promise<void> {
   }
 
   if (!customers || customers.length === 0) {
-    console.log("[sync-customer-snapshots] No customers found, skipping");
+    syncLog.info("[sync-customer-snapshots] No customers found, skipping");
     return;
   }
 
-  console.log(
+  syncLog.info(
     `[sync-customer-snapshots] Found ${customers.length} customers in DB`
   );
 
@@ -105,7 +117,7 @@ export async function syncCustomerSnapshots(month: string): Promise<void> {
   );
   const addOnTotals = await fetchSubscriptionAddOnTotals(subsActiveDuringMonth);
 
-  console.log(
+  syncLog.info(
     `[sync-customer-snapshots] Fetched ${allSubscriptions.length} subscriptions, ${plans.length} plans, ` +
       `${subsActiveDuringMonth.length} active during ${month}`
   );
@@ -153,7 +165,7 @@ export async function syncCustomerSnapshots(month: string): Promise<void> {
     });
   }
 
-  console.log(
+  syncLog.info(
     `[sync-customer-snapshots] Built ${rows.length} snapshots ` +
       `(active: ${rows.filter((r) => r.status === "active").length}, ` +
       `total MRR: ${rows.reduce((s, r) => s + r.mrr, 0)})`
@@ -170,7 +182,7 @@ export async function syncCustomerSnapshots(month: string): Promise<void> {
       .upsert(batch, { onConflict: "customer_id,month" });
 
     if (error) {
-      console.error(
+      syncLog.error(
         `[sync-customer-snapshots] Upsert batch ${i / BATCH_SIZE + 1} failed:`,
         error
       );
@@ -180,7 +192,7 @@ export async function syncCustomerSnapshots(month: string): Promise<void> {
     }
   }
 
-  console.log(
+  syncLog.info(
     `[sync-customer-snapshots] Successfully synced ${rows.length} snapshots for ${month}`
   );
 }
