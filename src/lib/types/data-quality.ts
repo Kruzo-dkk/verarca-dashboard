@@ -1,3 +1,8 @@
+export interface DataQualityError {
+  component: string;
+  message: string;
+}
+
 export interface DataQualityData {
   month: string;
   reconciliation: ReconciliationStatus;
@@ -5,6 +10,8 @@ export interface DataQualityData {
   exclusions: ExclusionItem[];
   overrideCounts: OverrideCounts;
   frisbiiComparison: FrisbiiComparison;
+  lastSyncAt: string | null;
+  errors: DataQualityError[];
 }
 
 export interface ReconciliationStatus {
@@ -45,4 +52,5 @@ export interface FrisbiiComparison {
   frisbiiActiveCount: number;
   supabaseActiveCount: number;
   delta: number;
+  error: string | null;
 }

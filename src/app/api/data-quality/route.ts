@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { listSubscriptions } from "@/lib/frisbii";
 import type {
   DataQualityData,
+  DataQualityError,
   ReconciliationStatus,
   AnomalyItem,
   ExclusionItem,
@@ -35,7 +36,6 @@ export async function GET(request: NextRequest) {
     { data: snapshot },
     { data: customerSnaps },
     { data: auditLogs },
-    { data: exclusions },
     { data: scopeOverrides },
     { data: tierOverrides },
     { data: supabaseActiveCustomers },
@@ -57,10 +57,6 @@ export async function GET(request: NextRequest) {
       .order("sync_run_at", { ascending: false })
       .limit(20),
     admin
-      .from("subscription_exclusions")
-      .select("*")
-      .order("created_at", { ascending: false }),
-    admin
       .from("customers")
       .select("id", { count: "exact", head: true })
       .not("scope_override", "is", null),
@@ -74,6 +70,19 @@ export async function GET(request: NextRequest) {
       .eq("month", month)
       .eq("status", "active"),
   ]);
+
+  // Exclusions query wrapped in try-catch — table may not exist yet
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let exclusions: any[] | null = null;
+  try {
+    const { data } = await admin
+      .from("subscription_exclusions")
+      .select("*")
+      .order("created_at", { ascending: false });
+    exclusions = data;
+  } catch {
+    exclusions = [];
+  }
 
   // ── Reconciliation ────────────────────────────────────────────
   let reconciliation: ReconciliationStatus;
@@ -92,7 +101,7 @@ export async function GET(request: NextRequest) {
     );
     const delta = Math.abs(snapshotMRR - sumCustomerMRR);
     let status: ReconciliationStatus["status"] = "pass";
-    if (delta > 10000) status = "fail";
+    if (delta > 1000) status = "fail";
     else if (delta > 100) status = "warn";
 
     reconciliation = {
@@ -150,6 +159,7 @@ export async function GET(request: NextRequest) {
 
   // ── Frisbii comparison ────────────────────────────────────────
   let frisbiiComparison: FrisbiiComparison;
+  let frisbiiError: string | null = null;
   try {
     const activeSubs = await listSubscriptions({ state: "active" });
     const frisbiiCount = activeSubs.length;
@@ -160,14 +170,26 @@ export async function GET(request: NextRequest) {
       frisbiiActiveCount: frisbiiCount,
       supabaseActiveCount: supabaseCount,
       delta: frisbiiCount - supabaseCount,
+      error: null,
     };
-  } catch {
+  } catch (err) {
+    const supabaseCount =
+      (supabaseActiveCustomers as unknown as { count: number })?.count ?? 0;
+    frisbiiError = err instanceof Error ? err.message : "Frisbii API unavailable";
     frisbiiComparison = {
       frisbiiActiveCount: 0,
-      supabaseActiveCount: 0,
+      supabaseActiveCount: supabaseCount,
       delta: 0,
+      error: frisbiiError,
     };
   }
+
+  // ── Last sync timestamp ───────────────────────────────────────
+  const lastSyncAt = anomalies.length > 0 ? anomalies[0].syncRunAt : null;
+
+  // ── Component-level errors ───────────────────────────────────
+  const errors: DataQualityError[] = [];
+  if (frisbiiError) errors.push({ component: "frisbii", message: frisbiiError });
 
   // ── Response ──────────────────────────────────────────────────
   const data: DataQualityData = {
@@ -177,6 +199,8 @@ export async function GET(request: NextRequest) {
     exclusions: exclusionItems,
     overrideCounts,
     frisbiiComparison,
+    lastSyncAt,
+    errors,
   };
 
   return NextResponse.json(data);

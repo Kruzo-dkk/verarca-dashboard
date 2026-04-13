@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useDataQuality } from "./DataQualityProvider";
 import { useReportContext } from "@/components/providers/ReportProvider";
 import { GlassCard } from "@/components/ui/GlassCard";
@@ -47,6 +48,52 @@ function LoadingSkeleton() {
   );
 }
 
+// ─── Sync status bar ────────────────────────────────────────
+
+function formatTimeAgo(date: Date): string {
+  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
+function SyncStatusBar() {
+  const { data } = useDataQuality();
+  if (!data) return null;
+
+  const lastSync = data.lastSyncAt
+    ? new Date(data.lastSyncAt)
+    : null;
+
+  const timeAgo = lastSync
+    ? formatTimeAgo(lastSync)
+    : null;
+
+  return (
+    <div className="flex items-center gap-3 text-xs text-[var(--text-muted)]">
+      {lastSync ? (
+        <>
+          <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
+          Last sync: {timeAgo}
+        </>
+      ) : (
+        <>
+          <span className="inline-block w-2 h-2 rounded-full bg-zinc-500" />
+          No syncs recorded for this month
+        </>
+      )}
+      {data.errors.length > 0 && (
+        <span className="text-amber-400">
+          · {data.errors.length} error{data.errors.length !== 1 ? "s" : ""}
+        </span>
+      )}
+    </div>
+  );
+}
+
 // ─── Reconciliation card ─────────────────────────────────────
 
 function ReconciliationCard() {
@@ -65,25 +112,36 @@ function ReconciliationCard() {
         <StatusBadge status={r.status} />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <p className="text-xs text-[var(--text-muted)]">Monthly Snapshot</p>
-          <p className="text-lg font-semibold text-[var(--text-primary)]">
-            {formatValue(r.snapshotMRR)}
-          </p>
-        </div>
-        <div>
-          <p className="text-xs text-[var(--text-muted)]">Customer Sum</p>
-          <p className="text-lg font-semibold text-[var(--text-primary)]">
-            {formatValue(r.sumCustomerMRR)}
-          </p>
-        </div>
-      </div>
-
-      {r.delta > 0 && (
-        <p className="text-xs text-[var(--text-muted)] mt-2">
-          Delta: {formatValue(r.delta)}
+      {r.status === "no_data" ? (
+        <p className="text-sm text-[var(--text-muted)]">
+          Waiting for first sync of the month
         </p>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs text-[var(--text-muted)]">Monthly Snapshot</p>
+              <p className="text-lg font-semibold text-[var(--text-primary)]">
+                {formatValue(r.snapshotMRR)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-[var(--text-muted)]">Customer Sum</p>
+              <p className="text-lg font-semibold text-[var(--text-primary)]">
+                {formatValue(r.sumCustomerMRR)}
+              </p>
+            </div>
+          </div>
+
+          {r.delta > 0 && (
+            <p className="text-xs text-[var(--text-muted)] mt-2">
+              Delta: {formatValue(r.delta)}
+            </p>
+          )}
+          <p className="text-xs text-[var(--text-muted)] mt-1">
+            Tolerance: ±10 DKK
+          </p>
+        </>
       )}
     </GlassCard>
   );
@@ -107,26 +165,32 @@ function FrisbiiComparisonCard() {
         <StatusBadge status={match ? "pass" : "warn"} />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <p className="text-xs text-[var(--text-muted)]">Frisbii Active</p>
-          <p className="text-lg font-semibold text-[var(--text-primary)]">
-            {f.frisbiiActiveCount}
-          </p>
-        </div>
-        <div>
-          <p className="text-xs text-[var(--text-muted)]">Supabase Active</p>
-          <p className="text-lg font-semibold text-[var(--text-primary)]">
-            {f.supabaseActiveCount}
-          </p>
-        </div>
-      </div>
+      {f.error ? (
+        <p className="text-sm text-amber-400">{f.error}</p>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs text-[var(--text-muted)]">Frisbii Active</p>
+              <p className="text-lg font-semibold text-[var(--text-primary)]">
+                {f.frisbiiActiveCount}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-[var(--text-muted)]">Supabase Active</p>
+              <p className="text-lg font-semibold text-[var(--text-primary)]">
+                {f.supabaseActiveCount}
+              </p>
+            </div>
+          </div>
 
-      {f.delta !== 0 && (
-        <p className="text-xs text-[var(--text-muted)] mt-2">
-          Delta: {f.delta > 0 ? "+" : ""}
-          {f.delta}
-        </p>
+          {f.delta !== 0 && (
+            <p className="text-xs text-[var(--text-muted)] mt-2">
+              Delta: {f.delta > 0 ? "+" : ""}
+              {f.delta}
+            </p>
+          )}
+        </>
       )}
     </GlassCard>
   );
@@ -165,70 +229,84 @@ function OverridesCard() {
 
 function AnomaliesCard() {
   const { data } = useDataQuality();
+  const [showAll, setShowAll] = useState(false);
   if (!data) return null;
 
-  const warningsAndFailures = data.anomalies.filter(
-    (a) => a.status !== "pass"
-  );
+  const filtered = showAll
+    ? data.anomalies
+    : data.anomalies.filter((a) => a.status !== "pass");
+
+  // Group by sync run
+  const grouped = new Map<string, AnomalyItem[]>();
+  for (const a of filtered) {
+    const key = a.syncRunAt;
+    const existing = grouped.get(key) ?? [];
+    existing.push(a);
+    grouped.set(key, existing);
+  }
+
+  const issueCount = data.anomalies.filter((a) => a.status !== "pass").length;
 
   return (
     <GlassCard className="lg:col-span-2">
-      <h2 className="text-sm font-medium text-[var(--text-secondary)] mb-4">
-        Recent Audit Checks
-        {warningsAndFailures.length > 0 && (
-          <span className="ml-2 text-amber-400">
-            ({warningsAndFailures.length} issue
-            {warningsAndFailures.length !== 1 ? "s" : ""})
-          </span>
-        )}
-      </h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-sm font-medium text-[var(--text-secondary)]">
+          Audit Checks
+          {issueCount > 0 && (
+            <span className="ml-2 text-amber-400">
+              ({issueCount} issue{issueCount !== 1 ? "s" : ""})
+            </span>
+          )}
+        </h2>
+        <button
+          onClick={() => setShowAll(!showAll)}
+          className="text-xs text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+        >
+          {showAll ? "Issues only" : `Show all (${data.anomalies.length})`}
+        </button>
+      </div>
 
-      {data.anomalies.length === 0 ? (
+      {filtered.length === 0 ? (
         <p className="text-sm text-[var(--text-muted)]">
-          No audit checks recorded for this month yet.
+          {data.anomalies.length === 0
+            ? "No audit checks recorded for this month yet."
+            : "All checks passing"}
         </p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-[var(--text-muted)] text-left text-xs">
-                <th className="pb-2 pr-4">Check</th>
-                <th className="pb-2 pr-4">Status</th>
-                <th className="pb-2 pr-4">Expected</th>
-                <th className="pb-2 pr-4">Actual</th>
-                <th className="pb-2">Run</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.anomalies.slice(0, 15).map((a: AnomalyItem) => (
-                <tr
-                  key={a.id}
-                  className="border-t border-[var(--border-subtle)]"
-                >
-                  <td className="py-2 pr-4 text-[var(--text-primary)]">
-                    {formatCheckName(a.checkName)}
-                  </td>
-                  <td className="py-2 pr-4">
-                    <StatusBadge status={a.status} />
-                  </td>
-                  <td className="py-2 pr-4 text-[var(--text-muted)]">
-                    {a.expectedValue ?? "—"}
-                  </td>
-                  <td className="py-2 pr-4 text-[var(--text-muted)]">
-                    {a.actualValue ?? "—"}
-                  </td>
-                  <td className="py-2 text-[var(--text-muted)] text-xs">
-                    {new Date(a.syncRunAt).toLocaleString("da-DK", {
-                      month: "short",
-                      day: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="space-y-4">
+          {[...grouped.entries()].slice(0, 5).map(([syncRunAt, checks]) => (
+            <div key={syncRunAt}>
+              <p className="text-xs text-[var(--text-muted)] mb-2">
+                Sync at{" "}
+                {new Date(syncRunAt).toLocaleString("da-DK", {
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </p>
+              <table className="w-full text-sm">
+                <tbody>
+                  {checks.map((a: AnomalyItem) => (
+                    <tr
+                      key={a.id}
+                      className="border-t border-[var(--border-subtle)]"
+                    >
+                      <td className="py-2 pr-4 text-[var(--text-primary)]">
+                        {formatCheckName(a.checkName)}
+                      </td>
+                      <td className="py-2 pr-4">
+                        <StatusBadge status={a.status} />
+                      </td>
+                      <td className="py-2 pr-4 text-[var(--text-muted)] text-xs max-w-xs truncate">
+                        {a.details ?? "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
         </div>
       )}
     </GlassCard>
@@ -338,6 +416,7 @@ export function DataQualityDashboard() {
       <h1 className="text-xl font-semibold text-[var(--text-primary)]">
         Data Quality
       </h1>
+      <SyncStatusBar />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <ReconciliationCard />
