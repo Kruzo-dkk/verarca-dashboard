@@ -141,7 +141,8 @@ export interface MonthlyChurn {
  */
 export function getMonthlyChurn(
   subscriptions: Subscription[],
-  months: number = 12
+  months: number = 12,
+  excludedHandles?: Set<string>
 ): MonthlyChurn[] {
   const now = new Date();
   const results: MonthlyChurn[] = [];
@@ -157,26 +158,34 @@ export function getMonthlyChurn(
       const activated = s.activated ? new Date(s.activated) : null;
       const created = new Date(s.created);
       const startDate = activated ?? created;
-      if (startDate >= monthStart) return false; // not yet active at month start
+      if (startDate >= monthStart) return false;
 
       const expired = s.expired ? new Date(s.expired) : null;
-      if (expired && expired < monthStart) return false; // already expired before this month
+      if (expired && expired < monthStart) return false;
       return true;
     }).length;
 
-    // Subscriptions that expired within this month
-    const expiredCount = subscriptions.filter((s) => {
-      if (s.state !== "expired" || !s.expired) return false;
-      const expired = new Date(s.expired);
-      return expired >= monthStart && expired < monthEnd;
+    // Subscriptions that expired OR cancelled within this month,
+    // excluding administrative replacements
+    const churnedCount = subscriptions.filter((s) => {
+      if (excludedHandles?.has(s.handle)) return false;
+      if (s.state === "expired" && s.expired) {
+        const expired = new Date(s.expired);
+        return expired >= monthStart && expired < monthEnd;
+      }
+      if (s.state === "cancelled" && s.cancelled) {
+        const cancelled = new Date(s.cancelled);
+        return cancelled >= monthStart && cancelled < monthEnd;
+      }
+      return false;
     }).length;
 
-    const churnRate = activeAtStart > 0 ? (expiredCount / activeAtStart) * 100 : 0;
+    const churnRate = activeAtStart > 0 ? (churnedCount / activeAtStart) * 100 : 0;
 
     results.push({
       month: monthKey,
       churnRate: Math.round(churnRate * 100) / 100,
-      expiredCount,
+      expiredCount: churnedCount, // backwards compat
       activeAtStart,
     });
   }
@@ -246,11 +255,25 @@ export interface CustomerMRRSnapshot {
  * - Churned MRR: customers present in previous but not in current
  * - Expansion MRR: existing customers whose MRR increased
  * - Contraction MRR: existing customers whose MRR decreased
+ *
+ * @param customerLinks - optional Map of oldCustomerId → newCustomerId for
+ *   subscription replacements. When provided, a "new" customer that is linked
+ *   to a "churned" customer is treated as continuity (expansion/contraction)
+ *   rather than churn+new.
  */
 export function decomposeMRR(
   currentSnapshots: CustomerMRRSnapshot[],
-  prevSnapshots: CustomerMRRSnapshot[]
+  prevSnapshots: CustomerMRRSnapshot[],
+  customerLinks?: Map<string, string>
 ): MRRDecomposition {
+  // Build reverse map: newId -> oldId
+  const newToOld = new Map<string, string>();
+  if (customerLinks) {
+    for (const [oldId, newId] of customerLinks) {
+      newToOld.set(newId, oldId);
+    }
+  }
+
   const prevMap = new Map(prevSnapshots.map(s => [s.customerId, s.mrr]));
   const currMap = new Map(currentSnapshots.map(s => [s.customerId, s.mrr]));
 
@@ -259,22 +282,30 @@ export function decomposeMRR(
   let contractionMRR = 0;
   let churnedMRR = 0;
 
+  // Track which previous-month customer IDs have been accounted for
+  const handledPrevIds = new Set<string>();
+
   // Check current customers against previous
   for (const [id, currMrr] of currMap) {
-    const prevMrr = prevMap.get(id);
+    // Check direct match, then linked old ID
+    const linkedOldId = newToOld.get(id);
+    const prevMrr = prevMap.get(id) ?? (linkedOldId ? prevMap.get(linkedOldId) : undefined);
+
     if (prevMrr === undefined) {
-      // New customer
       newMRR += currMrr;
     } else if (currMrr > prevMrr) {
       expansionMRR += currMrr - prevMrr;
     } else if (currMrr < prevMrr) {
       contractionMRR += prevMrr - currMrr;
     }
+
+    handledPrevIds.add(id);
+    if (linkedOldId) handledPrevIds.add(linkedOldId);
   }
 
-  // Check for churned customers (in previous but not in current)
+  // Check for churned customers (in previous but not in current or linked)
   for (const [id, prevMrr] of prevMap) {
-    if (!currMap.has(id)) {
+    if (!handledPrevIds.has(id) && !currMap.has(id)) {
       churnedMRR += prevMrr;
     }
   }

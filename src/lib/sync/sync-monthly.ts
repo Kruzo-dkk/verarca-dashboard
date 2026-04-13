@@ -7,6 +7,9 @@ import { syncMonthlySnapshot } from "./sync-frisbii";
 import { syncChannelMetrics } from "./sync-channel-metrics";
 import { syncActivities } from "./sync-activities";
 import { syncTickets } from "./sync-tickets";
+import { validateSync } from "./validate-sync";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { syncLog } from "./logger";
 
 // ─── Types ─────────────────────────────────────────────────────
 
@@ -36,12 +39,12 @@ async function runModule(
   try {
     await fn();
     const durationMs = Date.now() - start;
-    console.log(`[sync-monthly] ${name} completed in ${durationMs}ms`);
+    syncLog.info(`[sync-monthly] ${name} completed in ${durationMs}ms`);
     return { module: name, status: "success", durationMs };
   } catch (err) {
     const durationMs = Date.now() - start;
     const message = err instanceof Error ? err.message : String(err);
-    console.error(`[sync-monthly] ${name} FAILED after ${durationMs}ms:`, message);
+    syncLog.error(`[sync-monthly] ${name} FAILED after ${durationMs}ms:`, message);
     return { module: name, status: "error", durationMs, error: message };
   }
 }
@@ -73,9 +76,34 @@ export async function runMonthlySyncAll(
   const startedAt = new Date().toISOString();
   const overallStart = Date.now();
 
-  console.log(`[sync-monthly] ========================================`);
-  console.log(`[sync-monthly] Starting full monthly sync for ${month}`);
-  console.log(`[sync-monthly] ========================================`);
+  // ── Idempotency guard: skip if last successful run was <10 min ago ──
+  const supabase = createAdminClient();
+  const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const { data: recentRun } = await supabase
+    .from("sync_audit_log")
+    .select("sync_run_at")
+    .eq("month", month)
+    .eq("status", "pass")
+    .gt("sync_run_at", tenMinAgo)
+    .limit(1);
+
+  if (recentRun && recentRun.length > 0) {
+    syncLog.info(
+      `[sync-monthly] Skipping — last successful sync was at ${recentRun[0].sync_run_at} (<10 min ago)`
+    );
+    return {
+      month,
+      startedAt,
+      completedAt: startedAt,
+      totalDurationMs: 0,
+      results: [],
+      success: true,
+    };
+  }
+
+  syncLog.info(`[sync-monthly] ========================================`);
+  syncLog.info(`[sync-monthly] Starting full monthly sync for ${month}`);
+  syncLog.info(`[sync-monthly] ========================================`);
 
   const results: ModuleResult[] = [];
 
@@ -119,7 +147,13 @@ export async function runMonthlySyncAll(
   );
   results.push(channelResult);
 
-  // ── Summary ────────────────────────────────────────────────
+  // ── Step 8: Post-sync validation (non-blocking) ──
+  const validationResult = await runModule("validate-sync", () =>
+    validateSync(month)
+  );
+  results.push(validationResult);
+
+  // ── Summary ���────────────────────────────────��──────────────
   const completedAt = new Date().toISOString();
   const totalDurationMs = Date.now() - overallStart;
   const success = results.every((r) => r.status === "success");
@@ -135,16 +169,16 @@ export async function runMonthlySyncAll(
 
   const failedModules = results.filter((r) => r.status === "error");
 
-  console.log(`[sync-monthly] ========================================`);
-  console.log(
+  syncLog.info(`[sync-monthly] ========================================`);
+  syncLog.info(
     `[sync-monthly] Sync ${success ? "COMPLETED" : "COMPLETED WITH ERRORS"} in ${totalDurationMs}ms`
   );
   if (failedModules.length > 0) {
-    console.log(
+    syncLog.info(
       `[sync-monthly] Failed modules: ${failedModules.map((r) => r.module).join(", ")}`
     );
   }
-  console.log(`[sync-monthly] ========================================`);
+  syncLog.info(`[sync-monthly] ========================================`);
 
   return summary;
 }

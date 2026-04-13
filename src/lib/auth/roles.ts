@@ -35,6 +35,7 @@ export const ROUTE_ACCESS: RouteRule[] = [
   { prefix: "/api/report/investor", roles: ["management", "investor"] },
   { prefix: "/api/sales", roles: ["management"] },
   { prefix: "/api/cs", roles: ["management"] },
+  { prefix: "/api/data-quality", roles: ["management"] },
   { prefix: "/api", roles: ["management"] },
 
   // Dashboard pages
@@ -43,6 +44,7 @@ export const ROUTE_ACCESS: RouteRule[] = [
   { prefix: "/customers", roles: ["management"] },
   { prefix: "/forecast", roles: ["management"] },
   { prefix: "/monthly-input", roles: ["management"] },
+  { prefix: "/data-quality", roles: ["management"] },
   { prefix: "/reports", roles: ["management", "board", "investor"] },
 
   // Main dashboard — all roles (unified view with role-based tabs)

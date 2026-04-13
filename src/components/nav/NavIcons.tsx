@@ -294,6 +294,26 @@ export function SignOutIcon({ className }: IconProps) {
   );
 }
 
+/** Shield check / data quality icon */
+export function DataQualityIcon({ className }: IconProps) {
+  return (
+    <svg
+      className={className}
+      width="20"
+      height="20"
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M10 2L3 5v5c0 4.4 3 7.5 7 8.5 4-1 7-4.1 7-8.5V5l-7-3z" />
+      <polyline points="7,10 9,12 13,8" />
+    </svg>
+  );
+}
+
 /** Left chevron (16×16) */
 export function ChevronLeftIcon({ className }: IconProps) {
   return (

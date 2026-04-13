@@ -19,6 +19,8 @@ import {
   type CustomerMRRSnapshot,
 } from "@/lib/metrics";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getExcludedSubscriptionHandles } from "./get-exclusions";
+import { syncLog } from "./logger";
 
 // ─── Helpers ────────────────────────────────────────────────────
 
@@ -108,7 +110,12 @@ function isCreatedInMonth(sub: Subscription, month: string): boolean {
   return created.startsWith(month);
 }
 
-function isChurnedInMonth(sub: Subscription, month: string): boolean {
+function isChurnedInMonth(
+  sub: Subscription,
+  month: string,
+  excludedHandles?: Set<string>
+): boolean {
+  if (excludedHandles?.has(sub.handle)) return false;
   if (sub.expired && sub.expired.startsWith(month)) return true;
   if (sub.cancelled && sub.cancelled.startsWith(month)) return true;
   return false;
@@ -146,9 +153,9 @@ export async function backfillHistory(
   const startTime = Date.now();
   const supabase = createAdminClient();
 
-  console.log("[backfill] ========================================");
-  console.log("[backfill] Starting historic backfill");
-  console.log("[backfill] ========================================");
+  syncLog.info("[backfill] ========================================");
+  syncLog.info("[backfill] Starting historic backfill");
+  syncLog.info("[backfill] ========================================");
 
   // ── 1. Fetch ALL Frisbii data upfront ─────────────────────────
   const [allSubscriptions, plans] = await Promise.all([
@@ -161,7 +168,10 @@ export async function backfillHistory(
   // Fetch add-on totals for all subscriptions (not just active)
   const addOnTotals = await fetchSubscriptionAddOnTotals(allSubscriptions);
 
-  console.log(
+  // Fetch subscription exclusions (administrative replacements etc.)
+  const excludedHandles = await getExcludedSubscriptionHandles();
+
+  syncLog.info(
     `[backfill] Loaded ${allSubscriptions.length} subscriptions, ${plans.length} plans`
   );
 
@@ -178,7 +188,7 @@ export async function backfillHistory(
     throw new Error("[backfill] No customers found. Run syncCustomers() first.");
   }
 
-  console.log(`[backfill] Found ${customers.length} customers in DB`);
+  syncLog.info(`[backfill] Found ${customers.length} customers in DB`);
 
   // ── 3. Determine date range ───────────────────────────────────
   const activationDates = allSubscriptions
@@ -196,7 +206,7 @@ export async function backfillHistory(
     overrideEndMonth ?? previousMonth(currentMonthKey);
 
   if (startMonth > endMonth) {
-    console.log("[backfill] Start month is after end month, nothing to backfill");
+    syncLog.info("[backfill] Start month is after end month, nothing to backfill");
     return {
       monthsProcessed: 0,
       monthsSkipped: 0,
@@ -207,7 +217,7 @@ export async function backfillHistory(
   }
 
   const months = monthRange(startMonth, endMonth);
-  console.log(
+  syncLog.info(
     `[backfill] Will process ${months.length} months: ${startMonth} → ${endMonth}`
   );
 
@@ -344,7 +354,7 @@ export async function backfillHistory(
         isCreatedInMonth(s, month)
       );
       const churnedThisMonth = allSubscriptions.filter((s) =>
-        isChurnedInMonth(s, month)
+        isChurnedInMonth(s, month, excludedHandles)
       );
       const newLogos = newThisMonth.length;
       const churnedLogos = churnedThisMonth.length;
@@ -377,6 +387,19 @@ export async function backfillHistory(
       const mrrGrowthYoY = prevYearRow
         ? calculateMRRGrowth(mrr, prevYearRow.mrr)
         : null;
+
+      // Check if month is locked
+      const { data: lockCheck } = await supabase
+        .from("monthly_snapshots")
+        .select("locked_at")
+        .eq("month", month)
+        .maybeSingle();
+
+      if (lockCheck?.locked_at) {
+        syncLog.info(`[backfill] ${month} is locked (${lockCheck.locked_at}), skipping`);
+        skipped++;
+        continue;
+      }
 
       // Preserve existing commentary
       const { data: existingRow } = await supabase
@@ -420,13 +443,13 @@ export async function backfillHistory(
       if (upsertError) throw upsertError;
 
       processed++;
-      console.log(
+      syncLog.info(
         `[backfill] ${month}: MRR=${mrr}, ARR=${arr}, customers=${customerCount}, ` +
           `new=${newLogos}, churned=${churnedLogos}`
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      console.error(`[backfill] ${month} FAILED: ${message}`);
+      syncLog.error(`[backfill] ${month} FAILED: ${message}`);
       errors.push({ month, error: message });
       skipped++;
     }
@@ -434,12 +457,12 @@ export async function backfillHistory(
 
   const durationMs = Date.now() - startTime;
 
-  console.log("[backfill] ========================================");
-  console.log(
+  syncLog.info("[backfill] ========================================");
+  syncLog.info(
     `[backfill] Complete: ${processed} processed, ${skipped} skipped, ` +
       `${errors.length} errors in ${durationMs}ms`
   );
-  console.log("[backfill] ========================================");
+  syncLog.info("[backfill] ========================================");
 
   return {
     monthsProcessed: processed,

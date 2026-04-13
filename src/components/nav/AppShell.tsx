@@ -13,6 +13,7 @@ import {
   ForecastIcon,
   RefreshIcon,
   MonthlyInputIcon,
+  DataQualityIcon,
 } from "./NavIcons";
 import UserMenu from "./UserMenu";
 import type { UserRole } from "@/lib/auth/roles";
@@ -29,6 +30,7 @@ const allNavItems: NavItem[] = [
   { href: "/customers", label: "Customers", icon: CustomersIcon, roles: ["management"] },
   { href: "/forecast", label: "Forecast", icon: ForecastIcon, roles: ["management"] },
   { href: "/monthly-input", label: "Monthly Input", icon: MonthlyInputIcon, roles: ["management"] },
+  { href: "/data-quality", label: "Data Quality", icon: DataQualityIcon, roles: ["management"] },
 ];
 
 function getNavItems(role: UserRole | null): NavItem[] {

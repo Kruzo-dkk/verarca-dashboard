@@ -8,6 +8,9 @@ import {
   calculateRevenuePerEmployee,
   calculateLogoRetention,
   calculateMRRGrowth,
+  decomposeMRR,
+  getMonthlyChurn,
+  type CustomerMRRSnapshot,
 } from "../metrics";
 
 // ─── NRR ─────────────────────────────────────────────────────────
@@ -166,5 +169,159 @@ describe("calculateMRRGrowth", () => {
   it("calculates negative growth", () => {
     // (80K - 100K) / 100K = -20%
     expect(calculateMRRGrowth(80_000, 100_000)).toBe(-20);
+  });
+});
+
+// ─── decomposeMRR ───────────────────────────────────────────────
+
+describe("decomposeMRR", () => {
+  const snap = (id: string, mrr: number): CustomerMRRSnapshot => ({
+    customerId: id,
+    mrr,
+    status: "active",
+    planHandle: "plan-1",
+  });
+
+  it("identifies new, churned, expansion, and contraction", () => {
+    const prev = [snap("A", 10_000), snap("B", 20_000), snap("C", 5_000)];
+    const curr = [snap("A", 15_000), snap("B", 18_000), snap("D", 8_000)];
+    // A: expansion +5K, B: contraction -2K, C: churned 5K, D: new 8K
+
+    const result = decomposeMRR(curr, prev);
+    expect(result.newMRR).toBe(8_000);
+    expect(result.expansionMRR).toBe(5_000);
+    expect(result.contractionMRR).toBe(2_000);
+    expect(result.churnedMRR).toBe(5_000);
+    expect(result.netNewMRR).toBe(8_000 + 5_000 - 2_000 - 5_000); // 6000
+  });
+
+  it("returns all zeros when snapshots are identical", () => {
+    const both = [snap("A", 10_000)];
+    const result = decomposeMRR(both, both);
+    expect(result.newMRR).toBe(0);
+    expect(result.churnedMRR).toBe(0);
+    expect(result.expansionMRR).toBe(0);
+    expect(result.contractionMRR).toBe(0);
+  });
+
+  it("treats linked customers as continuity, not churn+new", () => {
+    // Customer "old-1" (ID 1) was replaced by "new-1" (ID 2)
+    const prev = [snap("1", 10_000)];
+    const curr = [snap("2", 12_000)];
+    const links = new Map([["1", "2"]]); // old -> new
+
+    const result = decomposeMRR(curr, prev, links);
+    // Should be expansion (+2K), NOT churn (10K) + new (12K)
+    expect(result.expansionMRR).toBe(2_000);
+    expect(result.churnedMRR).toBe(0);
+    expect(result.newMRR).toBe(0);
+  });
+
+  it("treats linked customer with lower MRR as contraction", () => {
+    const prev = [snap("1", 10_000)];
+    const curr = [snap("2", 7_000)];
+    const links = new Map([["1", "2"]]);
+
+    const result = decomposeMRR(curr, prev, links);
+    expect(result.contractionMRR).toBe(3_000);
+    expect(result.churnedMRR).toBe(0);
+    expect(result.newMRR).toBe(0);
+  });
+});
+
+// ─── getMonthlyChurn ────────────────────────────────────────────
+
+describe("getMonthlyChurn", () => {
+  // Helper to create a minimal subscription-like object
+  function makeSub(overrides: {
+    handle: string;
+    state: string;
+    created: string;
+    activated?: string;
+    expired?: string;
+    cancelled?: string;
+  }) {
+    return {
+      handle: overrides.handle,
+      state: overrides.state,
+      customer: "cust-1",
+      plan: "plan-1",
+      quantity: 1,
+      currency: "DKK",
+      created: overrides.created,
+      activated: overrides.activated,
+      expired: overrides.expired,
+      cancelled: overrides.cancelled,
+      plan_version: 1,
+    };
+  }
+
+  it("counts both expired and cancelled as churn", () => {
+    const now = new Date();
+    const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const midMonth = `${thisMonth}-15T00:00:00Z`;
+    const beforeMonth = `${now.getFullYear()}-${String(now.getMonth()).padStart(2, "0")}-01T00:00:00Z`;
+
+    const subs = [
+      makeSub({
+        handle: "sub-expired",
+        state: "expired",
+        created: "2024-01-01T00:00:00Z",
+        activated: beforeMonth,
+        expired: midMonth,
+      }),
+      makeSub({
+        handle: "sub-cancelled",
+        state: "cancelled",
+        created: "2024-01-01T00:00:00Z",
+        activated: beforeMonth,
+        cancelled: midMonth,
+      }),
+      makeSub({
+        handle: "sub-active",
+        state: "active",
+        created: "2024-01-01T00:00:00Z",
+        activated: beforeMonth,
+      }),
+    ];
+
+    const result = getMonthlyChurn(subs, 1);
+    // Both expired and cancelled should be counted
+    expect(result[0].expiredCount).toBe(2);
+  });
+
+  it("excludes subscriptions in the exclusion set", () => {
+    const now = new Date();
+    const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const midMonth = `${thisMonth}-15T00:00:00Z`;
+    const beforeMonth = `${now.getFullYear()}-${String(now.getMonth()).padStart(2, "0")}-01T00:00:00Z`;
+
+    const subs = [
+      makeSub({
+        handle: "sub-real-churn",
+        state: "expired",
+        created: "2024-01-01T00:00:00Z",
+        activated: beforeMonth,
+        expired: midMonth,
+      }),
+      makeSub({
+        handle: "sub-admin-delete",
+        state: "expired",
+        created: "2024-01-01T00:00:00Z",
+        activated: beforeMonth,
+        expired: midMonth,
+      }),
+      makeSub({
+        handle: "sub-active",
+        state: "active",
+        created: "2024-01-01T00:00:00Z",
+        activated: beforeMonth,
+      }),
+    ];
+
+    const excluded = new Set(["sub-admin-delete"]);
+    const result = getMonthlyChurn(subs, 1, excluded);
+    // Only the real churn should count
+    expect(result[0].expiredCount).toBe(1);
   });
 });

@@ -19,6 +19,11 @@ import {
   type CustomerMRRSnapshot,
 } from "@/lib/metrics";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  getExcludedSubscriptionHandles,
+  getReplacementMap,
+} from "./get-exclusions";
+import { syncLog } from "./logger";
 
 // ─── Helpers ───────────────────────────────────────────────────
 
@@ -63,8 +68,14 @@ function isCreatedInMonth(sub: Subscription, month: string): boolean {
 
 /**
  * Check whether a subscription expired/cancelled within a given month.
+ * Excluded subscriptions (administrative replacements etc.) are skipped.
  */
-function isChurnedInMonth(sub: Subscription, month: string): boolean {
+function isChurnedInMonth(
+  sub: Subscription,
+  month: string,
+  excludedHandles?: Set<string>
+): boolean {
+  if (excludedHandles?.has(sub.handle)) return false;
   if (sub.expired && sub.expired.startsWith(month)) return true;
   if (sub.cancelled && sub.cancelled.startsWith(month)) return true;
   return false;
@@ -85,9 +96,23 @@ function isChurnedInMonth(sub: Subscription, month: string): boolean {
  * @param month - YYYY-MM format
  */
 export async function syncMonthlySnapshot(month: string): Promise<void> {
-  console.log(`[sync-frisbii] Starting monthly snapshot for ${month}`);
+  syncLog.info(`[sync-frisbii] Starting monthly snapshot for ${month}`);
 
   const supabase = createAdminClient();
+
+  // ── Check if month is locked ──────────────────────────────
+  const { data: lockCheck } = await supabase
+    .from("monthly_snapshots")
+    .select("locked_at")
+    .eq("month", month)
+    .maybeSingle();
+
+  if (lockCheck?.locked_at) {
+    syncLog.info(
+      `[sync-frisbii] Month ${month} is locked (${lockCheck.locked_at}), skipping`
+    );
+    return;
+  }
 
   // ── 1. Fetch Frisbii data ──────────────────────────────────
   const [allSubscriptions, plans] = await Promise.all([
@@ -102,17 +127,20 @@ export async function syncMonthlySnapshot(month: string): Promise<void> {
   );
   const addOnTotals = await fetchSubscriptionAddOnTotals(activeSubscriptions);
 
+  // Fetch subscription exclusions (administrative replacements etc.)
+  const excludedHandles = await getExcludedSubscriptionHandles();
+
   // Subscriptions new this month
   const newThisMonth = allSubscriptions.filter((s) =>
     isCreatedInMonth(s, month)
   );
 
-  // Subscriptions churned this month (expired or cancelled)
+  // Subscriptions churned this month (expired or cancelled), excluding administrative
   const churnedThisMonth = allSubscriptions.filter((s) =>
-    isChurnedInMonth(s, month)
+    isChurnedInMonth(s, month, excludedHandles)
   );
 
-  console.log(
+  syncLog.info(
     `[sync-frisbii] Active: ${activeSubscriptions.length}, New: ${newThisMonth.length}, Churned: ${churnedThisMonth.length}`
   );
 
@@ -149,9 +177,46 @@ export async function syncMonthlySnapshot(month: string): Promise<void> {
   const currentSnapshots = toMRRSnap(currentSnaps);
   const prevSnapshots = toMRRSnap(prevSnaps);
 
-  const decomposition = decomposeMRR(currentSnapshots, prevSnapshots);
+  // Build customer links for replacement subscriptions (old ID → new ID)
+  // so that decomposeMRR treats them as continuity, not churn+new
+  const replacementMap = await getReplacementMap();
+  let customerLinks: Map<string, string> | undefined;
 
-  console.log(
+  if (replacementMap.size > 0) {
+    // Look up customer DB IDs for the replacement customer handles
+    const customerHandles = [...replacementMap.keys()];
+    const { data: linkedCustomers } = await supabase
+      .from("customers")
+      .select("id, frisbii_handle")
+      .in("frisbii_handle", customerHandles);
+
+    if (linkedCustomers && linkedCustomers.length > 0) {
+      const handleToId = new Map(
+        linkedCustomers.map((c) => [c.frisbii_handle, String(c.id)])
+      );
+      customerLinks = new Map<string, string>();
+
+      for (const [customerHandle] of replacementMap) {
+        const oldId = handleToId.get(customerHandle);
+        // The replacement sub belongs to the same customer handle in most cases,
+        // so oldId === newId. Only add link when they differ.
+        if (oldId) {
+          // For now, links are identity — future: support different customer handles
+          customerLinks.set(oldId, oldId);
+        }
+      }
+
+      // Remove identity mappings (no-ops)
+      for (const [k, v] of customerLinks) {
+        if (k === v) customerLinks.delete(k);
+      }
+      if (customerLinks.size === 0) customerLinks = undefined;
+    }
+  }
+
+  const decomposition = decomposeMRR(currentSnapshots, prevSnapshots, customerLinks);
+
+  syncLog.info(
     `[sync-frisbii] Decomposition: new=${decomposition.newMRR}, expansion=${decomposition.expansionMRR}, ` +
       `contraction=${decomposition.contractionMRR}, churned=${decomposition.churnedMRR}`
   );
@@ -259,11 +324,11 @@ export async function syncMonthlySnapshot(month: string): Promise<void> {
     .upsert(row, { onConflict: "month" });
 
   if (error) {
-    console.error(`[sync-frisbii] Upsert failed:`, error);
+    syncLog.error(`[sync-frisbii] Upsert failed:`, error);
     throw new Error(`[sync-frisbii] Upsert failed: ${error.message}`);
   }
 
-  console.log(
+  syncLog.info(
     `[sync-frisbii] Successfully synced monthly snapshot for ${month}: ` +
       `MRR=${mrr}, ARR=${arr}, customers=${customerCount}, NRR=${nrr}%, GRR=${grr}%`
   );

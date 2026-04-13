@@ -413,6 +413,7 @@ export type Database = {
           grr: number | null
           highlights: string | null
           id: number
+          locked_at: string | null
           logo_retention_rate: number | null
           lowlights: string | null
           month: string
@@ -442,6 +443,7 @@ export type Database = {
           grr?: number | null
           highlights?: string | null
           id?: never
+          locked_at?: string | null
           logo_retention_rate?: number | null
           lowlights?: string | null
           month: string
@@ -471,6 +473,7 @@ export type Database = {
           grr?: number | null
           highlights?: string | null
           id?: never
+          locked_at?: string | null
           logo_retention_rate?: number | null
           lowlights?: string | null
           month?: string
@@ -486,6 +489,75 @@ export type Database = {
           top10_concentration?: number | null
           updated_at?: string
           whats_ahead?: string | null
+        }
+        Relationships: []
+      }
+      subscription_exclusions: {
+        Row: {
+          id: number
+          subscription_handle: string
+          customer_handle: string
+          reason: string
+          replacement_subscription_handle: string | null
+          excluded_by: string
+          created_at: string
+        }
+        Insert: {
+          id?: never
+          subscription_handle: string
+          customer_handle: string
+          reason: string
+          replacement_subscription_handle?: string | null
+          excluded_by: string
+          created_at?: string
+        }
+        Update: {
+          id?: never
+          subscription_handle?: string
+          customer_handle?: string
+          reason?: string
+          replacement_subscription_handle?: string | null
+          excluded_by?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      sync_audit_log: {
+        Row: {
+          id: number
+          month: string
+          sync_run_at: string
+          check_name: string
+          status: string
+          expected_value: string | null
+          actual_value: string | null
+          delta: number | null
+          details: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: never
+          month: string
+          sync_run_at: string
+          check_name: string
+          status: string
+          expected_value?: string | null
+          actual_value?: string | null
+          delta?: number | null
+          details?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: never
+          month?: string
+          sync_run_at?: string
+          check_name?: string
+          status?: string
+          expected_value?: string | null
+          actual_value?: string | null
+          delta?: number | null
+          details?: string | null
+          created_at?: string
         }
         Relationships: []
       }
