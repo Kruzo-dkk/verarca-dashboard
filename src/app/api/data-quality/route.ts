@@ -36,9 +36,9 @@ export async function GET(request: NextRequest) {
     { data: snapshot },
     { data: customerSnaps },
     { data: auditLogs },
-    { data: scopeOverrides },
-    { data: tierOverrides },
-    { data: supabaseActiveCustomers },
+    { count: scopeOverrideCount },
+    { count: tierOverrideCount },
+    { count: supabaseActiveCount },
   ] = await Promise.all([
     admin
       .from("monthly_snapshots")
@@ -153,8 +153,8 @@ export async function GET(request: NextRequest) {
 
   // ── Override counts ───────────────────────────────────────────
   const overrideCounts: OverrideCounts = {
-    scopeOverrides: (scopeOverrides as unknown as { count: number })?.count ?? 0,
-    tierOverrides: (tierOverrides as unknown as { count: number })?.count ?? 0,
+    scopeOverrides: scopeOverrideCount ?? 0,
+    tierOverrides: tierOverrideCount ?? 0,
   };
 
   // ── Frisbii comparison ────────────────────────────────────────
@@ -163,22 +163,20 @@ export async function GET(request: NextRequest) {
   try {
     const activeSubs = await listSubscriptions({ state: "active" });
     const frisbiiCount = activeSubs.length;
-    const supabaseCount =
-      (supabaseActiveCustomers as unknown as { count: number })?.count ?? 0;
+    const sbCount = supabaseActiveCount ?? 0;
 
     frisbiiComparison = {
       frisbiiActiveCount: frisbiiCount,
-      supabaseActiveCount: supabaseCount,
-      delta: frisbiiCount - supabaseCount,
+      supabaseActiveCount: sbCount,
+      delta: frisbiiCount - sbCount,
       error: null,
     };
   } catch (err) {
-    const supabaseCount =
-      (supabaseActiveCustomers as unknown as { count: number })?.count ?? 0;
+    const sbCount = supabaseActiveCount ?? 0;
     frisbiiError = err instanceof Error ? err.message : "Frisbii API unavailable";
     frisbiiComparison = {
       frisbiiActiveCount: 0,
-      supabaseActiveCount: supabaseCount,
+      supabaseActiveCount: sbCount,
       delta: 0,
       error: frisbiiError,
     };
