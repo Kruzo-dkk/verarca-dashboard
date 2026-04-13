@@ -43,8 +43,11 @@ describe("canAccess", () => {
       expect(canAccess("board", "/reports")).toBe(true);
     });
 
+    it("can access unified dashboard", () => {
+      expect(canAccess("board", "/")).toBe(true);
+    });
+
     it("cannot access management-only pages", () => {
-      expect(canAccess("board", "/")).toBe(false);
       expect(canAccess("board", "/customers")).toBe(false);
       expect(canAccess("board", "/monthly-input")).toBe(false);
       expect(canAccess("board", "/forecast")).toBe(false);
@@ -57,8 +60,11 @@ describe("canAccess", () => {
       expect(canAccess("investor", "/reports")).toBe(true);
     });
 
+    it("can access unified dashboard", () => {
+      expect(canAccess("investor", "/")).toBe(true);
+    });
+
     it("cannot access management-only pages", () => {
-      expect(canAccess("investor", "/")).toBe(false);
       expect(canAccess("investor", "/customers")).toBe(false);
       expect(canAccess("investor", "/monthly-input")).toBe(false);
     });
@@ -118,12 +124,12 @@ describe("getDefaultRoute", () => {
     expect(getDefaultRoute("management")).toBe("/");
   });
 
-  it("returns /reports for board", () => {
-    expect(getDefaultRoute("board")).toBe("/reports");
+  it("returns / for board", () => {
+    expect(getDefaultRoute("board")).toBe("/");
   });
 
-  it("returns /reports for investor", () => {
-    expect(getDefaultRoute("investor")).toBe("/reports");
+  it("returns / for investor", () => {
+    expect(getDefaultRoute("investor")).toBe("/");
   });
 });
 

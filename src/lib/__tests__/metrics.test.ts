@@ -112,12 +112,13 @@ describe("calculateLTV", () => {
     expect(calculateLTV(10_000, 2)).toBe(500_000);
   });
 
-  it("returns 0 when churn rate is 0", () => {
-    expect(calculateLTV(10_000, 0)).toBe(0);
+  it("caps at 60 months when churn rate is 0", () => {
+    // ARPA 10,000 × 60 months = 600,000
+    expect(calculateLTV(10_000, 0)).toBe(600_000);
   });
 
-  it("returns 0 when churn rate is negative", () => {
-    expect(calculateLTV(10_000, -1)).toBe(0);
+  it("caps at 60 months when churn rate is negative", () => {
+    expect(calculateLTV(10_000, -1)).toBe(600_000);
   });
 });
 

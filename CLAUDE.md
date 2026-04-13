@@ -5,10 +5,41 @@
 - Frisbii (Reepay) for billing/subscriptions, HubSpot for CRM/pipeline
 - Vercel auto-deploys on push to main; daily cron at 06:00 UTC runs /api/cron/snapshot
 
-## Build & Check
+## Build & Test
 - `npx tsc --noEmit` — type check (run before committing)
+- `npm test` — run all tests (Vitest)
+- `npm run test:watch` — run tests in watch mode during development
+- `npm run test:coverage` — run tests with coverage report (thresholds enforced)
 - `npm run build` — production build (must pass before pushing)
-- No test suite currently
+- Vercel build command runs `npm test && next build` — tests must pass to deploy
+
+## TDD Workflow
+All new features follow test-driven development:
+1. Write failing test describing expected behavior
+2. Implement minimal code to pass the test
+3. Refactor — tests must still pass
+
+### Test locations
+- `src/lib/__tests__/` — pure function tests (metrics, currency, period, format-plan-name, etc.)
+- `src/lib/sync/__tests__/` — sync module tests (with mocked Supabase/Frisbii)
+
+### Test utilities (`src/test/`)
+- `setup.ts` — global afterEach mock cleanup
+- `mocks/supabase.ts` — `createMockSupabaseClient()`, `mockAdminModule()`, `resetChain()`
+- `mocks/frisbii.ts` — `buildSubscription()`, `buildInvoice()`, `buildPlan()`, `buildCustomer()`
+- `mocks/hubspot.ts` — `buildHubSpotDeal()`, `buildPipelineStage()`
+
+### What to test
+- Calculation/formatting functions (metrics, currency, period, health-score, forecast)
+- Data transformation and parsing (format-plan-name, committed-mrr)
+- Sync validation logic (validate-sync)
+- RBAC rules (roles.ts)
+- Benchmark data integrity
+
+### What NOT to test (for now)
+- React components (no testing-library installed yet)
+- API route handlers directly (test the logic they call instead)
+- Supabase queries (test the business logic that uses query results)
 
 ## Key Conventions
 - All monetary values stored in DKK øre (integer minor units). Divide by 100 for display.

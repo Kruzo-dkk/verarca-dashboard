@@ -57,10 +57,10 @@ describe("getBenchmarksForStage", () => {
     expect(result!.metrics.nrr).toEqual({ median: 100, topQuartile: 115 });
   });
 
-  it("returns null for a source with no data for that stage", () => {
-    // None of the sources have "0-1M" or "50M+" data
+  it("returns data for 0-1M stage", () => {
     const result = getBenchmarksForStage("bessemer", "0-1M");
-    expect(result).toBeNull();
+    expect(result).not.toBeNull();
+    expect(result!.stage).toBe("0-1M");
   });
 
   it("returns null for an invalid source", () => {
@@ -92,9 +92,9 @@ describe("getAllBenchmarksForStage", () => {
     expect(results.map((r) => r.source)).toContain("keybanc");
   });
 
-  it("returns empty array for unsupported stages", () => {
+  it("returns all sources for 0-1M stage", () => {
     const results = getAllBenchmarksForStage("0-1M");
-    expect(results).toHaveLength(0);
+    expect(results).toHaveLength(3);
   });
 });
 
