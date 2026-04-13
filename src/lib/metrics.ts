@@ -103,6 +103,18 @@ export function calculateARPC(mrr: number, customerCount: number): number {
   return mrr / customerCount;
 }
 
+/**
+ * Count active customers from snapshots.
+ *
+ * Only counts customers with status "active" AND mrr > 0.
+ * This excludes free/zero-MRR customers and churned customers,
+ * ensuring the count aligns with revenue-bearing customers used
+ * in ARPA and other per-customer metrics.
+ */
+export function countActiveCustomers(snapshots: CustomerMRRSnapshot[]): number {
+  return snapshots.filter((s) => s.status === "active" && s.mrr > 0).length;
+}
+
 export interface MonthlyRevenue {
   month: string; // YYYY-MM
   revenue: number;

@@ -8,6 +8,7 @@ import {
   calculateRevenuePerEmployee,
   calculateLogoRetention,
   calculateMRRGrowth,
+  countActiveCustomers,
   decomposeMRR,
   getMonthlyChurn,
   type CustomerMRRSnapshot,
@@ -324,5 +325,40 @@ describe("getMonthlyChurn", () => {
     const result = getMonthlyChurn(subs, 1, excluded);
     // Only the real churn should count
     expect(result[0].expiredCount).toBe(1);
+  });
+});
+
+// ─── countActiveCustomers ───────────────────────────────────────
+
+describe("countActiveCustomers", () => {
+  it("counts only active customers with MRR > 0", () => {
+    const snapshots: CustomerMRRSnapshot[] = [
+      { customerId: "1", mrr: 50_000, status: "active", planHandle: "plan-a" },
+      { customerId: "2", mrr: 30_000, status: "active", planHandle: "plan-b" },
+      { customerId: "3", mrr: 0, status: "active", planHandle: "plan-c" },
+      { customerId: "4", mrr: 10_000, status: "churned", planHandle: "plan-a" },
+    ];
+    // Only customers 1 and 2 are active with MRR > 0
+    expect(countActiveCustomers(snapshots)).toBe(2);
+  });
+
+  it("returns 0 for empty snapshots", () => {
+    expect(countActiveCustomers([])).toBe(0);
+  });
+
+  it("returns 0 when all customers are churned", () => {
+    const snapshots: CustomerMRRSnapshot[] = [
+      { customerId: "1", mrr: 0, status: "churned", planHandle: "plan-a" },
+      { customerId: "2", mrr: 0, status: "churned", planHandle: "plan-b" },
+    ];
+    expect(countActiveCustomers(snapshots)).toBe(0);
+  });
+
+  it("excludes active customers with zero MRR", () => {
+    const snapshots: CustomerMRRSnapshot[] = [
+      { customerId: "1", mrr: 0, status: "active", planHandle: "plan-a" },
+      { customerId: "2", mrr: 100, status: "active", planHandle: "plan-b" },
+    ];
+    expect(countActiveCustomers(snapshots)).toBe(1);
   });
 });
