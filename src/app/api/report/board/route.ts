@@ -51,6 +51,8 @@ export async function GET(request: NextRequest) {
         nrr: full.retention.nrr,
         grr: full.retention.grr,
         logoRetentionRate: full.retention.logoRetentionRate,
+        logoChurnRate: full.retention.logoChurnRate,
+        revenueChurnRate: full.retention.revenueChurnRate,
         quickRatio: full.retention.quickRatio,
         nrrHistory: full.retention.nrrHistory,
         // Omit cohortData (customer-level detail)
@@ -60,6 +62,7 @@ export async function GET(request: NextRequest) {
         count: full.customers.count,
         newLogos: full.customers.newLogos,
         churnedLogos: full.customers.churnedLogos,
+        churnedMRR: full.customers.churnedMRR,
         arpa: full.customers.arpa,
         top10Concentration: full.customers.top10Concentration,
         // Omit: segments, topCustomers, recentlyChurned, countHistory, arpaHistory

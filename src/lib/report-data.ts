@@ -1,6 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { getTeamMemberCount } from "@/lib/clickup";
-import { calculateLTV, calculateRevenuePerEmployee } from "@/lib/metrics";
+import {
+  calculateLTV,
+  calculateRevenuePerEmployee,
+  calculateLogoChurnRate,
+  calculateRevenueChurnRate,
+} from "@/lib/metrics";
 import { computeCommittedMRR } from "@/lib/committed-mrr";
 import { formatPlanName, inferScopeFromPlan, inferTierFromPlan } from "@/lib/format-plan-name";
 import type { MRRDecomposition } from "@/lib/metrics";
@@ -336,14 +341,25 @@ export async function getReportData(
   const arpa = snap?.arpa ?? 0;
   const customerCount = snap?.customer_count ?? 0;
 
-  // Derive monthly logo churn rate for LTV calculation
-  // When churn is 0, calculateLTV caps lifetime at 60 months (investor standard)
+  // Use the month immediately preceding the period as the "start" state for churn
+  // calculations. For a range query, this is the month before startMonth.
+  const periodStartMonth = isRange ? startMonth : endMonth;
+  const preStartMonth = monthsAgo(periodStartMonth, 1);
+  const preStartSnap = trailing.find((s) => s.month === preStartMonth);
+  const startCustomerCount =
+    preStartSnap?.customer_count ?? customerCount + totalChurnedLogos;
+  const startMRR =
+    preStartSnap?.mrr ?? (snap?.mrr ?? 0) + decomposition.churnedMRR;
+
+  const logoChurnRate = calculateLogoChurnRate(totalChurnedLogos, startCustomerCount);
+  const revenueChurnRate = calculateRevenueChurnRate(
+    decomposition.churnedMRR,
+    startMRR
+  );
+
+  // LTV uses monthly logo churn rate; when 0, calculateLTV caps at 60 months.
   if (customerCount > 0) {
-    const monthlyChurnRate =
-      snap?.churned_logos != null && customerCount + snap.churned_logos > 0
-        ? (snap.churned_logos / (customerCount + snap.churned_logos)) * 100
-        : 0;
-    ltv = calculateLTV(arpa, monthlyChurnRate);
+    ltv = calculateLTV(arpa, logoChurnRate);
   }
 
   if (employeeCount != null && employeeCount > 0) {
@@ -476,6 +492,8 @@ export async function getReportData(
       nrr: snap?.nrr ?? null,
       grr: snap?.grr ?? null,
       logoRetentionRate: snap?.logo_retention_rate ?? null,
+      logoChurnRate: startCustomerCount > 0 ? logoChurnRate : null,
+      revenueChurnRate: startMRR > 0 ? revenueChurnRate : null,
       quickRatio: snap?.quick_ratio
         ?? (snap && (snap.churned_mrr === 0 && snap.contraction_mrr === 0)
             && (snap.new_mrr > 0 || snap.expansion_mrr > 0)
@@ -489,6 +507,7 @@ export async function getReportData(
       count: snap?.customer_count ?? 0,
       newLogos: totalNewLogos,
       churnedLogos: totalChurnedLogos,
+      churnedMRR: decomposition.churnedMRR,
       arpa: snap?.arpa ?? 0,
       top10Concentration: snap?.top10_concentration ?? null,
       segments,

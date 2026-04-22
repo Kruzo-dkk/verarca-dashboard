@@ -209,12 +209,30 @@ export function ReportEmail({ data, month, currency, fxRates }: ReportEmailProps
                   <td style={metricVal}>+{data.customers.newLogos}</td>
                 </tr>
                 <tr>
-                  <td style={metricRow}>Churned</td>
+                  <td style={metricRow}>Logo Churn</td>
                   <td style={{ ...metricVal, color: data.customers.churnedLogos > 0 ? "#EF4444" : undefined }}>
                     −{data.customers.churnedLogos}
+                    {data.retention.logoChurnRate !== null && (
+                      <span style={{ color: "#64748B", fontWeight: 400, marginLeft: 4 }}>
+                        ({data.retention.logoChurnRate.toFixed(1)}%)
+                      </span>
+                    )}
                   </td>
+                  <td style={metricRow}>Revenue Churn</td>
+                  <td style={{ ...metricVal, color: data.customers.churnedMRR > 0 ? "#EF4444" : undefined }}>
+                    −{f(data.customers.churnedMRR)}
+                    {data.retention.revenueChurnRate !== null && (
+                      <span style={{ color: "#64748B", fontWeight: 400, marginLeft: 4 }}>
+                        ({data.retention.revenueChurnRate.toFixed(1)}%)
+                      </span>
+                    )}
+                  </td>
+                </tr>
+                <tr>
                   <td style={metricRow}>ARPA</td>
                   <td style={metricVal}>{f(data.customers.arpa)}</td>
+                  <td style={metricRow} />
+                  <td style={metricVal} />
                 </tr>
                 {data.customers.top10Concentration !== null && (
                   <tr>

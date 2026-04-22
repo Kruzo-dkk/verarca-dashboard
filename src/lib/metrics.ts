@@ -137,9 +137,23 @@ export function getMonthlyRevenue(invoices: Invoice[]): MonthlyRevenue[] {
 
 export interface MonthlyChurn {
   month: string; // YYYY-MM
+  /** @deprecated alias for logoChurnRate — kept for backwards compat with existing API consumers */
   churnRate: number;
+  logoChurnRate: number;
+  revenueChurnRate: number;
   expiredCount: number;
   activeAtStart: number;
+  churnedMRR: number;
+  startMRR: number;
+}
+
+/** Minimal shape required from monthly_snapshots to compute churn. */
+export interface SnapshotForChurn {
+  month: string; // YYYY-MM
+  mrr: number;
+  customer_count: number;
+  churned_logos: number;
+  churned_mrr: number;
 }
 
 /**
@@ -192,17 +206,55 @@ export function getMonthlyChurn(
       return false;
     }).length;
 
-    const churnRate = activeAtStart > 0 ? (churnedCount / activeAtStart) * 100 : 0;
+    const logoChurnRate = calculateLogoChurnRate(churnedCount, activeAtStart);
 
     results.push({
       month: monthKey,
-      churnRate: Math.round(churnRate * 100) / 100,
-      expiredCount: churnedCount, // backwards compat
+      churnRate: logoChurnRate,
+      logoChurnRate,
+      revenueChurnRate: 0, // subscription-based input cannot compute revenue churn; prefer getMonthlyChurnFromSnapshots
+      expiredCount: churnedCount,
       activeAtStart,
+      churnedMRR: 0,
+      startMRR: 0,
     });
   }
 
   return results;
+}
+
+/**
+ * Compute both logo and revenue churn rates per month from `monthly_snapshots` rows.
+ *
+ * Each row's "start" state is taken from the prior row (ascending month order).
+ * The first row falls back to a self-derived start: `mrr + churned_mrr` and
+ * `customer_count + churned_logos` — imperfect but bounded.
+ */
+export function getMonthlyChurnFromSnapshots(
+  snapshots: SnapshotForChurn[]
+): MonthlyChurn[] {
+  const sorted = [...snapshots].sort((a, b) => a.month.localeCompare(b.month));
+  return sorted.map((snap, idx) => {
+    const prev = idx > 0 ? sorted[idx - 1] : null;
+    const activeAtStart = prev
+      ? prev.customer_count
+      : snap.customer_count + snap.churned_logos;
+    const startMRR = prev ? prev.mrr : snap.mrr + snap.churned_mrr;
+
+    const logoChurnRate = calculateLogoChurnRate(snap.churned_logos, activeAtStart);
+    const revenueChurnRate = calculateRevenueChurnRate(snap.churned_mrr, startMRR);
+
+    return {
+      month: snap.month,
+      churnRate: logoChurnRate,
+      logoChurnRate,
+      revenueChurnRate,
+      expiredCount: snap.churned_logos,
+      activeAtStart,
+      churnedMRR: snap.churned_mrr,
+      startMRR,
+    };
+  });
 }
 
 export interface PlanBreakdown {
@@ -435,15 +487,42 @@ export function calculateRevenuePerEmployee(
 }
 
 /**
+ * Logo Churn Rate: % of customers who churned relative to the count at period start.
+ * Counts every lost customer equally — including those who churned before any revenue
+ * was collected (kr 0 MRR). Complements calculateRevenueChurnRate.
+ */
+export function calculateLogoChurnRate(
+  churnedLogos: number,
+  activeAtStart: number
+): number {
+  if (activeAtStart === 0) return 0;
+  return Math.round((churnedLogos / activeAtStart) * 10000) / 100;
+}
+
+/**
+ * Revenue Churn Rate: % of MRR lost from churned customers relative to the MRR
+ * at period start. Customers who churned before ever generating MRR contribute 0
+ * to churnedMRR by construction — so revenue churn correctly ignores them while
+ * logo churn still counts them.
+ */
+export function calculateRevenueChurnRate(
+  churnedMRR: number,
+  startMRR: number
+): number {
+  if (startMRR === 0) return 0;
+  return Math.round((churnedMRR / startMRR) * 10000) / 100;
+}
+
+/**
  * Logo (customer count) retention rate.
- * = (1 - churned / start) × 100
+ * = 100 − logoChurnRate
  */
 export function calculateLogoRetention(
   startCustomers: number,
   churnedCustomers: number
 ): number {
   if (startCustomers === 0) return 0;
-  return Math.round((1 - churnedCustomers / startCustomers) * 10000) / 100;
+  return Math.round((100 - calculateLogoChurnRate(churnedCustomers, startCustomers)) * 100) / 100;
 }
 
 /**

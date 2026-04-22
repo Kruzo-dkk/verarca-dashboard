@@ -13,6 +13,7 @@ import {
 import { GlassCard } from "@/components/ui/GlassCard";
 import { MetricTooltip } from "@/components/ui/MetricTooltip";
 import { CHART_COLORS, CHART_GRID_PROPS, CHART_AXIS_PROPS } from "@/components/charts/ChartTheme";
+import { CustomerTable } from "./CustomerTable";
 import type { ReportData, CustomerSummary } from "@/lib/types/report";
 
 interface CustomerSectionProps {
@@ -20,16 +21,15 @@ interface CustomerSectionProps {
   formatValue: (v: number) => string;
 }
 
-type TabKey = "churned" | "top" | "byPlan";
+type TabKey = "top" | "byPlan";
 
 const TABS: { key: TabKey; label: string }[] = [
-  { key: "churned", label: "Recently Closed" },
   { key: "top", label: "Top Customers" },
   { key: "byPlan", label: "By Plan" },
 ];
 
 export function CustomerSection({ data, formatValue }: CustomerSectionProps) {
-  const [activeTab, setActiveTab] = useState<TabKey>("churned");
+  const [activeTab, setActiveTab] = useState<TabKey>("top");
 
   // Group customers by plan for the "By Plan" tab
   const customersByPlan = useMemo(() => {
@@ -53,24 +53,26 @@ export function CustomerSection({ data, formatValue }: CustomerSectionProps) {
       <h2 className="section-heading text-xl mb-4 text-[var(--text-primary)]">Customers</h2>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 mb-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-4">
         <GlassCard className="text-center">
           <MetricTooltip metric="customerCount">
             <span className="text-xs text-[var(--text-muted)]">Total</span>
           </MetricTooltip>
           <div className="metric-value text-2xl mt-1">{data.customers.count}</div>
+          {data.customers.churnedLogos > 0 && (
+            <a
+              href="#churn"
+              className="text-[11px] text-red-600 hover:underline mt-1 block"
+            >
+              −{data.customers.churnedLogos} this period
+            </a>
+          )}
         </GlassCard>
         <GlassCard className="text-center">
           <MetricTooltip metric="newLogos">
             <span className="text-xs text-[var(--text-muted)]">New Logos</span>
           </MetricTooltip>
           <div className="metric-value text-2xl mt-1 text-emerald-600">+{data.customers.newLogos}</div>
-        </GlassCard>
-        <GlassCard className="text-center">
-          <MetricTooltip metric="churnedLogos">
-            <span className="text-xs text-[var(--text-muted)]">Churned</span>
-          </MetricTooltip>
-          <div className="metric-value text-2xl mt-1 text-red-600">-{data.customers.churnedLogos}</div>
         </GlassCard>
         <GlassCard className="text-center">
           <MetricTooltip metric="arpa">
@@ -155,15 +157,6 @@ export function CustomerSection({ data, formatValue }: CustomerSectionProps) {
 
         {/* Tab content */}
         <div className="overflow-x-auto">
-          {activeTab === "churned" && (
-            <CustomerTable
-              customers={data.customers.recentlyChurned}
-              formatValue={formatValue}
-              showChurnDate
-              emptyMessage="No churned customers found"
-            />
-          )}
-
           {activeTab === "top" && (
             <CustomerTable
               customers={data.customers.topCustomers}
@@ -200,96 +193,5 @@ export function CustomerSection({ data, formatValue }: CustomerSectionProps) {
         </div>
       </GlassCard>
     </section>
-  );
-}
-
-function formatChurnDate(d: string | null | undefined): string {
-  if (!d) return "—";
-  const date = new Date(d);
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-}
-
-function CustomerTable({
-  customers,
-  formatValue,
-  showChurnDate,
-  emptyMessage,
-}: {
-  customers: CustomerSummary[];
-  formatValue: (v: number) => string;
-  showChurnDate?: boolean;
-  emptyMessage: string;
-}) {
-  if (customers.length === 0) {
-    return <p className="py-4 text-center text-[var(--text-muted)] text-sm">{emptyMessage}</p>;
-  }
-
-  return (
-    <table className="w-full text-sm table-fixed">
-      <colgroup>
-        <col style={{ width: "35%" }} />
-        <col style={{ width: "15%" }} />
-        <col style={{ width: "25%" }} />
-        <col style={{ width: "15%" }} />
-        <col style={{ width: "10%" }} />
-      </colgroup>
-      <thead>
-        <tr className="text-left text-[var(--text-muted)] text-xs uppercase tracking-wider">
-          <th className="pb-2 font-medium">Customer</th>
-          <th className="pb-2 font-medium text-right pr-4">MRR</th>
-          <th className="pb-2 font-medium hidden sm:table-cell pl-4">Scope</th>
-          <th className="pb-2 font-medium hidden md:table-cell">Partner</th>
-          {showChurnDate ? (
-            <th className="pb-2 font-medium">Closed</th>
-          ) : (
-            <th className="pb-2 font-medium hidden sm:table-cell">Status</th>
-          )}
-        </tr>
-      </thead>
-      <tbody>
-        {customers.map((c) => (
-          <tr key={c.id} className="border-t border-[var(--border-subtle)]">
-            <td className="py-1.5 text-[var(--text-primary)] font-medium truncate">
-              <div className="truncate">
-                {c.name}
-                {c.scope && (
-                  <span className="text-[11px] text-[var(--text-muted)] font-normal sm:hidden block truncate">
-                    {c.scope}
-                    {c.tier && c.tier !== "Standard" && (
-                      <span className="ml-1 text-[10px] text-purple-500 font-medium">{c.tier}</span>
-                    )}
-                  </span>
-                )}
-              </div>
-            </td>
-            <td className="py-1.5 text-right metric-value pr-4 tabular-nums">{formatValue(c.mrr)}</td>
-            <td className="py-1.5 text-[var(--text-secondary)] hidden sm:table-cell pl-4 truncate">
-              <span>{c.scope ?? "—"}</span>
-              {c.tier && c.tier !== "Standard" && (
-                <span className="ml-1.5 text-[10px] font-medium text-purple-500 bg-purple-500/10 px-1.5 py-0.5 rounded-full">
-                  {c.tier}
-                </span>
-              )}
-            </td>
-            <td className="py-1.5 text-[var(--text-secondary)] hidden md:table-cell truncate">{c.partner ?? "—"}</td>
-            {showChurnDate ? (
-              <td className="py-1.5 text-[var(--text-secondary)] text-xs">
-                {formatChurnDate(c.churnDate)}
-              </td>
-            ) : (
-              <td className="py-1.5 hidden sm:table-cell">
-                <span className={`text-[11px] px-1.5 py-0.5 rounded-full font-medium ${
-                  c.status === "active"
-                    ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400"
-                    : "bg-red-500/10 text-red-600 dark:bg-red-500/20 dark:text-red-400"
-                }`}>
-                  {c.status}
-                </span>
-              </td>
-            )}
-          </tr>
-        ))}
-      </tbody>
-    </table>
   );
 }

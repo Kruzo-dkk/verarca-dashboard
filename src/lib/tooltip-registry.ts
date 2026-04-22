@@ -35,6 +35,8 @@ export type MetricKey =
   // Retention
   | "grr"
   | "logoRetentionRate"
+  | "logoChurnRate"
+  | "revenueChurnRate"
   | "cohortRetention"
   // Pipeline
   | "pipelineValue"
@@ -117,6 +119,7 @@ export const tooltipRegistry: Record<MetricKey, TooltipContent> = {
     name: "Churned MRR",
     formula: "MRR lost from customers who cancelled",
     source: "Customer snapshots (churned status)",
+    benchmark: "Excludes customers who churned before their first Frisbii invoice (kr 0 MRR) — those count toward logo churn only.",
   },
   momGrowth: {
     name: "Month-over-Month Growth",
@@ -170,6 +173,18 @@ export const tooltipRegistry: Record<MetricKey, TooltipContent> = {
     formula: "(Active customers at end / Active at start) × 100",
     source: "Customer snapshots",
     benchmark: "Target: >90%",
+  },
+  logoChurnRate: {
+    name: "Logo Churn Rate",
+    formula: "(Churned logos / Active customers at start) × 100",
+    source: "Monthly snapshots",
+    benchmark: "Target: <10% (i.e. >90% logo retention). Counts all lost customers, including those who churned before receiving their first invoice.",
+  },
+  revenueChurnRate: {
+    name: "Revenue Churn Rate",
+    formula: "(Churned MRR / Start MRR) × 100",
+    source: "Monthly snapshots",
+    benchmark: "Target: <5%. Only counts MRR actually lost — a customer who churned before their first invoice contributes 0 here but still counts toward logo churn.",
   },
   cohortRetention: {
     name: "Cohort Retention",
@@ -230,6 +245,7 @@ export const tooltipRegistry: Record<MetricKey, TooltipContent> = {
     name: "Churned Logos",
     formula: "Customers who cancelled this month",
     source: "Customer snapshots",
+    benchmark: "Includes customers who churned before their first Frisbii invoice (kr 0 MRR) — these affect logo churn but not revenue churn.",
   },
   arpa: {
     name: "Average Revenue Per Account",

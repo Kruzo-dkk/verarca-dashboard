@@ -26,6 +26,8 @@ export interface BoardReportData {
     nrr: number | null;
     grr: number | null;
     logoRetentionRate: number | null;
+    logoChurnRate: number | null;
+    revenueChurnRate: number | null;
     quickRatio: number | null;
     nrrHistory: { month: string; nrr: number }[];
   };
@@ -34,6 +36,7 @@ export interface BoardReportData {
     count: number;
     newLogos: number;
     churnedLogos: number;
+    churnedMRR: number;
     arpa: number;
     top10Concentration: number | null;
   };
