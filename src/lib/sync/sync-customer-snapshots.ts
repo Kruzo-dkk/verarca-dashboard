@@ -62,7 +62,7 @@ function wasActiveDuringMonth(sub: Subscription, month: string): boolean {
 
   // For non-active subscriptions, require an end date to prove they were
   // active during this month (not a ghost with no termination record)
-  const endDate = (sub.expired || sub.cancelled)?.slice(0, 10) ?? null;
+  const endDate = (sub.expired_date || sub.cancelled_date)?.slice(0, 10) ?? null;
   if (!endDate) return false; // no end date + not active = ghost subscription
   if (endDate < monthStart) return false; // ended before this month
 

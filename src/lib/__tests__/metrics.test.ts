@@ -372,8 +372,8 @@ describe("getMonthlyChurn", () => {
     state: string;
     created: string;
     activated?: string;
-    expired?: string;
-    cancelled?: string;
+    expired_date?: string;
+    cancelled_date?: string;
   }) {
     return {
       handle: overrides.handle,
@@ -384,8 +384,8 @@ describe("getMonthlyChurn", () => {
       currency: "DKK",
       created: overrides.created,
       activated: overrides.activated,
-      expired: overrides.expired,
-      cancelled: overrides.cancelled,
+      expired_date: overrides.expired_date,
+      cancelled_date: overrides.cancelled_date,
       plan_version: 1,
     };
   }
@@ -402,14 +402,14 @@ describe("getMonthlyChurn", () => {
         state: "expired",
         created: "2024-01-01T00:00:00Z",
         activated: beforeMonth,
-        expired: midMonth,
+        expired_date: midMonth,
       }),
       makeSub({
         handle: "sub-cancelled",
         state: "cancelled",
         created: "2024-01-01T00:00:00Z",
         activated: beforeMonth,
-        cancelled: midMonth,
+        cancelled_date: midMonth,
       }),
       makeSub({
         handle: "sub-active",
@@ -436,14 +436,14 @@ describe("getMonthlyChurn", () => {
         state: "expired",
         created: "2024-01-01T00:00:00Z",
         activated: beforeMonth,
-        expired: midMonth,
+        expired_date: midMonth,
       }),
       makeSub({
         handle: "sub-admin-delete",
         state: "expired",
         created: "2024-01-01T00:00:00Z",
         activated: beforeMonth,
-        expired: midMonth,
+        expired_date: midMonth,
       }),
       makeSub({
         handle: "sub-active",

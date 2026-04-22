@@ -186,7 +186,7 @@ export function getMonthlyChurn(
       const startDate = activated ?? created;
       if (startDate >= monthStart) return false;
 
-      const expired = s.expired ? new Date(s.expired) : null;
+      const expired = s.expired_date ? new Date(s.expired_date) : null;
       if (expired && expired < monthStart) return false;
       return true;
     }).length;
@@ -195,12 +195,12 @@ export function getMonthlyChurn(
     // excluding administrative replacements
     const churnedCount = subscriptions.filter((s) => {
       if (excludedHandles?.has(s.handle)) return false;
-      if (s.state === "expired" && s.expired) {
-        const expired = new Date(s.expired);
+      if (s.state === "expired" && s.expired_date) {
+        const expired = new Date(s.expired_date);
         return expired >= monthStart && expired < monthEnd;
       }
-      if (s.state === "cancelled" && s.cancelled) {
-        const cancelled = new Date(s.cancelled);
+      if (s.state === "cancelled" && s.cancelled_date) {
+        const cancelled = new Date(s.cancelled_date);
         return cancelled >= monthStart && cancelled < monthEnd;
       }
       return false;

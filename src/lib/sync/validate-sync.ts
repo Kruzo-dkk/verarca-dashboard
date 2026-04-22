@@ -180,7 +180,7 @@ async function checkDeleteRecreate(): Promise<ValidationCheck> {
 
     const recentlyEnded = subs.filter((s) => {
       if (s.state === "active") return false;
-      const endDate = (s.expired || s.cancelled)?.slice(0, 10);
+      const endDate = (s.expired_date || s.cancelled_date)?.slice(0, 10);
       return endDate && endDate >= ninetyDaysAgo;
     });
 

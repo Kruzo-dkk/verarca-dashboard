@@ -92,7 +92,7 @@ describe("validateSync", () => {
         currency: "DKK",
         created: "2024-01-01T00:00:00Z",
         activated: "2024-01-01T00:00:00Z",
-        expired: recentDate,
+        expired_date: recentDate,
         plan_version: 1,
       },
       {
