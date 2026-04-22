@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { HeroKPIs } from "./HeroKPIs";
 import { RevenueSection } from "./RevenueSection";
 import { RetentionSection } from "./RetentionSection";
+import { ChurnSection } from "./ChurnSection";
 import { CustomerSection } from "./CustomerSection";
 import { PipelineSection } from "./PipelineSection";
 import { UnitEconomicsSection } from "./UnitEconomicsSection";
@@ -52,6 +53,7 @@ export function ReportShell() {
           <HeroKPIs data={data} formatValue={formatValue} />
           <RevenueSection data={data} formatValue={formatValue} />
           <RetentionSection data={data} />
+          <ChurnSection data={data} formatValue={formatValue} />
           <CustomerSection data={data} formatValue={formatValue} />
           <PipelineSection data={data} formatValue={formatValue} />
           <ChannelSection data={data} formatValue={formatValue} />

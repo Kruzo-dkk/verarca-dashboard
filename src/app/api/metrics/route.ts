@@ -54,11 +54,16 @@ export async function GET() {
 
     const currency = activeSubscriptions[0]?.currency ?? "DKK";
 
+    const logoChurnRate = Math.round(churnRate * 100) / 100;
+
     return NextResponse.json({
       mrr: Math.round(mrr),
       arr: Math.round(arr),
       activeCustomerCount,
-      churnRate: Math.round(churnRate * 100) / 100,
+      // `churnRate` kept for backwards compat; prefer `logoChurnRate`.
+      // Revenue churn is available via /api/report (retention.revenueChurnRate).
+      churnRate: logoChurnRate,
+      logoChurnRate,
       netNewMRR: Math.round(netNewMRR),
       arpc: Math.round(arpc),
       currency,

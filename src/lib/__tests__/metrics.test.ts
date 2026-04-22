@@ -7,11 +7,15 @@ import {
   calculateLTV,
   calculateRevenuePerEmployee,
   calculateLogoRetention,
+  calculateLogoChurnRate,
+  calculateRevenueChurnRate,
   calculateMRRGrowth,
   countActiveCustomers,
   decomposeMRR,
   getMonthlyChurn,
+  getMonthlyChurnFromSnapshots,
   type CustomerMRRSnapshot,
+  type SnapshotForChurn,
 } from "../metrics";
 
 // ─── NRR ─────────────────────────────────────────────────────────
@@ -149,6 +153,134 @@ describe("calculateLogoRetention", () => {
 
   it("returns 0 when start is 0", () => {
     expect(calculateLogoRetention(0, 0)).toBe(0);
+  });
+});
+
+// ─── Logo Churn Rate ────────────────────────────────────────────
+
+describe("calculateLogoChurnRate", () => {
+  it("returns 0 when no customers were active at start", () => {
+    expect(calculateLogoChurnRate(0, 0)).toBe(0);
+  });
+
+  it("calculates correct rate", () => {
+    // 5 churned out of 50 active → 10%
+    expect(calculateLogoChurnRate(5, 50)).toBe(10);
+  });
+
+  it("counts zero-MRR churners (pre-invoice churn) the same as any logo", () => {
+    // Two churners contributing kr 0 MRR still count as logo churn
+    expect(calculateLogoChurnRate(2, 100)).toBe(2);
+  });
+
+  it("returns 0 when no churn", () => {
+    expect(calculateLogoChurnRate(0, 100)).toBe(0);
+  });
+});
+
+// ─── Revenue Churn Rate ─────────────────────────────────────────
+
+describe("calculateRevenueChurnRate", () => {
+  it("returns 0 when start MRR is 0", () => {
+    expect(calculateRevenueChurnRate(0, 0)).toBe(0);
+  });
+
+  it("calculates correct rate", () => {
+    // 5K churned of 100K start → 5%
+    expect(calculateRevenueChurnRate(5_000, 100_000)).toBe(5);
+  });
+
+  it("returns 0 when only zero-MRR customers churned", () => {
+    // Pre-invoice churners contribute 0 to churnedMRR by construction
+    expect(calculateRevenueChurnRate(0, 100_000)).toBe(0);
+  });
+
+  it("diverges from logo churn when a large customer churns", () => {
+    // 1 customer of 100 churned, but they had 50K of 100K MRR
+    // Logo churn = 1% but revenue churn = 50%
+    expect(calculateLogoChurnRate(1, 100)).toBe(1);
+    expect(calculateRevenueChurnRate(50_000, 100_000)).toBe(50);
+  });
+});
+
+// ─── getMonthlyChurnFromSnapshots ───────────────────────────────
+
+describe("getMonthlyChurnFromSnapshots", () => {
+  function snap(overrides: Partial<SnapshotForChurn> & { month: string }): SnapshotForChurn {
+    return {
+      month: overrides.month,
+      mrr: overrides.mrr ?? 0,
+      customer_count: overrides.customer_count ?? 0,
+      churned_logos: overrides.churned_logos ?? 0,
+      churned_mrr: overrides.churned_mrr ?? 0,
+    };
+  }
+
+  it("returns both logo and revenue churn rates per month", () => {
+    const snapshots: SnapshotForChurn[] = [
+      snap({ month: "2026-01", mrr: 100_000, customer_count: 100 }),
+      snap({
+        month: "2026-02",
+        mrr: 95_000,
+        customer_count: 98,
+        churned_logos: 5,
+        churned_mrr: 5_000,
+      }),
+    ];
+
+    const result = getMonthlyChurnFromSnapshots(snapshots);
+    const feb = result.find((r) => r.month === "2026-02")!;
+    // activeAtStart from prev month = 100; 5/100 = 5%
+    expect(feb.logoChurnRate).toBe(5);
+    // startMRR from prev month = 100_000; 5_000/100_000 = 5%
+    expect(feb.revenueChurnRate).toBe(5);
+  });
+
+  it("zero-MRR-only churn month has logo rate > 0 and revenue rate = 0", () => {
+    const snapshots: SnapshotForChurn[] = [
+      snap({ month: "2026-01", mrr: 100_000, customer_count: 100 }),
+      snap({
+        month: "2026-02",
+        mrr: 100_000,
+        customer_count: 98,
+        churned_logos: 2,
+        churned_mrr: 0,
+      }),
+    ];
+
+    const result = getMonthlyChurnFromSnapshots(snapshots);
+    const feb = result.find((r) => r.month === "2026-02")!;
+    expect(feb.logoChurnRate).toBeGreaterThan(0);
+    expect(feb.revenueChurnRate).toBe(0);
+  });
+
+  it("sorts input by month ascending", () => {
+    const snapshots: SnapshotForChurn[] = [
+      snap({ month: "2026-03", mrr: 90_000, customer_count: 90, churned_logos: 1, churned_mrr: 1_000 }),
+      snap({ month: "2026-01", mrr: 100_000, customer_count: 100 }),
+      snap({ month: "2026-02", mrr: 95_000, customer_count: 95, churned_logos: 1, churned_mrr: 1_000 }),
+    ];
+
+    const result = getMonthlyChurnFromSnapshots(snapshots);
+    expect(result.map((r) => r.month)).toEqual(["2026-01", "2026-02", "2026-03"]);
+  });
+
+  it("exposes churnedMRR and startMRR for tooltip display", () => {
+    const snapshots: SnapshotForChurn[] = [
+      snap({ month: "2026-01", mrr: 200_000, customer_count: 50 }),
+      snap({
+        month: "2026-02",
+        mrr: 180_000,
+        customer_count: 48,
+        churned_logos: 2,
+        churned_mrr: 20_000,
+      }),
+    ];
+
+    const feb = getMonthlyChurnFromSnapshots(snapshots).find((r) => r.month === "2026-02")!;
+    expect(feb.churnedMRR).toBe(20_000);
+    expect(feb.startMRR).toBe(200_000);
+    expect(feb.activeAtStart).toBe(50);
   });
 });
 

@@ -156,7 +156,7 @@ export function BoardReport() {
         <h2 className="section-heading text-xl mb-4 text-[var(--text-primary)]">
           Retention
         </h2>
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
           <RetentionGauge
             label="Net Revenue Retention"
             metric="nrr"
@@ -180,6 +180,22 @@ export function BoardReport() {
             format={(v) => `${v.toFixed(1)}%`}
             benchmark="Target: >90%"
             isGood={data.retention.logoRetentionRate !== null && data.retention.logoRetentionRate >= 90}
+          />
+          <RetentionGauge
+            label="Logo Churn Rate"
+            metric="logoChurnRate"
+            value={data.retention.logoChurnRate}
+            format={(v) => `${v.toFixed(1)}%`}
+            benchmark="Lower is better"
+            isGood={data.retention.logoChurnRate !== null && data.retention.logoChurnRate <= 10}
+          />
+          <RetentionGauge
+            label="Revenue Churn Rate"
+            metric="revenueChurnRate"
+            value={data.retention.revenueChurnRate}
+            format={(v) => `${v.toFixed(1)}%`}
+            benchmark="Best-in-class: <5%"
+            isGood={data.retention.revenueChurnRate !== null && data.retention.revenueChurnRate <= 5}
           />
           <RetentionGauge
             label="Quick Ratio"
