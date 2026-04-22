@@ -338,8 +338,24 @@ export function decomposeMRR(
     }
   }
 
-  const prevMap = new Map(prevSnapshots.map(s => [s.customerId, s.mrr]));
-  const currMap = new Map(currentSnapshots.map(s => [s.customerId, s.mrr]));
+  // Snapshot tables include a row for every customer every month (inactive
+  // rows have status="churned" and mrr=0). Treat those as "absent" for
+  // decomposition purposes so new logos aren't misclassified as expansion
+  // and churn isn't misclassified as contraction.
+  const isPresent = (s: { status: string; mrr: number }) =>
+    s.status === "active" && s.mrr > 0;
+
+  const prevMap = new Map(
+    prevSnapshots
+      .filter(isPresent)
+      .map((s) => [s.customerId, s.mrr])
+  );
+  const currMap = new Map(
+    currentSnapshots.map((s) => [
+      s.customerId,
+      { mrr: s.mrr, present: isPresent(s) },
+    ])
+  );
 
   let newMRR = 0;
   let expansionMRR = 0;
@@ -350,24 +366,26 @@ export function decomposeMRR(
   const handledPrevIds = new Set<string>();
 
   // Check current customers against previous
-  for (const [id, currMrr] of currMap) {
-    // Check direct match, then linked old ID
+  for (const [id, curr] of currMap) {
     const linkedOldId = newToOld.get(id);
-    const prevMrr = prevMap.get(id) ?? (linkedOldId ? prevMap.get(linkedOldId) : undefined);
+    const prevMrr =
+      prevMap.get(id) ?? (linkedOldId ? prevMap.get(linkedOldId) : undefined);
 
-    if (prevMrr === undefined) {
-      newMRR += currMrr;
-    } else if (currMrr > prevMrr) {
-      expansionMRR += currMrr - prevMrr;
-    } else if (currMrr < prevMrr) {
-      contractionMRR += prevMrr - currMrr;
+    if (!curr.present) {
+      if (prevMrr !== undefined) churnedMRR += prevMrr;
+    } else if (prevMrr === undefined) {
+      newMRR += curr.mrr;
+    } else if (curr.mrr > prevMrr) {
+      expansionMRR += curr.mrr - prevMrr;
+    } else if (curr.mrr < prevMrr) {
+      contractionMRR += prevMrr - curr.mrr;
     }
 
     handledPrevIds.add(id);
     if (linkedOldId) handledPrevIds.add(linkedOldId);
   }
 
-  // Check for churned customers (in previous but not in current or linked)
+  // Customers present previously but not at all in current map
   for (const [id, prevMrr] of prevMap) {
     if (!handledPrevIds.has(id) && !currMap.has(id)) {
       churnedMRR += prevMrr;
