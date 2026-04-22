@@ -361,6 +361,33 @@ describe("decomposeMRR", () => {
     expect(result.churnedMRR).toBe(0);
     expect(result.newMRR).toBe(0);
   });
+
+  it("treats status=churned mrr=0 rows as churn, not contraction", () => {
+    // Snapshot tables include every customer every month; inactive rows have
+    // status="churned" and mrr=0. Previously those were counted as contraction.
+    const prev = [snap("A", 10_000), snap("B", 20_000)];
+    const curr: CustomerMRRSnapshot[] = [
+      snap("A", 10_000),
+      { customerId: "B", mrr: 0, status: "churned", planHandle: "plan-1" },
+    ];
+
+    const result = decomposeMRR(curr, prev);
+    expect(result.churnedMRR).toBe(20_000);
+    expect(result.contractionMRR).toBe(0);
+  });
+
+  it("treats prev status=churned mrr=0 rows as absent, so new logos are new MRR", () => {
+    // A customer added mid-history has backfilled churned/0 snapshots before
+    // their start month. Their first real month should read as new MRR.
+    const prev: CustomerMRRSnapshot[] = [
+      { customerId: "C", mrr: 0, status: "churned", planHandle: "plan-1" },
+    ];
+    const curr = [snap("C", 5_000)];
+
+    const result = decomposeMRR(curr, prev);
+    expect(result.newMRR).toBe(5_000);
+    expect(result.expansionMRR).toBe(0);
+  });
 });
 
 // ─── getMonthlyChurn ────────────────────────────────────────────
