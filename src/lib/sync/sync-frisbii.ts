@@ -77,8 +77,8 @@ function isChurnedInMonth(
   excludedHandles?: Set<string>
 ): boolean {
   if (excludedHandles?.has(sub.handle)) return false;
-  if (sub.expired && sub.expired.startsWith(month)) return true;
-  if (sub.cancelled && sub.cancelled.startsWith(month)) return true;
+  if (sub.expired_date && sub.expired_date.startsWith(month)) return true;
+  if (sub.cancelled_date && sub.cancelled_date.startsWith(month)) return true;
   return false;
 }
 

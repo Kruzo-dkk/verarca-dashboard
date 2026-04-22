@@ -35,8 +35,8 @@ export interface Subscription {
   currency: string;
   created: string;
   activated?: string;
-  cancelled?: string;
-  expired?: string;
+  cancelled_date?: string;
+  expired_date?: string;
   trial_start?: string;
   trial_end?: string;
   current_period_start?: string;

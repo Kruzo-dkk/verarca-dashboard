@@ -82,7 +82,7 @@ function wasActiveDuringMonth(sub: Subscription, month: string): boolean {
   if (sub.state === "active") return true;
 
   // For non-active subscriptions, require an end date
-  const endDate = (sub.expired || sub.cancelled)?.slice(0, 10) ?? null;
+  const endDate = (sub.expired_date || sub.cancelled_date)?.slice(0, 10) ?? null;
   if (!endDate) return false;
   if (endDate < monthStart) return false;
 
@@ -124,8 +124,8 @@ function isChurnedInMonth(
   excludedHandles?: Set<string>
 ): boolean {
   if (excludedHandles?.has(sub.handle)) return false;
-  if (sub.expired && sub.expired.startsWith(month)) return true;
-  if (sub.cancelled && sub.cancelled.startsWith(month)) return true;
+  if (sub.expired_date && sub.expired_date.startsWith(month)) return true;
+  if (sub.cancelled_date && sub.cancelled_date.startsWith(month)) return true;
   return false;
 }
 

@@ -56,7 +56,7 @@ function wasActiveDuringMonth(sub: Subscription, month: string): boolean {
   const activatedDate = (sub.activated || sub.created)?.slice(0, 10);
   if (!activatedDate || activatedDate > monthEnd) return false;
 
-  const endDate = (sub.expired || sub.cancelled)?.slice(0, 10) ?? null;
+  const endDate = (sub.expired_date || sub.cancelled_date)?.slice(0, 10) ?? null;
   if (endDate && endDate < monthStart) return false;
 
   return true;

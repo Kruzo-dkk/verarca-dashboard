@@ -178,10 +178,10 @@ export async function syncCustomers(): Promise<void> {
     }
 
     // Churn date from subscription
-    const churnDate = sub?.expired
-      ? sub.expired.substring(0, 10)
-      : sub?.cancelled
-        ? sub.cancelled.substring(0, 10)
+    const churnDate = sub?.expired_date
+      ? sub.expired_date.substring(0, 10)
+      : sub?.cancelled_date
+        ? sub.cancelled_date.substring(0, 10)
         : null;
 
     // Prefer ClickUp folder name, then Frisbii contact name, then handle
