@@ -561,6 +561,48 @@ export type Database = {
         }
         Relationships: []
       }
+      sync_runs: {
+        Row: {
+          id: number
+          module: string
+          month: string | null
+          started_at: string
+          finished_at: string | null
+          status: string
+          records_fetched: number | null
+          records_upserted: number | null
+          duration_ms: number | null
+          error_message: string | null
+          metadata: Json | null
+        }
+        Insert: {
+          id?: number
+          module: string
+          month?: string | null
+          started_at?: string
+          finished_at?: string | null
+          status: string
+          records_fetched?: number | null
+          records_upserted?: number | null
+          duration_ms?: number | null
+          error_message?: string | null
+          metadata?: Json | null
+        }
+        Update: {
+          id?: number
+          module?: string
+          month?: string | null
+          started_at?: string
+          finished_at?: string | null
+          status?: string
+          records_fetched?: number | null
+          records_upserted?: number | null
+          duration_ms?: number | null
+          error_message?: string | null
+          metadata?: Json | null
+        }
+        Relationships: []
+      }
       pipeline_snapshots: {
         Row: {
           avg_deal_size: number

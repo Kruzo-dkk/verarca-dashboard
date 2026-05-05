@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useDataQuality } from "./DataQualityProvider";
 import { useReportContext } from "@/components/providers/ReportProvider";
 import { GlassCard } from "@/components/ui/GlassCard";
+import { HubSpotSyncCard } from "./HubSpotSyncCard";
 import type { AnomalyItem, ExclusionItem } from "@/lib/types/data-quality";
 
 // ─── Status badge ────────────────────────────────────────────
@@ -423,6 +424,18 @@ function ExclusionsCard() {
 
 // ─── Main dashboard ──────────────────────────────────────────
 
+function HubSpotSyncSection() {
+  const { data } = useDataQuality();
+  if (!data) return null;
+  return (
+    <HubSpotSyncCard
+      syncHealth={data.hubspotSyncHealth}
+      matchRate={data.hubspotMatchRate}
+      apiStatus={data.hubspotApiStatus}
+    />
+  );
+}
+
 export function DataQualityDashboard() {
   const { loading, error } = useDataQuality();
 
@@ -449,6 +462,7 @@ export function DataQualityDashboard() {
         <OverridesCard />
       </div>
 
+      <HubSpotSyncSection />
       <AnomaliesCard />
       <ExclusionsCard />
     </div>
