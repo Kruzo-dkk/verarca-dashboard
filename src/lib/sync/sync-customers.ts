@@ -10,6 +10,7 @@ import { getAllCustomerData, type CustomerFolderData } from "@/lib/clickup";
 import { getAllCompanies, buildCompanyIndex } from "@/lib/hubspot-companies";
 import { matchCustomerToHubSpot } from "@/lib/sync/match-hubspot";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { SyncModuleResult } from "@/lib/sync/types";
 
 // ─── Name normalisation helpers ────────────────────────────────
 
@@ -60,20 +61,25 @@ interface CustomerRow {
  *   2. Normalised company name match (medium confidence)
  *   3. Unmatched Frisbii customers kept with low confidence
  */
-export async function syncCustomers(): Promise<void> {
+export async function syncCustomers(): Promise<SyncModuleResult> {
   console.log("[sync-customers] Starting customer sync");
 
   // ── Fetch sources in parallel ──────────────────────────────
-  const [frisbiiCustomers, subscriptions, clickupFolders, plans, hubspotCompanies] = await Promise.all([
+  const [frisbiiCustomers, subscriptions, clickupFolders, plans] = await Promise.all([
     listCustomers(),
     listSubscriptions({ state: ["active", "expired", "cancelled", "on_hold"] }),
     getAllCustomerData(),
     listPlans(),
-    getAllCompanies().catch((err) => {
-      console.warn("[sync-customers] HubSpot company fetch failed, skipping matching:", err);
-      return [];
-    }),
   ]);
+
+  let hubspotCompanies: Awaited<ReturnType<typeof getAllCompanies>> = [];
+  let hubspotFetchError: string | null = null;
+  try {
+    hubspotCompanies = await getAllCompanies();
+  } catch (err) {
+    hubspotFetchError = err instanceof Error ? err.message : String(err);
+    console.error("[sync-customers] HubSpot company fetch failed:", hubspotFetchError);
+  }
 
   const planMap = buildPlanMap(plans);
   const hubspotIndex = buildCompanyIndex(hubspotCompanies);
@@ -121,6 +127,10 @@ export async function syncCustomers(): Promise<void> {
 
   // ── Match and build rows ───────────────────────────────────
   const rows: CustomerRow[] = [];
+  let matchedHubSpot = 0;
+  let clickupHigh = 0;
+  let clickupMedium = 0;
+  let clickupLow = 0;
 
   for (const customer of frisbiiCustomers) {
     const sub = subByCustomer.get(customer.handle);
@@ -191,6 +201,16 @@ export async function syncCustomers(): Promise<void> {
       .trim();
     const companyName = clickupMatch?.name || frisbiiName || customer.handle;
 
+    const hubspotMatch = matchCustomerToHubSpot(
+      { cvr: vat || (clickupMatch?.cvr ? clickupMatch.cvr.replace(/\D/g, "") : null), email: customer.email || null, name: companyName },
+      hubspotIndex
+    );
+    if (hubspotMatch !== null) matchedHubSpot++;
+
+    if (confidence === "high") clickupHigh++;
+    else if (confidence === "medium") clickupMedium++;
+    else clickupLow++;
+
     rows.push({
       frisbii_handle: customer.handle,
       name: companyName,
@@ -204,19 +224,14 @@ export async function syncCustomers(): Promise<void> {
       start_date: startDate,
       churn_date: churnDate,
       clickup_folder_id: clickupMatch?.folderId || null,
-      hubspot_company_id: matchCustomerToHubSpot(
-        { cvr: vat || (clickupMatch?.cvr ? clickupMatch.cvr.replace(/\D/g, "") : null), email: customer.email || null, name: companyName },
-        hubspotIndex
-      )?.hubspotCompanyId ?? null,
+      hubspot_company_id: hubspotMatch?.hubspotCompanyId ?? null,
       match_confidence: confidence,
     });
   }
 
   console.log(
     `[sync-customers] Built ${rows.length} customer rows ` +
-      `(high: ${rows.filter((r) => r.match_confidence === "high").length}, ` +
-      `medium: ${rows.filter((r) => r.match_confidence === "medium").length}, ` +
-      `low: ${rows.filter((r) => r.match_confidence === "low").length})`
+      `(high: ${clickupHigh}, medium: ${clickupMedium}, low: ${clickupLow})`
   );
 
   // ── Upsert in batches ──────────────────────────────────────
@@ -255,5 +270,23 @@ export async function syncCustomers(): Promise<void> {
     }
   }
 
+  const total = rows.length;
+  const unmatchedHubSpot = total - matchedHubSpot;
+  const matchRate = total === 0 ? 0 : matchedHubSpot / total;
+
   console.log(`[sync-customers] Successfully synced ${rows.length} customers`);
+
+  return {
+    recordsFetched: hubspotCompanies.length,
+    recordsUpserted: rows.length,
+    metadata: {
+      matchedHubSpot,
+      unmatchedHubSpot,
+      matchRate,
+      clickupHigh,
+      clickupMedium,
+      clickupLow,
+      hubspotFetchError,
+    },
+  };
 }
