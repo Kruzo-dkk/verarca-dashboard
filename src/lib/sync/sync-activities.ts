@@ -1,5 +1,7 @@
 import { fetchAllActivities } from "@/lib/hubspot-activities";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { syncLog } from "./logger";
+import type { SyncModuleResult } from "./types";
 
 /**
  * Sync HubSpot activity data for a given month into `activity_snapshots`.
@@ -9,8 +11,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
  *
  * @param month - YYYY-MM format
  */
-export async function syncActivities(month: string): Promise<void> {
-  console.log(`[sync-activities] Starting activity sync for ${month}`);
+export async function syncActivities(month: string): Promise<SyncModuleResult> {
+  syncLog.info(`[sync-activities] Starting activity sync for ${month}`);
 
   // Calculate date range: first day of month to last day (or today if current month)
   const [year, mon] = month.split("-").map(Number);
@@ -23,16 +25,24 @@ export async function syncActivities(month: string): Promise<void> {
     ? now.toISOString().split("T")[0]
     : new Date(year, mon, 0).toISOString().split("T")[0];
 
-  console.log(`[sync-activities] Date range: ${startDate} to ${endDate}`);
+  syncLog.info(`[sync-activities] Date range: ${startDate} to ${endDate}`);
 
   const activities = await fetchAllActivities(startDate, endDate);
-  console.log(
+  syncLog.info(
     `[sync-activities] Fetched ${activities.length} activity records`
   );
 
   const supabase = createAdminClient();
 
+  let totalCalls = 0;
+  let totalMeetings = 0;
+  let totalEmails = 0;
+
   for (const activity of activities) {
+    totalCalls += activity.calls;
+    totalMeetings += activity.meetings;
+    totalEmails += activity.emails;
+
     const { error } = await supabase
       .from("activity_snapshots")
       .upsert(
@@ -48,7 +58,7 @@ export async function syncActivities(month: string): Promise<void> {
       );
 
     if (error) {
-      console.error(
+      syncLog.error(
         `[sync-activities] Upsert failed for owner ${activity.ownerId}:`,
         error
       );
@@ -59,7 +69,21 @@ export async function syncActivities(month: string): Promise<void> {
   }
 
   const ownerIds = new Set(activities.map((a) => a.ownerId));
-  console.log(
-    `[sync-activities] Successfully synced ${activities.length} activity records across ${ownerIds.size} owners`
+  const ownerCount = ownerIds.size;
+
+  syncLog.info(
+    `[sync-activities] Successfully synced ${activities.length} activity records across ${ownerCount} owners`
   );
+
+  return {
+    recordsFetched: totalCalls + totalMeetings + totalEmails,
+    recordsUpserted: activities.length,
+    metadata: {
+      calls: totalCalls,
+      meetings: totalMeetings,
+      emails: totalEmails,
+      ownerCount,
+      dateRange: { from: startDate, to: endDate },
+    },
+  };
 }

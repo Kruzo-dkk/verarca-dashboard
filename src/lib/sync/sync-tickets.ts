@@ -1,7 +1,8 @@
 import { fetchTickets } from "@/lib/hubspot-tickets";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { SyncModuleResult } from "@/lib/sync/types";
 
-export async function syncTickets(month: string): Promise<void> {
+export async function syncTickets(month: string): Promise<SyncModuleResult> {
   console.log(`[sync-tickets] Starting ticket sync for ${month}`);
 
   const [year, mon] = month.split("-").map(Number);
@@ -32,10 +33,26 @@ export async function syncTickets(month: string): Promise<void> {
   }
 
   let upserted = 0;
+  let ticketsWithCompany = 0;
+  let ticketsWithoutCompany = 0;
+  let customersResolved = 0;
+  const unresolvedCompanyIdSet = new Set<string>();
+
   for (const ticket of tickets) {
-    const customerId = ticket.companyId
-      ? (companyToCustomer.get(ticket.companyId) ?? null)
-      : null;
+    let customerId: number | null = null;
+
+    if (ticket.companyId) {
+      ticketsWithCompany++;
+      const resolved = companyToCustomer.get(ticket.companyId) ?? null;
+      if (resolved !== null) {
+        customerId = resolved;
+        customersResolved++;
+      } else {
+        unresolvedCompanyIdSet.add(ticket.companyId);
+      }
+    } else {
+      ticketsWithoutCompany++;
+    }
 
     const { error } = await supabase.from("ticket_snapshots").upsert(
       {
@@ -64,7 +81,21 @@ export async function syncTickets(month: string): Promise<void> {
     upserted++;
   }
 
+  const unresolvedCompanyIds = [...unresolvedCompanyIdSet].slice(0, 20);
+
   console.log(
     `[sync-tickets] Successfully synced ${upserted} tickets (${companyToCustomer.size} mapped companies)`,
   );
+
+  return {
+    recordsFetched: tickets.length,
+    recordsUpserted: upserted,
+    metadata: {
+      ticketsWithCompany,
+      ticketsWithoutCompany,
+      customersResolved,
+      mappedCompanies: companyToCustomer.size,
+      unresolvedCompanyIds,
+    },
+  };
 }
