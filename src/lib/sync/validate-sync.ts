@@ -205,6 +205,176 @@ async function checkDeleteRecreate(): Promise<ValidationCheck> {
   };
 }
 
+/**
+ * Verify that the sync-pipeline module ran recently and successfully.
+ * A missing or stale run indicates the HubSpot pipeline sync is broken.
+ */
+async function checkHubSpotPipelineHealth(): Promise<ValidationCheck> {
+  const supabase = createAdminClient();
+
+  const { data: rows } = await supabase
+    .from("sync_runs")
+    .select("*")
+    .eq("module", "sync-pipeline")
+    .order("started_at", { ascending: false })
+    .limit(1);
+
+  const row = rows?.[0] ?? null;
+
+  if (!row) {
+    return {
+      checkName: "hubspot_pipeline_health",
+      status: "fail",
+      expectedValue: null,
+      actualValue: null,
+      delta: null,
+      details: "Pipeline sync did not run in last 24h",
+    };
+  }
+
+  const startedAt = new Date(row.started_at);
+  const ageMs = Date.now() - startedAt.getTime();
+  const twentyFourHoursMs = 24 * 60 * 60 * 1000;
+
+  if (ageMs > twentyFourHoursMs) {
+    return {
+      checkName: "hubspot_pipeline_health",
+      status: "fail",
+      expectedValue: null,
+      actualValue: null,
+      delta: null,
+      details: "Pipeline sync did not run in last 24h",
+    };
+  }
+
+  if (row.status === "failed") {
+    return {
+      checkName: "hubspot_pipeline_health",
+      status: "fail",
+      expectedValue: null,
+      actualValue: null,
+      delta: null,
+      details: `Pipeline sync last failed: ${row.error_message ?? "unknown error"}`,
+    };
+  }
+
+  if (row.status === "running") {
+    const tenMinutesMs = 10 * 60 * 1000;
+    if (ageMs > tenMinutesMs) {
+      return {
+        checkName: "hubspot_pipeline_health",
+        status: "warn",
+        expectedValue: null,
+        actualValue: null,
+        delta: null,
+        details: "Pipeline sync stuck in running state for >10min",
+      };
+    }
+  }
+
+  if (row.status === "success" && (row.records_fetched ?? 0) === 0) {
+    return {
+      checkName: "hubspot_pipeline_health",
+      status: "warn",
+      expectedValue: null,
+      actualValue: null,
+      delta: null,
+      details: "Pipeline ran but fetched 0 deals",
+    };
+  }
+
+  return {
+    checkName: "hubspot_pipeline_health",
+    status: "pass",
+    expectedValue: null,
+    actualValue: String(row.records_fetched),
+    delta: null,
+    details: null,
+  };
+}
+
+/**
+ * Check the HubSpot customer match rate from the latest successful sync-customers run.
+ * A low match rate means Frisbii customers are not being linked to HubSpot contacts.
+ *
+ * Thresholds:
+ *   - pass:  rate >= 0.7
+ *   - warn:  rate >= 0.4  (fewer than 70% matched)
+ *   - fail:  rate < 0.4   (fewer than 40% matched — data quality problem)
+ */
+async function checkHubSpotMatchRate(): Promise<ValidationCheck> {
+  const supabase = createAdminClient();
+
+  const { data: rows } = await supabase
+    .from("sync_runs")
+    .select("*")
+    .eq("module", "sync-customers")
+    .eq("status", "success")
+    .order("started_at", { ascending: false })
+    .limit(1);
+
+  const row = rows?.[0] ?? null;
+
+  if (!row) {
+    return {
+      checkName: "hubspot_match_rate",
+      status: "fail",
+      expectedValue: "0.7",
+      actualValue: null,
+      delta: null,
+      details: "No successful customers sync found",
+    };
+  }
+
+  const meta = row.metadata as Record<string, unknown> | null;
+  const rawRate = meta?.matchRate;
+
+  if (typeof rawRate !== "number") {
+    return {
+      checkName: "hubspot_match_rate",
+      status: "fail",
+      expectedValue: "0.7",
+      actualValue: null,
+      delta: null,
+      details: "matchRate metadata missing",
+    };
+  }
+
+  const rate = rawRate;
+  const pct = `${Math.round(rate * 100)}%`;
+
+  if (rate >= 0.7) {
+    return {
+      checkName: "hubspot_match_rate",
+      status: "pass",
+      expectedValue: "0.7",
+      actualValue: rate.toFixed(2),
+      delta: Math.round((rate - 0.7) * 100) / 100,
+      details: null,
+    };
+  }
+
+  if (rate >= 0.4) {
+    return {
+      checkName: "hubspot_match_rate",
+      status: "warn",
+      expectedValue: "0.7",
+      actualValue: rate.toFixed(2),
+      delta: Math.round((rate - 0.7) * 100) / 100,
+      details: `Match rate <70%: only ${pct} of customers matched to HubSpot`,
+    };
+  }
+
+  return {
+    checkName: "hubspot_match_rate",
+    status: "fail",
+    expectedValue: "0.7",
+    actualValue: rate.toFixed(2),
+    delta: Math.round((rate - 0.7) * 100) / 100,
+    details: `Match rate <40%: only ${pct} of customers matched`,
+  };
+}
+
 // ─── Main validation ─────────────────────────────────────────
 
 /**
@@ -217,6 +387,8 @@ export async function validateSync(month: string): Promise<void> {
     checkMRRReconciliation(month),
     checkChurnSpike(month),
     checkDeleteRecreate(),
+    checkHubSpotPipelineHealth(),
+    checkHubSpotMatchRate(),
   ]);
 
   const warnings = checks.filter((c) => c.status === "warn");
