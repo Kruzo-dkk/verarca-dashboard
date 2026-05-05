@@ -79,6 +79,8 @@ function wireChain() {
   });
 }
 
+const NO_ERRORS = { calls: null, meetings: null, emails: null, owners: null };
+
 beforeEach(() => {
   wireChain();
 });
@@ -89,7 +91,7 @@ describe("syncActivities() SyncModuleResult", () => {
   const MONTH = "2025-05";
 
   it("1. empty activities → recordsFetched=0, recordsUpserted=0, all metadata zeros", async () => {
-    fetchAllActivitiesMock.mockResolvedValue([]);
+    fetchAllActivitiesMock.mockResolvedValue({ activities: [], errors: NO_ERRORS });
 
     const result = await syncActivities(MONTH);
 
@@ -104,28 +106,33 @@ describe("syncActivities() SyncModuleResult", () => {
   });
 
   it("2. two activity records → recordsUpserted=2 (no server-side aggregation)", async () => {
-    fetchAllActivitiesMock.mockResolvedValue([
-      { date: "2025-05-01", ownerId: "owner1", ownerName: "Alice", calls: 2, meetings: 1, emails: 0 },
-      { date: "2025-05-02", ownerId: "owner1", ownerName: "Alice", calls: 3, meetings: 0, emails: 1 },
-    ]);
+    fetchAllActivitiesMock.mockResolvedValue({
+      activities: [
+        { date: "2025-05-01", ownerId: "owner1", ownerName: "Alice", calls: 2, meetings: 1, emails: 0 },
+        { date: "2025-05-02", ownerId: "owner1", ownerName: "Alice", calls: 3, meetings: 0, emails: 1 },
+      ],
+      errors: NO_ERRORS,
+    });
 
     const result = await syncActivities(MONTH);
 
     expect(result.recordsUpserted).toBe(2);
-    // Each row is one upsert call
     expect(mocks.upsert).toHaveBeenCalledTimes(2);
   });
 
   it("3. aggregation totals: calls=15, meetings=6, emails=1", async () => {
-    fetchAllActivitiesMock.mockResolvedValue([
-      { date: "2025-05-01", ownerId: "owner1", ownerName: "Alice", calls: 5, meetings: 1, emails: 0 },
-      { date: "2025-05-02", ownerId: "owner1", ownerName: "Alice", calls: 10, meetings: 2, emails: 0 },
-      { date: "2025-05-03", ownerId: "owner2", ownerName: "Bob",   calls: 0, meetings: 3, emails: 1 },
-    ]);
+    fetchAllActivitiesMock.mockResolvedValue({
+      activities: [
+        { date: "2025-05-01", ownerId: "owner1", ownerName: "Alice", calls: 5, meetings: 1, emails: 0 },
+        { date: "2025-05-02", ownerId: "owner1", ownerName: "Alice", calls: 10, meetings: 2, emails: 0 },
+        { date: "2025-05-03", ownerId: "owner2", ownerName: "Bob",   calls: 0, meetings: 3, emails: 1 },
+      ],
+      errors: NO_ERRORS,
+    });
 
     const result = await syncActivities(MONTH);
 
-    expect(result.recordsFetched).toBe(15 + 6 + 1); // 22
+    expect(result.recordsFetched).toBe(15 + 6 + 1);
     expect(result.recordsUpserted).toBe(3);
     expect(result.metadata).toMatchObject({
       calls: 15,
@@ -135,10 +142,13 @@ describe("syncActivities() SyncModuleResult", () => {
   });
 
   it("4. two distinct owners → metadata.ownerCount=2", async () => {
-    fetchAllActivitiesMock.mockResolvedValue([
-      { date: "2025-05-01", ownerId: "owner1", ownerName: "Alice", calls: 1, meetings: 0, emails: 0 },
-      { date: "2025-05-01", ownerId: "owner2", ownerName: "Bob",   calls: 0, meetings: 1, emails: 0 },
-    ]);
+    fetchAllActivitiesMock.mockResolvedValue({
+      activities: [
+        { date: "2025-05-01", ownerId: "owner1", ownerName: "Alice", calls: 1, meetings: 0, emails: 0 },
+        { date: "2025-05-01", ownerId: "owner2", ownerName: "Bob",   calls: 0, meetings: 1, emails: 0 },
+      ],
+      errors: NO_ERRORS,
+    });
 
     const result = await syncActivities(MONTH);
 
@@ -146,12 +156,71 @@ describe("syncActivities() SyncModuleResult", () => {
   });
 
   it("5. upsert error → exception propagates", async () => {
-    fetchAllActivitiesMock.mockResolvedValue([
-      { date: "2025-05-01", ownerId: "owner1", ownerName: "Alice", calls: 1, meetings: 0, emails: 0 },
-    ]);
+    fetchAllActivitiesMock.mockResolvedValue({
+      activities: [
+        { date: "2025-05-01", ownerId: "owner1", ownerName: "Alice", calls: 1, meetings: 0, emails: 0 },
+      ],
+      errors: NO_ERRORS,
+    });
 
     mocks.upsert.mockResolvedValue({ error: { message: "DB write failed" } });
 
     await expect(syncActivities(MONTH)).rejects.toThrow("DB write failed");
+  });
+
+  it("6. partial-success: emails 403 but calls + meetings work → still upserts, errors in metadata", async () => {
+    fetchAllActivitiesMock.mockResolvedValue({
+      activities: [
+        { date: "2025-05-01", ownerId: "owner1", ownerName: "Alice", calls: 5, meetings: 2, emails: 0 },
+      ],
+      errors: {
+        calls: null,
+        meetings: null,
+        emails: "HubSpot API error 403: MISSING_SCOPES",
+        owners: null,
+      },
+    });
+
+    const result = await syncActivities(MONTH);
+
+    expect(result.recordsUpserted).toBe(1);
+    expect(result.metadata).toMatchObject({
+      calls: 5,
+      meetings: 2,
+      emails: 0,
+      sourceErrors: {
+        emails: expect.stringContaining("403"),
+      },
+    });
+  });
+
+  it("7. all sources fail → throws", async () => {
+    fetchAllActivitiesMock.mockResolvedValue({
+      activities: [],
+      errors: {
+        calls: "HubSpot API error 500",
+        meetings: "HubSpot API error 500",
+        emails: "HubSpot API error 500",
+        owners: null,
+      },
+    });
+
+    await expect(syncActivities(MONTH)).rejects.toThrow(/all activity sources failed/i);
+  });
+
+  it("8. owners fetch fails but activities work → succeeds, owners error in metadata", async () => {
+    fetchAllActivitiesMock.mockResolvedValue({
+      activities: [
+        { date: "2025-05-01", ownerId: "owner1", ownerName: "owner1", calls: 1, meetings: 0, emails: 0 },
+      ],
+      errors: { ...NO_ERRORS, owners: "HubSpot API error 403: owners scope missing" },
+    });
+
+    const result = await syncActivities(MONTH);
+
+    expect(result.recordsUpserted).toBe(1);
+    expect(result.metadata?.sourceErrors).toMatchObject({
+      owners: expect.stringContaining("403"),
+    });
   });
 });

@@ -67,6 +67,18 @@ export interface DailyOwnerActivity {
   emails: number;
 }
 
+export interface ActivitySourceErrors {
+  calls: string | null;
+  meetings: string | null;
+  emails: string | null;
+  owners: string | null;
+}
+
+export interface FetchAllActivitiesResult {
+  activities: DailyOwnerActivity[];
+  errors: ActivitySourceErrors;
+}
+
 // ---------- Helpers ----------
 
 function buildTimestampFilter(
@@ -197,13 +209,27 @@ export async function fetchOwnerNames(): Promise<Map<string, string>> {
 export async function fetchAllActivities(
   startDate: string,
   endDate: string
-): Promise<DailyOwnerActivity[]> {
-  const [calls, meetings, emails, ownerNames] = await Promise.all([
+): Promise<FetchAllActivitiesResult> {
+  // Each source is independently failable. Scope-restricted endpoints
+  // (e.g. emails, tickets) must not block others from syncing.
+  const [callsRes, meetingsRes, emailsRes, ownersRes] = await Promise.allSettled([
     fetchCalls(startDate, endDate),
     fetchMeetings(startDate, endDate),
     fetchEmails(startDate, endDate),
     fetchOwnerNames(),
   ]);
+
+  const errors: ActivitySourceErrors = {
+    calls: callsRes.status === "rejected" ? errorMessage(callsRes.reason) : null,
+    meetings: meetingsRes.status === "rejected" ? errorMessage(meetingsRes.reason) : null,
+    emails: emailsRes.status === "rejected" ? errorMessage(emailsRes.reason) : null,
+    owners: ownersRes.status === "rejected" ? errorMessage(ownersRes.reason) : null,
+  };
+
+  const calls = callsRes.status === "fulfilled" ? callsRes.value : [];
+  const meetings = meetingsRes.status === "fulfilled" ? meetingsRes.value : [];
+  const emails = emailsRes.status === "fulfilled" ? emailsRes.value : [];
+  const ownerNames = ownersRes.status === "fulfilled" ? ownersRes.value : new Map<string, string>();
 
   // Group by ownerId + date
   const key = (ownerId: string, date: string) => `${ownerId}|${date}`;
@@ -242,8 +268,15 @@ export async function fetchAllActivities(
     ensureBucket(e.ownerId, toISO(e.timestamp)).emails++;
   }
 
-  return Array.from(buckets.values()).map((b) => ({
+  const activities = Array.from(buckets.values()).map((b) => ({
     ...b,
     ownerName: ownerNames.get(b.ownerId) ?? b.ownerId,
   }));
+
+  return { activities, errors };
+}
+
+function errorMessage(reason: unknown): string {
+  if (reason instanceof Error) return reason.message;
+  return String(reason);
 }

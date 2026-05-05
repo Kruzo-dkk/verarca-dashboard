@@ -27,10 +27,35 @@ export async function syncActivities(month: string): Promise<SyncModuleResult> {
 
   syncLog.info(`[sync-activities] Date range: ${startDate} to ${endDate}`);
 
-  const activities = await fetchAllActivities(startDate, endDate);
+  const { activities, errors: sourceErrors } = await fetchAllActivities(startDate, endDate);
   syncLog.info(
     `[sync-activities] Fetched ${activities.length} activity records`
   );
+
+  // Activity sources are independently failable. Only abort if every
+  // activity source failed — otherwise we continue with whatever we got
+  // (e.g. calls + meetings without emails when scope is missing).
+  const allActivitySourcesFailed =
+    sourceErrors.calls !== null &&
+    sourceErrors.meetings !== null &&
+    sourceErrors.emails !== null;
+
+  if (allActivitySourcesFailed) {
+    syncLog.error(
+      `[sync-activities] All activity sources failed`,
+      sourceErrors
+    );
+    throw new Error(
+      `[sync-activities] all activity sources failed — calls: ${sourceErrors.calls}; meetings: ${sourceErrors.meetings}; emails: ${sourceErrors.emails}`
+    );
+  }
+
+  if (sourceErrors.calls || sourceErrors.meetings || sourceErrors.emails || sourceErrors.owners) {
+    syncLog.warn(
+      `[sync-activities] Partial-success: some sources failed`,
+      sourceErrors
+    );
+  }
 
   const supabase = createAdminClient();
 
@@ -75,6 +100,11 @@ export async function syncActivities(month: string): Promise<SyncModuleResult> {
     `[sync-activities] Successfully synced ${activities.length} activity records across ${ownerCount} owners`
   );
 
+  // Strip null entries from sourceErrors so metadata is concise on success
+  const compactErrors = Object.fromEntries(
+    Object.entries(sourceErrors).filter(([, v]) => v !== null)
+  );
+
   return {
     recordsFetched: totalCalls + totalMeetings + totalEmails,
     recordsUpserted: activities.length,
@@ -84,6 +114,7 @@ export async function syncActivities(month: string): Promise<SyncModuleResult> {
       emails: totalEmails,
       ownerCount,
       dateRange: { from: startDate, to: endDate },
+      sourceErrors: Object.keys(compactErrors).length > 0 ? compactErrors : null,
     },
   };
 }
