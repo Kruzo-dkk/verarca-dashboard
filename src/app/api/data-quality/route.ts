@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { listSubscriptions } from "@/lib/frisbii";
+import { hubspotFetch } from "@/lib/hubspot";
 import type {
   DataQualityData,
   DataQualityError,
@@ -11,6 +12,30 @@ import type {
   OverrideCounts,
   FrisbiiComparison,
 } from "@/lib/types/data-quality";
+import type {
+  HubSpotSyncHealth,
+  HubSpotMatchRate,
+  HubSpotApiStatus,
+} from "@/lib/sync/types";
+
+// ── HubSpot API status cache (60-second in-memory) ───────────────────────────
+// Avoids probing HubSpot on every dashboard request.
+let cachedApiStatus: { value: HubSpotApiStatus; expiresAt: number } | null = null;
+
+/** Exported for testing only — clears the module-level cache. */
+export function __resetHubSpotApiStatusCache(): void {
+  cachedApiStatus = null;
+}
+
+// ── DB module name → response module name mapping ────────────────────────────
+const MODULE_MAP: Record<string, HubSpotSyncHealth["module"]> = {
+  "sync-pipeline": "pipeline",
+  "sync-activities": "activities",
+  "sync-tickets": "tickets",
+  "sync-customers": "customers",
+};
+
+const HUBSPOT_MODULES = ["sync-pipeline", "sync-activities", "sync-tickets", "sync-customers"] as const;
 
 export async function GET(request: NextRequest) {
   // ── Auth ──────────────────────────────────────────────────────
@@ -191,6 +216,77 @@ export async function GET(request: NextRequest) {
   const errors: DataQualityError[] = [];
   if (frisbiiError) errors.push({ component: "frisbii", message: frisbiiError });
 
+  // ── HubSpot sync health (latest sync_runs row per module) ─────
+  const syncRunResults = await Promise.all(
+    HUBSPOT_MODULES.map((moduleName) =>
+      admin
+        .from("sync_runs")
+        .select(
+          "module, status, started_at, finished_at, duration_ms, records_fetched, records_upserted, error_message, metadata"
+        )
+        .eq("module", moduleName)
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    )
+  );
+
+  const hubspotSyncHealth: HubSpotSyncHealth[] = syncRunResults
+    .map((result) => result.data)
+    .filter((row): row is NonNullable<typeof row> => row !== null)
+    .map((row) => ({
+      module: MODULE_MAP[row.module as string],
+      status: row.status as HubSpotSyncHealth["status"],
+      startedAt: row.started_at as string,
+      durationMs: row.duration_ms as number | null,
+      recordsFetched: row.records_fetched as number | null,
+      recordsUpserted: row.records_upserted as number | null,
+      errorMessage: row.error_message as string | null,
+      metadata: row.metadata as Record<string, unknown> | null,
+    }));
+
+  // ── HubSpot match rate (from sync-customers metadata) ─────────
+  let hubspotMatchRate: HubSpotMatchRate | null = null;
+  const customersRow = syncRunResults[3]?.data;
+  if (customersRow?.metadata != null) {
+    const meta = customersRow.metadata as Record<string, unknown>;
+    if (typeof meta.matchedHubSpot === "number") {
+      const matched = meta.matchedHubSpot;
+      const unmatched = typeof meta.unmatchedHubSpot === "number" ? meta.unmatchedHubSpot : 0;
+      const total = matched + unmatched;
+      hubspotMatchRate = {
+        total,
+        matched,
+        rate: total > 0 ? matched / total : 0,
+        byConfidence: {
+          high: typeof meta.clickupHigh === "number" ? meta.clickupHigh : 0,
+          medium: typeof meta.clickupMedium === "number" ? meta.clickupMedium : 0,
+          low: typeof meta.clickupLow === "number" ? meta.clickupLow : 0,
+        },
+      };
+    }
+  }
+
+  // ── HubSpot API status probe (cached 60 seconds) ───────────────
+  let hubspotApiStatus: HubSpotApiStatus;
+  const now2 = Date.now();
+  if (cachedApiStatus && cachedApiStatus.expiresAt > now2) {
+    hubspotApiStatus = cachedApiStatus.value;
+  } else {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    try {
+      await hubspotFetch("/owners?limit=1");
+      hubspotApiStatus = { ok: true, error: null };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "HubSpot probe failed";
+      hubspotApiStatus = { ok: false, error: message };
+    } finally {
+      clearTimeout(timeout);
+    }
+    cachedApiStatus = { value: hubspotApiStatus, expiresAt: now2 + 60_000 };
+  }
+
   // ── Response ──────────────────────────────────────────────────
   const data: DataQualityData = {
     month,
@@ -201,6 +297,9 @@ export async function GET(request: NextRequest) {
     frisbiiComparison,
     lastSyncAt,
     errors,
+    hubspotSyncHealth,
+    hubspotMatchRate,
+    hubspotApiStatus,
   };
 
   return NextResponse.json(data);

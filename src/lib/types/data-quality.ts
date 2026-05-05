@@ -12,6 +12,9 @@ export interface DataQualityData {
   frisbiiComparison: FrisbiiComparison;
   lastSyncAt: string | null;
   errors: DataQualityError[];
+  hubspotSyncHealth: import("@/lib/sync/types").HubSpotSyncHealth[];
+  hubspotMatchRate: import("@/lib/sync/types").HubSpotMatchRate | null;
+  hubspotApiStatus: import("@/lib/sync/types").HubSpotApiStatus;
 }
 
 export interface ReconciliationStatus {
