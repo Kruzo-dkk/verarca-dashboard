@@ -1,5 +1,6 @@
 import { listDeals, getPipelineStages, calculatePipelineMetrics } from "@/lib/hubspot";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { SyncModuleResult } from "@/lib/sync/types";
 
 /**
  * Sync HubSpot pipeline data for a given month into `pipeline_snapshots`.
@@ -9,7 +10,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
  *
  * @param month - YYYY-MM format
  */
-export async function syncPipeline(month: string): Promise<void> {
+export async function syncPipeline(month: string): Promise<SyncModuleResult> {
   console.log(`[sync-pipeline] Starting pipeline sync for ${month}`);
 
   const [deals, stages] = await Promise.all([listDeals(), getPipelineStages()]);
@@ -60,4 +61,20 @@ export async function syncPipeline(month: string): Promise<void> {
   }
 
   console.log(`[sync-pipeline] Successfully synced pipeline for ${month}`);
+
+  // TODO: Phase 2 (Bølge 2) — extend getPipelineStages() to return total
+  // pipeline count so pipelinesFound reflects multi-pipeline environments.
+  return {
+    recordsFetched: deals.length,
+    recordsUpserted: 1,
+    metadata: {
+      pipelinesFound: stages.length > 0 ? 1 : 0,
+      dealsWon: metrics.dealsWon,
+      dealsLost: metrics.dealsLost,
+      dealsOpen: metrics.dealsOpen,
+      totalPipelineValue: metrics.totalPipelineValue,
+      weightedPipeline: metrics.weightedPipeline,
+      winRate: metrics.winRate,
+    },
+  };
 }
