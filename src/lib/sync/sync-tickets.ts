@@ -1,5 +1,6 @@
 import { fetchTickets } from "@/lib/hubspot-tickets";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isMissingScopesError } from "@/lib/hubspot-errors";
 import type { SyncModuleResult } from "@/lib/sync/types";
 
 export async function syncTickets(month: string): Promise<SyncModuleResult> {
@@ -14,7 +15,26 @@ export async function syncTickets(month: string): Promise<SyncModuleResult> {
     ? now.toISOString().split("T")[0]
     : new Date(year, mon, 0).toISOString().split("T")[0];
 
-  const tickets = await fetchTickets(startDate, endDate);
+  let tickets;
+  try {
+    tickets = await fetchTickets(startDate, endDate);
+  } catch (err) {
+    if (isMissingScopesError(err)) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `[sync-tickets] Scope unavailable — skipping ticket sync. ${msg}`
+      );
+      return {
+        recordsFetched: null,
+        recordsUpserted: 0,
+        metadata: {
+          scopeBlocked: true,
+          scopeError: msg,
+        },
+      };
+    }
+    throw err;
+  }
   console.log(`[sync-tickets] Fetched ${tickets.length} tickets`);
 
   const supabase = createAdminClient();

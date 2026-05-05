@@ -168,7 +168,7 @@ describe("syncActivities() SyncModuleResult", () => {
     await expect(syncActivities(MONTH)).rejects.toThrow("DB write failed");
   });
 
-  it("6. partial-success: emails 403 but calls + meetings work → still upserts, errors in metadata", async () => {
+  it("6. partial-success: emails 403 MISSING_SCOPES but calls + meetings work → upserts, scope-blocked surfaced", async () => {
     fetchAllActivitiesMock.mockResolvedValue({
       activities: [
         { date: "2025-05-01", ownerId: "owner1", ownerName: "Alice", calls: 5, meetings: 2, emails: 0 },
@@ -176,7 +176,7 @@ describe("syncActivities() SyncModuleResult", () => {
       errors: {
         calls: null,
         meetings: null,
-        emails: "HubSpot API error 403: MISSING_SCOPES",
+        emails: 'HubSpot API error 403: {"category":"MISSING_SCOPES"}',
         owners: null,
       },
     });
@@ -188,9 +188,7 @@ describe("syncActivities() SyncModuleResult", () => {
       calls: 5,
       meetings: 2,
       emails: 0,
-      sourceErrors: {
-        emails: expect.stringContaining("403"),
-      },
+      scopeBlockedSources: ["emails"],
     });
   });
 
@@ -221,6 +219,50 @@ describe("syncActivities() SyncModuleResult", () => {
     expect(result.recordsUpserted).toBe(1);
     expect(result.metadata?.sourceErrors).toMatchObject({
       owners: expect.stringContaining("403"),
+    });
+  });
+
+  it("9. emails MISSING_SCOPES → metadata.scopeBlockedSources lists emails", async () => {
+    fetchAllActivitiesMock.mockResolvedValue({
+      activities: [
+        { date: "2025-05-01", ownerId: "owner1", ownerName: "Alice", calls: 5, meetings: 2, emails: 0 },
+      ],
+      errors: {
+        calls: null,
+        meetings: null,
+        emails:
+          'HubSpot API error 403: {"category":"MISSING_SCOPES","errors":[{"message":"required scopes missing"}]}',
+        owners: null,
+      },
+    });
+
+    const result = await syncActivities(MONTH);
+
+    expect(result.recordsUpserted).toBe(1);
+    expect(result.metadata?.scopeBlockedSources).toEqual(["emails"]);
+    // Generic sourceErrors should NOT include scope-blocked sources
+    // (those are reported separately so the dashboard can stay calm)
+    expect(result.metadata?.sourceErrors).toBeNull();
+  });
+
+  it("10. transient 500 on emails → still surfaced in sourceErrors (not scope-blocked)", async () => {
+    fetchAllActivitiesMock.mockResolvedValue({
+      activities: [
+        { date: "2025-05-01", ownerId: "owner1", ownerName: "Alice", calls: 1, meetings: 0, emails: 0 },
+      ],
+      errors: {
+        calls: null,
+        meetings: null,
+        emails: "HubSpot API error 500: internal error",
+        owners: null,
+      },
+    });
+
+    const result = await syncActivities(MONTH);
+
+    expect(result.metadata?.scopeBlockedSources).toEqual([]);
+    expect(result.metadata?.sourceErrors).toMatchObject({
+      emails: expect.stringContaining("500"),
     });
   });
 });

@@ -1,5 +1,6 @@
 import { fetchAllActivities } from "@/lib/hubspot-activities";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isMissingScopesError } from "@/lib/hubspot-errors";
 import { syncLog } from "./logger";
 import type { SyncModuleResult } from "./types";
 
@@ -100,10 +101,20 @@ export async function syncActivities(month: string): Promise<SyncModuleResult> {
     `[sync-activities] Successfully synced ${activities.length} activity records across ${ownerCount} owners`
   );
 
-  // Strip null entries from sourceErrors so metadata is concise on success
-  const compactErrors = Object.fromEntries(
-    Object.entries(sourceErrors).filter(([, v]) => v !== null)
-  );
+  // Split source errors into:
+  //   scopeBlockedSources — known permanent constraints (token can't be granted these scopes).
+  //                         Reported separately so the dashboard can stay calm.
+  //   sourceErrors        — transient/real failures that warrant attention.
+  const scopeBlockedSources: string[] = [];
+  const transientErrors: Record<string, string> = {};
+  for (const [src, msg] of Object.entries(sourceErrors)) {
+    if (msg === null) continue;
+    if (isMissingScopesError(msg)) {
+      scopeBlockedSources.push(src);
+    } else {
+      transientErrors[src] = msg;
+    }
+  }
 
   return {
     recordsFetched: totalCalls + totalMeetings + totalEmails,
@@ -114,7 +125,8 @@ export async function syncActivities(month: string): Promise<SyncModuleResult> {
       emails: totalEmails,
       ownerCount,
       dateRange: { from: startDate, to: endDate },
-      sourceErrors: Object.keys(compactErrors).length > 0 ? compactErrors : null,
+      sourceErrors: Object.keys(transientErrors).length > 0 ? transientErrors : null,
+      scopeBlockedSources,
     },
   };
 }

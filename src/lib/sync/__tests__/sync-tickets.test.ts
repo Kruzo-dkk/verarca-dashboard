@@ -229,4 +229,28 @@ describe("syncTickets", () => {
 
     expect(result.metadata?.unresolvedCompanyIds).toHaveLength(20);
   });
+
+  it("MISSING_SCOPES → returns scope-blocked success instead of throwing", async () => {
+    vi.mocked(fetchTickets).mockRejectedValue(
+      new Error(
+        'HubSpot API error 403: {"status":"error","message":"The scope needed for this API call isn\'t available for public use.","category":"MISSING_SCOPES"}'
+      )
+    );
+
+    const result = await syncTickets("2026-05");
+
+    expect(result.recordsFetched).toBeNull();
+    expect(result.recordsUpserted).toBe(0);
+    expect(result.metadata?.scopeBlocked).toBe(true);
+    expect(result.metadata?.scopeError).toEqual(expect.stringContaining("MISSING_SCOPES"));
+    expect(mocks.upsert).not.toHaveBeenCalled();
+  });
+
+  it("non-scope errors still propagate (e.g. 500)", async () => {
+    vi.mocked(fetchTickets).mockRejectedValue(
+      new Error("HubSpot API error 500: internal server error")
+    );
+
+    await expect(syncTickets("2026-05")).rejects.toThrow("500");
+  });
 });
