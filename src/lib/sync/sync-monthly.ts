@@ -10,6 +10,8 @@ import { syncTickets } from "./sync-tickets";
 import { validateSync } from "./validate-sync";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { syncLog } from "./logger";
+import type { SyncModuleResult } from "./types";
+import type { Json } from "@/lib/supabase/database.types";
 
 // ─── Types ─────────────────────────────────────────────────────
 
@@ -31,20 +33,128 @@ export interface MonthlySyncSummary {
 
 // ─── Runner helper ─────────────────────────────────────────────
 
-async function runModule(
+/**
+ * Run a single sync module and persist its run lifecycle to sync_runs.
+ *
+ * Backwards-compatible: if fn() returns void/undefined, the success update
+ * uses the defaults { recordsFetched: null, recordsUpserted: 0 }.
+ * Phase 2 will update module signatures to return SyncModuleResult.
+ *
+ * DB write failures are logged but never propagate — observability must
+ * never break the sync itself.
+ *
+ * @param name  - Display name stored as sync_runs.module
+ * @param month - YYYY-MM for the sync period, or null for period-less modules
+ * @param fn    - The sync module to execute
+ */
+async function runModule<T extends SyncModuleResult | void>(
   name: string,
-  fn: () => Promise<void>
+  month: string | null,
+  fn: () => Promise<T>
 ): Promise<ModuleResult> {
+  const supabase = createAdminClient();
+  const startedAt = new Date().toISOString();
   const start = Date.now();
+
+  // ── Insert "running" row ──────────────────────────────────────────────
+  let syncRunId: number | null = null;
   try {
-    await fn();
+    const { data: insertedRow, error: insertError } = await supabase
+      .from("sync_runs")
+      .insert([{ module: name, month, status: "running", started_at: startedAt }])
+      .select("id")
+      .single();
+
+    if (insertError) {
+      syncLog.error(
+        `[sync-monthly] Failed to insert sync_runs row for ${name}:`,
+        insertError.message
+      );
+    } else if (insertedRow) {
+      syncRunId = insertedRow.id;
+    }
+  } catch (dbErr) {
+    syncLog.error(
+      `[sync-monthly] Unexpected error inserting sync_runs for ${name}:`,
+      dbErr instanceof Error ? dbErr.message : String(dbErr)
+    );
+  }
+
+  // ── Execute the module ────────────────────────────────────────────────
+  try {
+    const result = await fn();
     const durationMs = Date.now() - start;
+
+    // Normalise: void/undefined → backwards-compat defaults
+    const moduleResult: SyncModuleResult =
+      result != null && typeof result === "object"
+        ? (result as SyncModuleResult)
+        : { recordsFetched: null, recordsUpserted: 0 };
+
     syncLog.info(`[sync-monthly] ${name} completed in ${durationMs}ms`);
+
+    // ── Update row to "success" ──────────────────────────────────────
+    if (syncRunId !== null) {
+      try {
+        const { error: updateError } = await supabase
+          .from("sync_runs")
+          .update({
+            status: "success",
+            finished_at: new Date().toISOString(),
+            duration_ms: durationMs,
+            records_fetched: moduleResult.recordsFetched,
+            records_upserted: moduleResult.recordsUpserted,
+            metadata: (moduleResult.metadata ?? null) as Json | null,
+          })
+          .eq("id", syncRunId);
+
+        if (updateError) {
+          syncLog.error(
+            `[sync-monthly] Failed to update sync_runs row ${syncRunId} to success:`,
+            updateError.message
+          );
+        }
+      } catch (dbErr) {
+        syncLog.error(
+          `[sync-monthly] Unexpected error updating sync_runs ${syncRunId} to success:`,
+          dbErr instanceof Error ? dbErr.message : String(dbErr)
+        );
+      }
+    }
+
     return { module: name, status: "success", durationMs };
   } catch (err) {
     const durationMs = Date.now() - start;
     const message = err instanceof Error ? err.message : String(err);
     syncLog.error(`[sync-monthly] ${name} FAILED after ${durationMs}ms:`, message);
+
+    // ── Update row to "failed" ────────────────────────────────────────
+    if (syncRunId !== null) {
+      try {
+        const { error: updateError } = await supabase
+          .from("sync_runs")
+          .update({
+            status: "failed",
+            finished_at: new Date().toISOString(),
+            duration_ms: durationMs,
+            error_message: message.slice(0, 4096),
+          })
+          .eq("id", syncRunId);
+
+        if (updateError) {
+          syncLog.error(
+            `[sync-monthly] Failed to update sync_runs row ${syncRunId} to failed:`,
+            updateError.message
+          );
+        }
+      } catch (dbErr) {
+        syncLog.error(
+          `[sync-monthly] Unexpected error updating sync_runs ${syncRunId} to failed:`,
+          dbErr instanceof Error ? dbErr.message : String(dbErr)
+        );
+      }
+    }
+
     return { module: name, status: "error", durationMs, error: message };
   }
 }
@@ -109,15 +219,15 @@ export async function runMonthlySyncAll(
 
   // ── Step 1: Independent syncs (FX, Pipeline, Activities, Tickets) ──
   const [fxResult, pipelineResult, activitiesResult, ticketsResult] = await Promise.all([
-    runModule("sync-fx", () => syncFXRates(month)),
-    runModule("sync-pipeline", () => syncPipeline(month)),
-    runModule("sync-activities", () => syncActivities(month)),
-    runModule("sync-tickets", () => syncTickets(month)),
+    runModule("sync-fx", month, () => syncFXRates(month)),
+    runModule("sync-pipeline", month, () => syncPipeline(month)),
+    runModule("sync-activities", month, () => syncActivities(month)),
+    runModule("sync-tickets", month, () => syncTickets(month)),
   ]);
   results.push(fxResult, pipelineResult, activitiesResult, ticketsResult);
 
   // ── Step 3: Customers (current state sync, no month param) ──
-  const customersResult = await runModule("sync-customers", () =>
+  const customersResult = await runModule("sync-customers", null, () =>
     syncCustomers()
   );
   results.push(customersResult);
@@ -125,30 +235,31 @@ export async function runMonthlySyncAll(
   // ── Step 4: Customer snapshots (depends on customers) ──
   const customerSnapshotsResult = await runModule(
     "sync-customer-snapshots",
+    month,
     () => syncCustomerSnapshots(month)
   );
   results.push(customerSnapshotsResult);
 
   // ── Step 5: Discount snapshots (depends on customers) ──
-  const discountsResult = await runModule("sync-discounts", () =>
+  const discountsResult = await runModule("sync-discounts", month, () =>
     syncDiscounts(month)
   );
   results.push(discountsResult);
 
   // ── Step 6: Monthly snapshot (depends on customer snapshots) ──
-  const monthlyResult = await runModule("sync-monthly-snapshot", () =>
+  const monthlyResult = await runModule("sync-monthly-snapshot", month, () =>
     syncMonthlySnapshot(month)
   );
   results.push(monthlyResult);
 
   // ── Step 7: Channel metrics (depends on customers + customer snapshots) ──
-  const channelResult = await runModule("sync-channel-metrics", () =>
+  const channelResult = await runModule("sync-channel-metrics", month, () =>
     syncChannelMetrics(month)
   );
   results.push(channelResult);
 
   // ── Step 8: Post-sync validation (non-blocking) ──
-  const validationResult = await runModule("validate-sync", () =>
+  const validationResult = await runModule("validate-sync", month, () =>
     validateSync(month)
   );
   results.push(validationResult);
