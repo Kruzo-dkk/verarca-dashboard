@@ -62,6 +62,9 @@ vi.mock("@/lib/supabase/admin", () => ({
 vi.mock("../sync-fx", () => ({ syncFXRates: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("../sync-pipeline", () => ({ syncPipeline: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("../sync-customers", () => ({ syncCustomers: vi.fn().mockResolvedValue(undefined) }));
+vi.mock("../detect-customer-links", () => ({
+  detectCustomerLinks: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock("../sync-customer-snapshots", () => ({
   syncCustomerSnapshots: vi.fn().mockResolvedValue(undefined),
 }));

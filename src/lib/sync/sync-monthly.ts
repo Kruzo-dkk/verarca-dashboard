@@ -1,6 +1,7 @@
 import { syncFXRates } from "./sync-fx";
 import { syncPipeline } from "./sync-pipeline";
 import { syncCustomers } from "./sync-customers";
+import { detectCustomerLinks } from "./detect-customer-links";
 import { syncCustomerSnapshots } from "./sync-customer-snapshots";
 import { syncDiscounts } from "./sync-discounts";
 import { syncMonthlySnapshot } from "./sync-frisbii";
@@ -168,6 +169,7 @@ async function runModule<T extends SyncModuleResult | void>(
  *   1. FX rates    -- no dependencies
  *   2. Pipeline    -- no dependencies (runs in parallel with FX)
  *   3. Customers   -- syncs current state, no month param
+ *   3b. Detect customer links -- dedup by CVR, before snapshots consume them
  *   4. Customer snapshots -- depends on customers existing in DB
  *   5. Discount snapshots -- depends on customers for ID mapping
  *   6. Monthly snapshot   -- depends on customer snapshots for MRR decomposition
@@ -231,6 +233,13 @@ export async function runMonthlySyncAll(
     syncCustomers()
   );
   results.push(customersResult);
+
+  // ── Step 3b: Detect duplicate customers (depends on customers; must run
+  //     before snapshots so the linked-customer Map is current) ──
+  const linksResult = await runModule("detect-customer-links", null, () =>
+    detectCustomerLinks()
+  );
+  results.push(linksResult);
 
   // ── Step 4: Customer snapshots (depends on customers) ──
   const customerSnapshotsResult = await runModule(
