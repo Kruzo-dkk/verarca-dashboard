@@ -101,6 +101,52 @@ function toSummary(
   return { ...summary, ...overrides };
 }
 
+// ─── Manual review surface ─────────────────────────────────────
+
+export const LINK_DECISIONS = ["confirmed", "rejected"] as const;
+export type LinkDecision = (typeof LINK_DECISIONS)[number];
+
+export function isValidLinkDecision(value: unknown): value is LinkDecision {
+  return typeof value === "string" && (LINK_DECISIONS as readonly string[]).includes(value);
+}
+
+export interface SuggestionRow {
+  id: number;
+  canonical_handle: string;
+  linked_handle: string;
+  cvr: string | null;
+  match_method: string;
+  confidence: string;
+}
+
+export interface EnrichedSuggestion {
+  id: number;
+  matchMethod: string;
+  confidence: string;
+  cvr: string | null;
+  canonical: { handle: string; name: string; status: string };
+  linked: { handle: string; name: string; status: string };
+}
+
+/** Attach customer names/status to each suggested link for the review UI. */
+export function enrichSuggestions(
+  links: SuggestionRow[],
+  customersByHandle: Map<string, { name: string; status: string }>
+): EnrichedSuggestion[] {
+  const member = (handle: string) => {
+    const c = customersByHandle.get(handle);
+    return { handle, name: c?.name ?? handle, status: c?.status ?? "unknown" };
+  };
+  return links.map((l) => ({
+    id: l.id,
+    matchMethod: l.match_method,
+    confidence: l.confidence,
+    cvr: l.cvr,
+    canonical: member(l.canonical_handle),
+    linked: member(l.linked_handle),
+  }));
+}
+
 function toLinkedMember(row: CustomerRowForCollapse): LinkedMember {
   return {
     id: row.id,

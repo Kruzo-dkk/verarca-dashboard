@@ -3,7 +3,10 @@ import {
   buildCanonicalIdMap,
   collapseCustomerSummaries,
   buildLinkedGroup,
+  isValidLinkDecision,
+  enrichSuggestions,
   type CustomerRowForCollapse,
+  type SuggestionRow,
 } from "@/lib/customer-links";
 import type { LinkedMember } from "@/lib/types/report";
 
@@ -90,5 +93,29 @@ describe("buildLinkedGroup", () => {
   it("isCanonical is false when a secondary handle is requested", () => {
     const g = buildLinkedGroup(members, "cust-0016", "cust-0079")!;
     expect(g.isCanonical).toBe(false);
+  });
+});
+
+describe("isValidLinkDecision", () => {
+  it("accepts confirmed and rejected only", () => {
+    expect(isValidLinkDecision("confirmed")).toBe(true);
+    expect(isValidLinkDecision("rejected")).toBe(true);
+    expect(isValidLinkDecision("suggested")).toBe(false);
+    expect(isValidLinkDecision(undefined)).toBe(false);
+    expect(isValidLinkDecision(123)).toBe(false);
+  });
+});
+
+describe("enrichSuggestions", () => {
+  const rows: SuggestionRow[] = [
+    { id: 1, canonical_handle: "a", linked_handle: "b", cvr: null, match_method: "email", confidence: "medium" },
+  ];
+
+  it("attaches member names and status; falls back to handle when unknown", () => {
+    const byHandle = new Map([["a", { name: "Acme", status: "active" }]]);
+    const [s] = enrichSuggestions(rows, byHandle);
+    expect(s.canonical).toEqual({ handle: "a", name: "Acme", status: "active" });
+    expect(s.linked).toEqual({ handle: "b", name: "b", status: "unknown" });
+    expect(s.matchMethod).toBe("email");
   });
 });
