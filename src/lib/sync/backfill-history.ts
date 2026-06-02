@@ -216,6 +216,17 @@ export async function backfillHistory(
     if (idMap.size > 0) customerLinks = idMap;
   }
 
+  // Canonical handles whose linked group still has a currently-active
+  // subscription. A churned sibling in such a group is not real logo churn.
+  // Uses currently-active state (not "active during month") to match
+  // sync-frisbii.ts — otherwise a sub that churns within a month would count
+  // itself as still active and suppress all churn.
+  const activeCanonicalHandles = new Set(
+    allSubscriptions
+      .filter((s) => s.state === "active")
+      .map((s) => confirmedLinks.get(s.customer) ?? s.customer)
+  );
+
   // ── 3. Determine date range ───────────────────────────────────
   const activationDates = allSubscriptions
     .map((s) => (s.activated || s.created)?.slice(0, 7))
@@ -380,11 +391,8 @@ export async function backfillHistory(
       const churnedThisMonth = allSubscriptions.filter((s) =>
         isChurnedInMonth(s, month, excludedHandles)
       );
-      // Suppress false churn: a churned sibling is not churn if any member of
-      // its linked group was still active during the month.
-      const activeCanonicalHandles = new Set(
-        subsActiveDuringMonth.map((s) => confirmedLinks.get(s.customer) ?? s.customer)
-      );
+      // Suppress false churn: a churned sibling is not churn if its linked
+      // group still has a currently-active member (activeCanonicalHandles).
       const churnedAfterLinks = suppressLinkedChurn(
         churnedThisMonth,
         confirmedLinks,

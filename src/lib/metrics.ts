@@ -186,9 +186,16 @@ export function suppressLinkedChurn<T extends { customer: string }>(
   linkedToCanonical: Map<string, string>,
   activeCanonicalHandles: Set<string>
 ): T[] {
-  return churnedSubs.filter(
-    (s) => !activeCanonicalHandles.has(resolveCanonical(s.customer, linkedToCanonical))
-  );
+  // Only customers that belong to a linked group are eligible for suppression —
+  // a single handle's own plan changes are out of scope and handled elsewhere.
+  const linkedHandles = new Set<string>([
+    ...linkedToCanonical.keys(),
+    ...linkedToCanonical.values(),
+  ]);
+  return churnedSubs.filter((s) => {
+    if (!linkedHandles.has(s.customer)) return true;
+    return !activeCanonicalHandles.has(resolveCanonical(s.customer, linkedToCanonical));
+  });
 }
 
 export interface MonthlyRevenue {
