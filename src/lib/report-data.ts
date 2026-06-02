@@ -8,6 +8,7 @@ import {
   getNewCustomers,
   eventChurnedCanonicalIds,
   buildIdToCanonicalId,
+  decomposeMRRByCustomer,
   type CustomerMRRSnapshot,
 } from "@/lib/metrics";
 import { computeCommittedMRR } from "@/lib/committed-mrr";
@@ -397,6 +398,40 @@ export async function getReportData(
     })
     .sort((a, b) => b.mrr - a.mrr);
 
+  // Per-customer MRR waterfall breakdown (snapshot basis — sums match the
+  // New/Expansion/Contraction/Churned bars). mrr = the movement amount.
+  const movementToSummary = (m: { canonicalId: string; amount: number }): CustomerSummary => {
+    const c = custById.get(Number(m.canonicalId));
+    const cs = newCustomerSnapMap.get(Number(m.canonicalId));
+    const planHandle = cs?.plan_handle ?? c?.plan_handle;
+    return {
+      id: Number(m.canonicalId),
+      name: c?.name ?? c?.frisbii_handle ?? `Customer ${m.canonicalId}`,
+      companyName: c?.company_name ?? null,
+      mrr: m.amount,
+      plan: formatPlanName(cs?.plan_name ?? c?.plan_name ?? planHandle),
+      scope: c?.scope_override ?? inferScopeFromPlan(planHandle),
+      tier: c?.tier_override ?? inferTierFromPlan(planHandle),
+      status: c?.status ?? "active",
+      partner: c?.partner ?? null,
+      segment: c?.segment ?? null,
+      matchConfidence: c?.match_confidence ?? "unknown",
+      churnDate: c?.churn_date ?? null,
+    };
+  };
+  const movement = decomposeMRRByCustomer(
+    toMRRSnap(customerSnapshots),
+    toMRRSnap(churnPrevSnapsRes.data ?? []),
+    churnLinkIdMap.size > 0 ? churnLinkIdMap : undefined
+  );
+  const byAmountDesc = (a: CustomerSummary, b: CustomerSummary) => b.mrr - a.mrr;
+  const mrrMovement = {
+    newCustomers: movement.newCustomers.map(movementToSummary).sort(byAmountDesc),
+    expansion: movement.expansion.map(movementToSummary).sort(byAmountDesc),
+    contraction: movement.contraction.map(movementToSummary).sort(byAmountDesc),
+    churned: movement.churned.map(movementToSummary).sort(byAmountDesc),
+  };
+
   // ------ Cohort data ----------------------------------------------------
 
   const cohortSnapshotsRes = await supabase
@@ -619,6 +654,7 @@ export async function getReportData(
       topCustomers,
       newCustomers,
       recentlyChurned,
+      mrrMovement,
       countHistory,
       arpaHistory,
     },

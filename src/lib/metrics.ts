@@ -460,6 +460,62 @@ export function decomposeMRR(
   };
 }
 
+/** One customer's contribution to an MRR-movement bucket. */
+export interface CustomerMovement {
+  canonicalId: string;
+  amount: number;
+}
+
+export interface MRRMovementBreakdown {
+  newCustomers: CustomerMovement[];
+  expansion: CustomerMovement[];
+  contraction: CustomerMovement[];
+  churned: CustomerMovement[];
+}
+
+/**
+ * Per-customer breakdown of the MRR waterfall (snapshot/month-over-month basis,
+ * the SAME logic as decomposeMRR — so each bucket's amounts sum to the matching
+ * decomposeMRR component). Linked groups collapsed to one logical customer.
+ *   - newCustomers: present now, absent last month → their MRR
+ *   - expansion/contraction: present both, MRR up/down → the delta
+ *   - churned: present last month, absent now → MRR lost
+ */
+export function decomposeMRRByCustomer(
+  currentSnapshots: CustomerMRRSnapshot[],
+  prevSnapshots: CustomerMRRSnapshot[],
+  customerLinks?: Map<string, string>
+): MRRMovementBreakdown {
+  const prev = collapseLinkedSnapshots(prevSnapshots, customerLinks);
+  const curr = collapseLinkedSnapshots(currentSnapshots, customerLinks);
+  const prevMap = new Map(prev.filter((c) => c.active).map((c) => [c.canonicalId, c.mrr]));
+  const currMap = new Map(curr.map((c) => [c.canonicalId, { mrr: c.mrr, present: c.active }]));
+
+  const out: MRRMovementBreakdown = {
+    newCustomers: [],
+    expansion: [],
+    contraction: [],
+    churned: [],
+  };
+
+  for (const [id, c] of currMap) {
+    const prevMrr = prevMap.get(id);
+    if (!c.present) {
+      if (prevMrr !== undefined) out.churned.push({ canonicalId: id, amount: prevMrr });
+    } else if (prevMrr === undefined) {
+      out.newCustomers.push({ canonicalId: id, amount: c.mrr });
+    } else if (c.mrr > prevMrr) {
+      out.expansion.push({ canonicalId: id, amount: c.mrr - prevMrr });
+    } else if (c.mrr < prevMrr) {
+      out.contraction.push({ canonicalId: id, amount: prevMrr - c.mrr });
+    }
+  }
+  for (const [id, prevMrr] of prevMap) {
+    if (!currMap.has(id)) out.churned.push({ canonicalId: id, amount: prevMrr });
+  }
+  return out;
+}
+
 /** A churned logical customer and the MRR lost (its prior-month group MRR). */
 export interface ChurnedCustomer {
   canonicalId: string;
