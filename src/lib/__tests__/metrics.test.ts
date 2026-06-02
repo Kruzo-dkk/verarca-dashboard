@@ -15,6 +15,7 @@ import {
   suppressLinkedChurn,
   decomposeMRR,
   getChurnedCustomers,
+  getNewCustomers,
   getMonthlyChurn,
   getMonthlyChurnFromSnapshots,
   type CustomerMRRSnapshot,
@@ -637,5 +638,24 @@ describe("getChurnedCustomers", () => {
       { canonicalId: "esmark", mrr: 2499 },
       { canonicalId: "era", mrr: 1199 },
     ]);
+  });
+});
+
+describe("getNewCustomers", () => {
+  const a = (id: string, mrr: number): CustomerMRRSnapshot => ({ customerId: id, mrr, status: "active", planHandle: "p" });
+  const churned = (id: string): CustomerMRRSnapshot => ({ customerId: id, mrr: 0, status: "churned", planHandle: "" });
+
+  it("lists customers active now that were not active last month", () => {
+    const prev = [a("existing", 1000), churned("newbie")];
+    const curr = [a("existing", 1000), a("newbie", 500)];
+    const out = getNewCustomers(curr, prev);
+    expect(out).toEqual([{ canonicalId: "newbie", mrr: 500 }]);
+  });
+
+  it("a linked secondary going active under an already-active canonical is NOT new", () => {
+    const prev = [a("1", 2000)];
+    const curr = [a("1", 2000), a("2", 2000)];
+    const links = new Map([["2", "1"]]); // 2 -> canonical 1 (already active)
+    expect(getNewCustomers(curr, prev, links)).toEqual([]);
   });
 });

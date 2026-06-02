@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useMemo } from "react";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -14,39 +13,15 @@ import { GlassCard } from "@/components/ui/GlassCard";
 import { MetricTooltip } from "@/components/ui/MetricTooltip";
 import { CHART_COLORS, CHART_GRID_PROPS, CHART_AXIS_PROPS } from "@/components/charts/ChartTheme";
 import { CustomerTable } from "./CustomerTable";
-import type { ReportData, CustomerSummary } from "@/lib/types/report";
+import type { ReportData } from "@/lib/types/report";
 
 interface CustomerSectionProps {
   data: ReportData;
   formatValue: (v: number) => string;
 }
 
-type TabKey = "top" | "byPlan";
-
-const TABS: { key: TabKey; label: string }[] = [
-  { key: "top", label: "Top Customers" },
-  { key: "byPlan", label: "By Plan" },
-];
-
 export function CustomerSection({ data, formatValue }: CustomerSectionProps) {
-  const [activeTab, setActiveTab] = useState<TabKey>("top");
-
-  // Group customers by plan for the "By Plan" tab
-  const customersByPlan = useMemo(() => {
-    const map = new Map<string, CustomerSummary[]>();
-    for (const c of data.customers.topCustomers) {
-      const plan = c.plan ?? "Unknown";
-      const existing = map.get(plan) ?? [];
-      existing.push(c);
-      map.set(plan, existing);
-    }
-    return Array.from(map.entries())
-      .sort((a, b) => {
-        const totalA = a[1].reduce((s, c) => s + c.mrr, 0);
-        const totalB = b[1].reduce((s, c) => s + c.mrr, 0);
-        return totalB - totalA;
-      });
-  }, [data.customers.topCustomers]);
+  const newCustomers = data.customers.newCustomers;
 
   return (
     <section>
@@ -136,60 +111,23 @@ export function CustomerSection({ data, formatValue }: CustomerSectionProps) {
         </GlassCard>
       </div>
 
-      {/* Tabbed customer views */}
+      {/* New customers this period */}
       <GlassCard className="mt-4">
-        {/* Tab bar */}
-        <div className="flex gap-1 mb-4 p-1 rounded-lg bg-[var(--bg-secondary)] w-fit">
-          {TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                activeTab === tab.key
-                  ? "bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm"
-                  : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-2 mb-4">
+          <h3 className="text-sm font-medium text-[var(--text-primary)]">New Customers</h3>
+          <span className="text-xs text-[var(--text-muted)]">
+            {newCustomers.length} this period
+          </span>
+          <a href="/customers" className="ml-auto text-xs text-[var(--accent-teal)] hover:underline">
+            All customers →
+          </a>
         </div>
-
-        {/* Tab content */}
         <div className="overflow-x-auto">
-          {activeTab === "top" && (
-            <CustomerTable
-              customers={data.customers.topCustomers}
-              formatValue={formatValue}
-              emptyMessage="No customers found"
-            />
-          )}
-
-          {activeTab === "byPlan" && (
-            <div className="space-y-6">
-              {customersByPlan.map(([plan, customers]) => (
-                <div key={plan}>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-sm font-medium text-[var(--text-primary)]">{plan}</span>
-                    <span className="text-xs text-[var(--text-muted)]">
-                      {customers.length} customer{customers.length !== 1 ? "s" : ""}
-                    </span>
-                    <span className="text-xs metric-value text-[var(--text-secondary)]">
-                      {formatValue(customers.reduce((s, c) => s + c.mrr, 0))} MRR
-                    </span>
-                  </div>
-                  <CustomerTable
-                    customers={customers}
-                    formatValue={formatValue}
-                    emptyMessage="No customers"
-                  />
-                </div>
-              ))}
-              {customersByPlan.length === 0 && (
-                <p className="py-4 text-center text-[var(--text-muted)] text-sm">No customers found</p>
-              )}
-            </div>
-          )}
+          <CustomerTable
+            customers={newCustomers}
+            formatValue={formatValue}
+            emptyMessage="No new customers this period"
+          />
         </div>
       </GlassCard>
     </section>
