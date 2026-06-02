@@ -5,6 +5,7 @@ import { useDataQuality } from "./DataQualityProvider";
 import { useReportContext } from "@/components/providers/ReportProvider";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { HubSpotSyncCard } from "./HubSpotSyncCard";
+import { SuggestedLinksCard } from "./SuggestedLinksCard";
 import type { AnomalyItem, ExclusionItem } from "@/lib/types/data-quality";
 
 // ─── Status badge ────────────────────────────────────────────
@@ -463,6 +464,7 @@ export function DataQualityDashboard() {
       </div>
 
       <HubSpotSyncSection />
+      <SuggestedLinksCard />
       <AnomaliesCard />
       <ExclusionsCard />
     </div>

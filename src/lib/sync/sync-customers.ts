@@ -11,20 +11,7 @@ import { getAllCompanies, buildCompanyIndex } from "@/lib/hubspot-companies";
 import { matchCustomerToHubSpot } from "@/lib/sync/match-hubspot";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { SyncModuleResult } from "@/lib/sync/types";
-
-// ─── Name normalisation helpers ────────────────────────────────
-
-const COMPANY_SUFFIXES = /\s*(aps|a\/s|ivs|k\/s|as|is|holding|group)\s*$/i;
-
-function normalizeName(name: string): string {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(COMPANY_SUFFIXES, "")
-    .replace(/[^a-z0-9æøå ]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
+import { normalizeName } from "@/lib/sync/normalize";
 
 // ─── Segment inference ─────────────────────────────────────────
 

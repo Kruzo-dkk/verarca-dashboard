@@ -111,8 +111,84 @@ export function calculateARPC(mrr: number, customerCount: number): number {
  * ensuring the count aligns with revenue-bearing customers used
  * in ARPA and other per-customer metrics.
  */
-export function countActiveCustomers(snapshots: CustomerMRRSnapshot[]): number {
-  return snapshots.filter((s) => s.status === "active" && s.mrr > 0).length;
+export function countActiveCustomers(
+  snapshots: CustomerMRRSnapshot[],
+  customerLinks?: Map<string, string>
+): number {
+  if (!customerLinks || customerLinks.size === 0) {
+    return snapshots.filter((s) => s.status === "active" && s.mrr > 0).length;
+  }
+  return collapseLinkedSnapshots(snapshots, customerLinks).filter(
+    (c) => c.active && c.mrr > 0
+  ).length;
+}
+
+export interface CollapsedCustomer {
+  canonicalId: string;
+  mrr: number;
+  active: boolean;
+}
+
+/**
+ * Resolve an id (or handle) through a links map, following chains safely.
+ * customerLinks maps secondary -> canonical.
+ */
+function resolveCanonical(
+  start: string,
+  links: Map<string, string> | undefined
+): string {
+  if (!links) return start;
+  let cur = start;
+  const seen = new Set<string>();
+  while (links.has(cur) && !seen.has(cur)) {
+    seen.add(cur);
+    cur = links.get(cur)!;
+  }
+  return cur;
+}
+
+/**
+ * Collapse snapshots into one logical customer per linked group, summing MRR
+ * across all members. A group is "active" if ANY member is active with mrr > 0.
+ *
+ * @param customerLinks - secondaryCustomerId → canonicalCustomerId (stringified
+ *   DB ids). Omit for identity (one CollapsedCustomer per snapshot row).
+ */
+export function collapseLinkedSnapshots(
+  snapshots: CustomerMRRSnapshot[],
+  customerLinks?: Map<string, string>
+): CollapsedCustomer[] {
+  const buckets = new Map<string, CollapsedCustomer>();
+  for (const s of snapshots) {
+    const canonicalId = resolveCanonical(s.customerId, customerLinks);
+    const isActive = s.status === "active" && s.mrr > 0;
+    const existing = buckets.get(canonicalId);
+    if (existing) {
+      existing.mrr += s.mrr;
+      existing.active = existing.active || isActive;
+    } else {
+      buckets.set(canonicalId, { canonicalId, mrr: s.mrr, active: isActive });
+    }
+  }
+  return [...buckets.values()];
+}
+
+/**
+ * Drop churned subscriptions whose customer belongs to a linked group that
+ * still has an active member — if any sibling is active, the customer is not
+ * churned.
+ *
+ * @param linkedToCanonical - linkedHandle → canonicalHandle (frisbii handles)
+ * @param activeCanonicalHandles - canonical handles with at least one active member
+ */
+export function suppressLinkedChurn<T extends { customer: string }>(
+  churnedSubs: T[],
+  linkedToCanonical: Map<string, string>,
+  activeCanonicalHandles: Set<string>
+): T[] {
+  return churnedSubs.filter(
+    (s) => !activeCanonicalHandles.has(resolveCanonical(s.customer, linkedToCanonical))
+  );
 }
 
 export interface MonthlyRevenue {

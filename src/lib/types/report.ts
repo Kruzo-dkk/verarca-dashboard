@@ -152,6 +152,30 @@ export interface CustomerSummary {
   segment: string | null;
   matchConfidence: string;
   churnDate?: string | null;
+  /** Number of frisbii handles rolled up into this row (1 = not merged). */
+  linkedCount?: number;
+  /** Individual contribution of each linked member (only when linkedCount > 1). */
+  linkedMembers?: LinkedMember[];
+}
+
+/** One member of a linked customer group, with its individual data contribution. */
+export interface LinkedMember {
+  id: number;
+  name: string;
+  frisbiiHandle: string;
+  status: string;
+  mrr: number;
+  plan: string | null;
+  startDate: string | null;
+}
+
+/** Linked-group detail exposed on the single-customer endpoint. */
+export interface LinkedGroup {
+  canonicalHandle: string;
+  isCanonical: boolean;
+  members: LinkedMember[];
+  activeSubscriptionCount: number;
+  totalMrr: number;
 }
 
 export interface PipelineDeal {

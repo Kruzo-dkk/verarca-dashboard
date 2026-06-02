@@ -10,6 +10,7 @@ import {
   calculateARR,
   calculateARPC,
   countActiveCustomers,
+  suppressLinkedChurn,
   decomposeMRR,
   calculateNRR,
   calculateGRR,
@@ -20,10 +21,8 @@ import {
   type CustomerMRRSnapshot,
 } from "@/lib/metrics";
 import { createAdminClient } from "@/lib/supabase/admin";
-import {
-  getExcludedSubscriptionHandles,
-  getReplacementMap,
-} from "./get-exclusions";
+import { getExcludedSubscriptionHandles } from "./get-exclusions";
+import { getConfirmedLinks } from "./get-customer-links";
 import { syncLog } from "./logger";
 
 // ─── Helpers ───────────────────────────────────────────────────
@@ -175,56 +174,58 @@ export async function syncMonthlySnapshot(month: string): Promise<void> {
   const currentSnapshots = toMRRSnap(currentSnaps);
   const prevSnapshots = toMRRSnap(prevSnaps);
 
+  // ── Customer linking ───────────────────────────────────────
+  // Dedupe real-world customers that hold multiple frisbii handles
+  // (CVR auto-confirmed links). One logo per group, summed MRR, and a churned
+  // sibling is NOT churn when any member of the group is still active.
+  const confirmedLinks = await getConfirmedLinks(); // linkedHandle → canonicalHandle
+  let customerLinks: Map<string, string> | undefined;
+  if (confirmedLinks.size > 0) {
+    const handles = new Set<string>();
+    for (const [linked, canon] of confirmedLinks) {
+      handles.add(linked);
+      handles.add(canon);
+    }
+    const { data: linkedCustomers } = await supabase
+      .from("customers")
+      .select("id, frisbii_handle")
+      .in("frisbii_handle", [...handles]);
+    const handleToId = new Map(
+      (linkedCustomers ?? []).map((c) => [c.frisbii_handle, String(c.id)])
+    );
+    const idMap = new Map<string, string>(); // secondaryId → canonicalId
+    for (const [linked, canon] of confirmedLinks) {
+      const oldId = handleToId.get(linked);
+      const newId = handleToId.get(canon);
+      if (oldId && newId && oldId !== newId) idMap.set(oldId, newId);
+    }
+    if (idMap.size > 0) customerLinks = idMap;
+  }
+
+  // Canonical handles that still have an active subscription — suppress false
+  // churn from abandoned re-signups / replaced accounts in the same group.
+  const activeCanonicalHandles = new Set(
+    activeSubscriptions.map((s) => confirmedLinks.get(s.customer) ?? s.customer)
+  );
+  const churnedAfterLinks = suppressLinkedChurn(
+    churnedThisMonth,
+    confirmedLinks,
+    activeCanonicalHandles
+  );
+
   // Derive all aggregate metrics from customer snapshots (single source of truth)
   // This ensures monthly_snapshots always matches SUM(customer_snapshots)
   const mrr = currentSnapshots
     .filter((s) => s.status === "active")
     .reduce((sum, s) => sum + s.mrr, 0);
   const arr = calculateARR(mrr);
-  const customerCount = countActiveCustomers(currentSnapshots);
+  const customerCount = countActiveCustomers(currentSnapshots, customerLinks);
   const arpa = Math.round(calculateARPC(mrr, customerCount));
 
   if (frisbiiMRR !== mrr) {
     syncLog.info(
       `[sync-frisbii] MRR: snapshot=${mrr}, frisbii=${frisbiiMRR}, delta=${Math.abs(mrr - frisbiiMRR)}`
     );
-  }
-
-  // Build customer links for replacement subscriptions (old ID → new ID)
-  // so that decomposeMRR treats them as continuity, not churn+new
-  const replacementMap = await getReplacementMap();
-  let customerLinks: Map<string, string> | undefined;
-
-  if (replacementMap.size > 0) {
-    // Look up customer DB IDs for the replacement customer handles
-    const customerHandles = [...replacementMap.keys()];
-    const { data: linkedCustomers } = await supabase
-      .from("customers")
-      .select("id, frisbii_handle")
-      .in("frisbii_handle", customerHandles);
-
-    if (linkedCustomers && linkedCustomers.length > 0) {
-      const handleToId = new Map(
-        linkedCustomers.map((c) => [c.frisbii_handle, String(c.id)])
-      );
-      customerLinks = new Map<string, string>();
-
-      for (const [customerHandle] of replacementMap) {
-        const oldId = handleToId.get(customerHandle);
-        // The replacement sub belongs to the same customer handle in most cases,
-        // so oldId === newId. Only add link when they differ.
-        if (oldId) {
-          // For now, links are identity — future: support different customer handles
-          customerLinks.set(oldId, oldId);
-        }
-      }
-
-      // Remove identity mappings (no-ops)
-      for (const [k, v] of customerLinks) {
-        if (k === v) customerLinks.delete(k);
-      }
-      if (customerLinks.size === 0) customerLinks = undefined;
-    }
   }
 
   const decomposition = decomposeMRR(currentSnapshots, prevSnapshots, customerLinks);
@@ -268,7 +269,7 @@ export async function syncMonthlySnapshot(month: string): Promise<void> {
 
   // ── 6. Logo retention ──────────────────────────────────────
   const prevCustomerCount = prevSnapshots.length;
-  const churnedLogos = churnedThisMonth.length;
+  const churnedLogos = churnedAfterLinks.length;
   const newLogos = newThisMonth.length;
   const logoRetention = calculateLogoRetention(prevCustomerCount, churnedLogos);
 

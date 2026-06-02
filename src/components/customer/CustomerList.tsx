@@ -426,7 +426,17 @@ function CustomerRow({
               ▸
             </span>
             <div className="truncate">
-              <span className="truncate block">{customer.name}</span>
+              <span className="truncate flex items-center gap-1.5">
+                <span className="truncate">{customer.name}</span>
+                {customer.linkedCount != null && customer.linkedCount > 1 && (
+                  <span
+                    title={`${customer.linkedCount} konti slået sammen til én kunde`}
+                    className="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400"
+                  >
+                    🔗 Sammenlagt ({customer.linkedCount})
+                  </span>
+                )}
+              </span>
               {customer.scope && (
                 <span className="text-[11px] text-[var(--text-muted)] font-normal sm:hidden block truncate">
                   {customer.scope}{customer.tier && customer.tier !== "Standard" ? ` · ${customer.tier}` : ""}
