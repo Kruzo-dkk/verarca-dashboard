@@ -589,4 +589,13 @@ describe("suppressLinkedChurn", () => {
     const churned = [{ customer: "cust-9999", handle: "s2" }];
     expect(suppressLinkedChurn(churned, links, activeCanon)).toHaveLength(1);
   });
+
+  it("does not suppress a non-linked customer even if its own handle is active", () => {
+    // cust-solo is not part of any link → its churn is out of scope, even
+    // though it appears in the active set (e.g. a same-handle plan change).
+    const churned = [{ customer: "cust-solo", handle: "s3" }];
+    expect(
+      suppressLinkedChurn(churned, links, new Set(["cust-0046", "cust-solo"]))
+    ).toHaveLength(1);
+  });
 });
