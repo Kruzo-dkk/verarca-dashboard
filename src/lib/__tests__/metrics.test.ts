@@ -14,6 +14,7 @@ import {
   collapseLinkedSnapshots,
   suppressLinkedChurn,
   decomposeMRR,
+  decomposeMRRByCustomer,
   getChurnedCustomers,
   getNewCustomers,
   eventChurnedCanonicalIds,
@@ -694,5 +695,34 @@ describe("eventChurnedCanonicalIds", () => {
     ];
     const ids = eventChurnedCanonicalIds("2026-01", "2026-03", customers, new Map());
     expect([...ids].sort()).toEqual([1, 2]);
+  });
+});
+
+describe("decomposeMRRByCustomer", () => {
+  const a = (id: string, mrr: number): CustomerMRRSnapshot => ({ customerId: id, mrr, status: "active", planHandle: "p" });
+  const churned = (id: string): CustomerMRRSnapshot => ({ customerId: id, mrr: 0, status: "churned", planHandle: "" });
+
+  it("classifies each customer and the amounts sum to decomposeMRR", () => {
+    const prev = [a("A", 10_000), a("B", 20_000), a("C", 5_000)];
+    const curr = [a("A", 15_000), a("B", 18_000), a("D", 8_000), churned("C")];
+    const bd = decomposeMRRByCustomer(curr, prev);
+    expect(bd.newCustomers).toEqual([{ canonicalId: "D", amount: 8_000 }]);
+    expect(bd.expansion).toEqual([{ canonicalId: "A", amount: 5_000 }]);
+    expect(bd.contraction).toEqual([{ canonicalId: "B", amount: 2_000 }]);
+    expect(bd.churned).toEqual([{ canonicalId: "C", amount: 5_000 }]);
+
+    const sums = decomposeMRR(curr, prev);
+    expect(bd.newCustomers.reduce((s, x) => s + x.amount, 0)).toBe(sums.newMRR);
+    expect(bd.expansion.reduce((s, x) => s + x.amount, 0)).toBe(sums.expansionMRR);
+    expect(bd.contraction.reduce((s, x) => s + x.amount, 0)).toBe(sums.contractionMRR);
+    expect(bd.churned.reduce((s, x) => s + x.amount, 0)).toBe(sums.churnedMRR);
+  });
+
+  it("collapses linked siblings: sibling churn under active canonical = contraction", () => {
+    const prev = [a("1", 2_000), a("2", 2_000)];
+    const curr = [a("1", 2_000), churned("2")];
+    const bd = decomposeMRRByCustomer(curr, prev, new Map([["2", "1"]]));
+    expect(bd.churned).toEqual([]);
+    expect(bd.contraction).toEqual([{ canonicalId: "1", amount: 2_000 }]);
   });
 });

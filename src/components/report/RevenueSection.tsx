@@ -2,6 +2,7 @@
 
 import { GlassCard } from "@/components/ui/GlassCard";
 import { MRRWaterfall } from "@/components/charts/MRRWaterfall";
+import { MRRMovementBreakdown } from "./MRRMovementBreakdown";
 import { ARRTrend } from "@/components/charts/ARRTrend";
 import { MetricTooltip } from "@/components/ui/MetricTooltip";
 import type { ReportData } from "@/lib/types/report";
@@ -25,6 +26,19 @@ export function RevenueSection({ data, formatValue }: RevenueSectionProps) {
         <GlassCard>
           <h3 className="text-sm font-medium text-[var(--text-muted)] mb-4">ARR Trend (24M)</h3>
           <ARRTrend data={data.revenue.arrHistory} formatValue={formatValue} />
+        </GlassCard>
+      </div>
+
+      {/* Per-customer breakdown of the waterfall buckets */}
+      <div className="mt-4">
+        <GlassCard>
+          <h3 className="text-sm font-medium text-[var(--text-muted)] mb-4">
+            MRR Movement — by customer
+          </h3>
+          <MRRMovementBreakdown
+            movement={data.customers.mrrMovement}
+            formatValue={formatValue}
+          />
         </GlassCard>
       </div>
 

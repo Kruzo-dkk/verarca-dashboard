@@ -56,6 +56,13 @@ export interface ReportData {
     topCustomers: CustomerSummary[];
     newCustomers: CustomerSummary[];
     recentlyChurned: CustomerSummary[];
+    /** Per-customer breakdown of the MRR waterfall (mrr = the movement amount). */
+    mrrMovement: {
+      newCustomers: CustomerSummary[];
+      expansion: CustomerSummary[];
+      contraction: CustomerSummary[];
+      churned: CustomerSummary[];
+    };
     countHistory: { month: string; count: number }[];
     arpaHistory: { month: string; arpa: number }[];
   };
