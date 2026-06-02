@@ -85,6 +85,7 @@ export async function GET(request: NextRequest) {
       return {
         id: cs.customer_id,
         name: cust?.name ?? `Customer ${cs.customer_id}`,
+        companyName: cust?.company_name ?? null,
         mrr: cs.mrr,
         plan: formatPlanName(cs.plan_name ?? planHandle),
         scope: cust?.scope_override ?? inferScopeFromPlan(planHandle),

@@ -126,6 +126,7 @@ export function CustomerSection({ data, formatValue }: CustomerSectionProps) {
           <CustomerTable
             customers={newCustomers}
             formatValue={formatValue}
+            expandable
             emptyMessage="No new customers this period"
           />
         </div>

@@ -187,6 +187,7 @@ export type Database = {
           email: string | null
           frisbii_handle: string
           hubspot_company_id: string | null
+          company_name: string | null
           id: number
           lead_source: string | null
           match_confidence: string
@@ -209,6 +210,7 @@ export type Database = {
           email?: string | null
           frisbii_handle: string
           hubspot_company_id?: string | null
+          company_name?: string | null
           id?: never
           lead_source?: string | null
           match_confidence?: string
@@ -231,6 +233,7 @@ export type Database = {
           email?: string | null
           frisbii_handle?: string
           hubspot_company_id?: string | null
+          company_name?: string | null
           id?: never
           lead_source?: string | null
           match_confidence?: string

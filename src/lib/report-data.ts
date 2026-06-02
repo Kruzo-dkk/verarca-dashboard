@@ -268,6 +268,7 @@ export async function getReportData(
     return {
       id: cs.customer_id,
       name: cust?.name ?? `Customer ${cs.customer_id}`,
+      companyName: cust?.company_name ?? null,
       mrr: cs.mrr,
       plan: formatPlanName(cs.plan_name ?? cust?.plan_name ?? planHandle),
       scope: cust?.scope_override ?? inferScopeFromPlan(planHandle),
@@ -351,6 +352,7 @@ export async function getReportData(
       return {
         id: cid,
         name: c?.name ?? c?.frisbii_handle ?? `Customer ${cid}`,
+        companyName: c?.company_name ?? null,
         mrr: lostMrrByCanonical.get(cid) ?? 0, // MRR lost
         plan: formatPlanName(c?.plan_name ?? c?.plan_handle),
         scope: c?.scope_override ?? inferScopeFromPlan(c?.plan_handle),
@@ -382,6 +384,7 @@ export async function getReportData(
       return {
         id: Number(nc.canonicalId),
         name: c?.name ?? c?.frisbii_handle ?? `Customer ${nc.canonicalId}`,
+        companyName: c?.company_name ?? null,
         mrr: nc.mrr,
         plan: formatPlanName(cs?.plan_name ?? c?.plan_name ?? planHandle),
         scope: c?.scope_override ?? inferScopeFromPlan(planHandle),
