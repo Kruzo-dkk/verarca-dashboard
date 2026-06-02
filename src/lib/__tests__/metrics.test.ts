@@ -16,6 +16,7 @@ import {
   decomposeMRR,
   getChurnedCustomers,
   getNewCustomers,
+  eventChurnedCanonicalIds,
   getMonthlyChurn,
   getMonthlyChurnFromSnapshots,
   type CustomerMRRSnapshot,
@@ -657,5 +658,41 @@ describe("getNewCustomers", () => {
     const curr = [a("1", 2000), a("2", 2000)];
     const links = new Map([["2", "1"]]); // 2 -> canonical 1 (already active)
     expect(getNewCustomers(curr, prev, links)).toEqual([]);
+  });
+});
+
+describe("eventChurnedCanonicalIds", () => {
+  const cust = (id: number, handle: string, churn_date: string | null, status: string) =>
+    ({ id, frisbii_handle: handle, churn_date, status });
+
+  it("includes customers whose sub ended in the month and excludes still-active groups", () => {
+    const customers = [
+      cust(65, "tommytelt", "2026-03-13", "churned"),
+      cust(91, "gearupgreen", "2026-03-23", "expired"),
+      cust(46, "anders-a", "2026-03-31", "active"),   // canonical active -> not churn
+      cust(10, "feb-closer", "2026-02-20", "churned"), // wrong month
+    ];
+    const ids = eventChurnedCanonicalIds("2026-03", "2026-03", customers, new Map());
+    expect([...ids].sort()).toEqual([65, 91]);
+  });
+
+  it("a churned linked secondary maps to its canonical and is suppressed if canonical active", () => {
+    const customers = [
+      cust(46, "cust-0046", null, "active"),
+      cust(74, "cust-0074", "2026-03-31", "expired"),
+    ];
+    const links = new Map([["cust-0074", "cust-0046"]]);
+    const ids = eventChurnedCanonicalIds("2026-03", "2026-03", customers, links);
+    expect(ids.size).toBe(0); // canonical 46 still active
+  });
+
+  it("range bounds are inclusive across months", () => {
+    const customers = [
+      cust(1, "a", "2026-01-05", "churned"),
+      cust(2, "b", "2026-03-28", "churned"),
+      cust(3, "c", "2026-04-02", "churned"),
+    ];
+    const ids = eventChurnedCanonicalIds("2026-01", "2026-03", customers, new Map());
+    expect([...ids].sort()).toEqual([1, 2]);
   });
 });

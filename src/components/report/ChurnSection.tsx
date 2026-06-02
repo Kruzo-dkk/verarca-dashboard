@@ -36,7 +36,13 @@ export function ChurnSection({ data, formatValue }: ChurnSectionProps) {
 
   return (
     <section id="churn">
-      <h2 className="section-heading text-xl mb-4 text-[var(--text-primary)]">Churn</h2>
+      <h2 className="section-heading text-xl mb-1 text-[var(--text-primary)]">Churn</h2>
+      <p className="text-xs text-[var(--text-muted)] mb-4 max-w-3xl">
+        En kunde tæller som churnet i den måned deres abonnement udløber (lukke-måned), og kun
+        én gang pr. reel kunde. <span className="text-[var(--text-secondary)]">Logo Churn</span> = antal
+        kunder mistet. <span className="text-[var(--text-secondary)]">Revenue Churn</span> = deres MRR.
+        De er samme kunder som i "Recently Closed", så tal og liste stemmer.
+      </p>
 
       {/* Summary cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mb-4">

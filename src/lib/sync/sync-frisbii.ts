@@ -10,8 +10,10 @@ import {
   calculateARR,
   calculateARPC,
   countActiveCustomers,
-  suppressLinkedChurn,
+  eventChurnedCanonicalIds,
+  buildIdToCanonicalId,
   decomposeMRR,
+  type CustomerChurnState,
   calculateNRR,
   calculateGRR,
   calculateQuickRatio,
@@ -202,16 +204,25 @@ export async function syncMonthlySnapshot(month: string): Promise<void> {
     if (idMap.size > 0) customerLinks = idMap;
   }
 
-  // Canonical handles that still have an active subscription — suppress false
-  // churn from abandoned re-signups / replaced accounts in the same group.
-  const activeCanonicalHandles = new Set(
-    activeSubscriptions.map((s) => confirmedLinks.get(s.customer) ?? s.customer)
+  // Event-based churn (close-month convention): customers whose subscription
+  // ENDED this month, deduped by canonical, excluding groups that still have an
+  // active member. Drives logo churn (count) and event revenue churn (their
+  // MRR). churned_mrr stays snapshot-based (decomposeMRR) for the MRR waterfall.
+  const { data: allCustomerRows } = await supabase
+    .from("customers")
+    .select("id, frisbii_handle, churn_date, status");
+  const customerChurnStates = (allCustomerRows ?? []) as CustomerChurnState[];
+  const churnedCanonicalIds = eventChurnedCanonicalIds(
+    month,
+    month,
+    customerChurnStates,
+    confirmedLinks
   );
-  const churnedAfterLinks = suppressLinkedChurn(
-    churnedThisMonth,
-    confirmedLinks,
-    activeCanonicalHandles
-  );
+  const idToCanonicalId = buildIdToCanonicalId(customerChurnStates, confirmedLinks);
+  const churnedMrrEvent = (currentSnaps ?? []).reduce((sum, s) => {
+    const cid = idToCanonicalId.get(s.customer_id) ?? s.customer_id;
+    return churnedCanonicalIds.has(cid) ? sum + s.mrr : sum;
+  }, 0);
 
   // Derive all aggregate metrics from customer snapshots (single source of truth)
   // This ensures monthly_snapshots always matches SUM(customer_snapshots)
@@ -269,7 +280,7 @@ export async function syncMonthlySnapshot(month: string): Promise<void> {
 
   // ── 6. Logo retention ──────────────────────────────────────
   const prevCustomerCount = prevSnapshots.length;
-  const churnedLogos = churnedAfterLinks.length;
+  const churnedLogos = churnedCanonicalIds.size;
   const newLogos = newThisMonth.length;
   const logoRetention = calculateLogoRetention(prevCustomerCount, churnedLogos);
 
@@ -314,6 +325,7 @@ export async function syncMonthlySnapshot(month: string): Promise<void> {
     expansion_mrr: decomposition.expansionMRR,
     contraction_mrr: decomposition.contractionMRR,
     churned_mrr: decomposition.churnedMRR,
+    churned_mrr_event: churnedMrrEvent,
     non_recurring_revenue: 0, // placeholder -- no non-recurring source yet
     nrr,
     grr,
