@@ -176,7 +176,8 @@ export async function backfillHistory(
   // ── 2. Fetch all customers from DB ────────────────────────────
   const { data: customers, error: custError } = await supabase
     .from("customers")
-    .select("id, frisbii_handle, plan_handle, status, churn_date");
+    .select("id, frisbii_handle, plan_handle, status, churn_date")
+    .eq("excluded", false);
 
   if (custError) {
     throw new Error(`[backfill] Failed to fetch customers: ${custError.message}`);

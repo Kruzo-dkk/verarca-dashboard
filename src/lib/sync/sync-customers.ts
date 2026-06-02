@@ -12,6 +12,7 @@ import { matchCustomerToHubSpot } from "@/lib/sync/match-hubspot";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { SyncModuleResult } from "@/lib/sync/types";
 import { normalizeName } from "@/lib/sync/normalize";
+import { isTestCustomer } from "@/lib/sync/test-accounts";
 
 // ─── Segment inference ─────────────────────────────────────────
 
@@ -38,6 +39,7 @@ interface CustomerRow {
   clickup_folder_id: string | null;
   hubspot_company_id: string | null;
   company_name: string | null;
+  excluded?: boolean;
   match_confidence: string;
 }
 
@@ -214,6 +216,15 @@ export async function syncCustomers(): Promise<SyncModuleResult> {
       clickup_folder_id: clickupMatch?.folderId || null,
       hubspot_company_id: hubspotMatch?.hubspotCompanyId ?? null,
       company_name: hubspotMatch?.companyName ?? null,
+      // Auto-exclude test/internal accounts. undefined when not a test account
+      // → omitted from the upsert so any manual exclusion is preserved.
+      excluded: isTestCustomer({
+        frisbii_handle: customer.handle,
+        email: customer.email || null,
+        cvr: vat || (clickupMatch?.cvr ? clickupMatch.cvr.replace(/\D/g, "") : null),
+      })
+        ? true
+        : undefined,
       match_confidence: confidence,
     });
   }

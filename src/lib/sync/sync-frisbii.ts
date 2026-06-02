@@ -210,7 +210,8 @@ export async function syncMonthlySnapshot(month: string): Promise<void> {
   // MRR). churned_mrr stays snapshot-based (decomposeMRR) for the MRR waterfall.
   const { data: allCustomerRows } = await supabase
     .from("customers")
-    .select("id, frisbii_handle, churn_date, status");
+    .select("id, frisbii_handle, churn_date, status")
+    .eq("excluded", false);
   const customerChurnStates = (allCustomerRows ?? []) as CustomerChurnState[];
   const churnedCanonicalIds = eventChurnedCanonicalIds(
     month,
