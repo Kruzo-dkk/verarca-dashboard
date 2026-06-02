@@ -144,6 +144,8 @@ export interface SegmentBreakdown {
 export interface CustomerSummary {
   id: number;
   name: string;
+  /** Company/legal name from HubSpot, when the display name is a person. */
+  companyName?: string | null;
   mrr: number;
   plan: string | null;
   scope: string | null;

@@ -5,6 +5,7 @@ import type { CompanyIndex } from "@/lib/hubspot-companies";
 export interface HubSpotMatchResult {
   hubspotCompanyId: string;
   matchMethod: "cvr" | "domain" | "name";
+  companyName: string | null;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────
@@ -35,7 +36,7 @@ export function matchCustomerToHubSpot(
     if (digits.length >= 6) {
       const match = index.byCVR.get(digits);
       if (match) {
-        return { hubspotCompanyId: match.id, matchMethod: "cvr" };
+        return { hubspotCompanyId: match.id, matchMethod: "cvr", companyName: match.properties.name };
       }
     }
   }
@@ -46,7 +47,7 @@ export function matchCustomerToHubSpot(
     if (domain) {
       const match = index.byDomain.get(domain);
       if (match) {
-        return { hubspotCompanyId: match.id, matchMethod: "domain" };
+        return { hubspotCompanyId: match.id, matchMethod: "domain", companyName: match.properties.name };
       }
     }
   }
@@ -56,7 +57,7 @@ export function matchCustomerToHubSpot(
   if (normalized) {
     const match = index.byName.get(normalized);
     if (match) {
-      return { hubspotCompanyId: match.id, matchMethod: "name" };
+      return { hubspotCompanyId: match.id, matchMethod: "name", companyName: match.properties.name };
     }
   }
 

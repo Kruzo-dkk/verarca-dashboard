@@ -81,6 +81,7 @@ export function ChurnSection({ data, formatValue }: ChurnSectionProps) {
             customers={recentlyChurned}
             formatValue={formatValue}
             showChurnDate
+            expandable
             emptyMessage="No churned customers in this period"
           />
         </div>

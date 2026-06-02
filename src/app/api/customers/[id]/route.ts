@@ -145,6 +145,7 @@ export async function GET(
     return NextResponse.json({
       id: customer.id,
       name: customer.name,
+      companyName: customer.company_name,
       frisbiiHandle: customer.frisbii_handle,
       email: customer.email,
       cvr: customer.cvr,

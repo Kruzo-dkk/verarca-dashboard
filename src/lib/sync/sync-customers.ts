@@ -37,6 +37,7 @@ interface CustomerRow {
   churn_date: string | null;
   clickup_folder_id: string | null;
   hubspot_company_id: string | null;
+  company_name: string | null;
   match_confidence: string;
 }
 
@@ -212,6 +213,7 @@ export async function syncCustomers(): Promise<SyncModuleResult> {
       churn_date: churnDate,
       clickup_folder_id: clickupMatch?.folderId || null,
       hubspot_company_id: hubspotMatch?.hubspotCompanyId ?? null,
+      company_name: hubspotMatch?.companyName ?? null,
       match_confidence: confidence,
     });
   }
@@ -234,6 +236,10 @@ export async function syncCustomers(): Promise<SyncModuleResult> {
     }
     if (cleaned.hubspot_company_id === null) {
       const { hubspot_company_id: _, ...rest } = cleaned;
+      cleaned = rest;
+    }
+    if (cleaned.company_name === null) {
+      const { company_name: _, ...rest } = cleaned;
       cleaned = rest;
     }
     return cleaned;

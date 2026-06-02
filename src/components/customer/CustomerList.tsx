@@ -427,7 +427,11 @@ function CustomerRow({
             </span>
             <div className="truncate">
               <span className="truncate flex items-center gap-1.5">
-                <span className="truncate">{customer.name}</span>
+                <span className="truncate">
+                  {customer.companyName && customer.companyName !== customer.name
+                    ? customer.companyName
+                    : customer.name}
+                </span>
                 {customer.linkedCount != null && customer.linkedCount > 1 && (
                   <span
                     title={`${customer.linkedCount} konti slået sammen til én kunde`}
