@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import type { LinkedGroup } from "@/lib/types/report";
 
 interface CustomerDetail {
   id: number;
@@ -17,6 +18,7 @@ interface CustomerDetail {
   matchConfidence: string;
   links: { label: string; url: string }[];
   mrrHistory: { month: string; mrr: number; status: string; plan: string | null }[];
+  linkedGroup: LinkedGroup | null;
 }
 
 interface CustomerDetailRowProps {
@@ -148,6 +150,46 @@ export function CustomerDetailRow({ customerId, formatValue }: CustomerDetailRow
           )}
         </div>
       </div>
+
+      {/* Linked accounts — each member's individual contribution */}
+      {detail.linkedGroup && (
+        <div className="pt-2 border-t border-[var(--border-subtle)] space-y-2">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <span className="text-sm font-medium text-[var(--text-primary)]">
+              Sammenlagte konti ({detail.linkedGroup.members.length})
+            </span>
+            <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 font-medium">
+              Tæller som 1 kunde · {detail.linkedGroup.activeSubscriptionCount} aktive abonnementer · samlet MRR {formatValue(detail.linkedGroup.totalMrr)}
+            </span>
+          </div>
+          <div className="space-y-1">
+            {detail.linkedGroup.members.map((m) => (
+              <div
+                key={m.frisbiiHandle}
+                className="flex items-center justify-between gap-3 text-xs"
+              >
+                <span className="flex items-center gap-1.5 truncate min-w-0">
+                  <span className="truncate text-[var(--text-secondary)]">{m.name}</span>
+                  <span className="text-[10px] text-[var(--text-muted)] flex-shrink-0">{m.frisbiiHandle}</span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${
+                      m.status === "active"
+                        ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400"
+                        : "bg-red-500/10 text-red-600 dark:bg-red-500/20 dark:text-red-400"
+                    }`}
+                  >
+                    {m.status}
+                  </span>
+                </span>
+                <span className="flex items-center gap-3 flex-shrink-0">
+                  <span className="text-[var(--text-muted)] hidden sm:inline">{m.plan ?? "—"}</span>
+                  <span className="tabular-nums text-[var(--text-primary)] font-medium">{formatValue(m.mrr)}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* External links */}
       {detail.links.length > 0 && (

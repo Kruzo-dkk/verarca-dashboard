@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatPlanName, inferScopeFromPlan, inferTierFromPlan } from "@/lib/format-plan-name";
+import { buildLinkedGroup } from "@/lib/customer-links";
+import type { LinkedMember } from "@/lib/types/report";
 
 const VALID_SCOPES = ["Scope 1-2", "Scope 1-2-3"];
 const VALID_TIERS = ["Standard", "Managed"];
@@ -55,6 +57,53 @@ export async function GET(
 
     const customer = customerRes.data;
     const snapshots = snapshotsRes.data ?? [];
+
+    // ── Linked group: resolve canonical, list confirmed members + their
+    //    individual MRR contribution ──
+    const { data: asLinked } = await supabase
+      .from("customer_links")
+      .select("canonical_handle")
+      .eq("linked_handle", customer.frisbii_handle)
+      .eq("status", "confirmed")
+      .maybeSingle();
+    const canonicalHandle = asLinked?.canonical_handle ?? customer.frisbii_handle;
+    const { data: groupLinks } = await supabase
+      .from("customer_links")
+      .select("linked_handle")
+      .eq("canonical_handle", canonicalHandle)
+      .eq("status", "confirmed");
+    const memberHandles = [
+      canonicalHandle,
+      ...(groupLinks ?? []).map((g) => g.linked_handle),
+    ];
+
+    let linkedGroup = null;
+    if (memberHandles.length > 1) {
+      const { data: memberRows } = await supabase
+        .from("customers")
+        .select("id, name, frisbii_handle, status, plan_name, plan_handle, start_date")
+        .in("frisbii_handle", memberHandles);
+      const memberIds = (memberRows ?? []).map((m) => m.id);
+      const { data: memberSnaps } = await supabase
+        .from("customer_snapshots")
+        .select("customer_id, mrr, month")
+        .in("customer_id", memberIds)
+        .order("month", { ascending: false });
+      const latestMrr = new Map<number, number>();
+      for (const s of memberSnaps ?? []) {
+        if (!latestMrr.has(s.customer_id)) latestMrr.set(s.customer_id, s.mrr);
+      }
+      const members: LinkedMember[] = (memberRows ?? []).map((m) => ({
+        id: m.id,
+        name: m.name,
+        frisbiiHandle: m.frisbii_handle,
+        status: m.status,
+        mrr: latestMrr.get(m.id) ?? 0,
+        plan: formatPlanName(m.plan_name ?? m.plan_handle),
+        startDate: m.start_date,
+      }));
+      linkedGroup = buildLinkedGroup(members, canonicalHandle, customer.frisbii_handle);
+    }
 
     // Build external links
     const links: { label: string; url: string }[] = [];
@@ -110,6 +159,7 @@ export async function GET(
       matchConfidence: customer.match_confidence,
       links,
       mrrHistory,
+      linkedGroup,
     });
   } catch (error) {
     console.error("Failed to fetch customer detail:", error);

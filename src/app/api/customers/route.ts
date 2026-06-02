@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { formatPlanName, inferScopeFromPlan, inferTierFromPlan } from "@/lib/format-plan-name";
+import {
+  buildCanonicalIdMap,
+  collapseCustomerSummaries,
+  type CustomerRowForCollapse,
+} from "@/lib/customer-links";
 import type { SegmentBreakdown, CustomerSummary } from "@/lib/types/report";
 
 /**
@@ -32,7 +37,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch customer snapshots for the month alongside customer master data
-    const [snapshotsRes, customersRes, monthlyRes] = await Promise.all([
+    const [snapshotsRes, customersRes, monthlyRes, linksRes] = await Promise.all([
       supabase
         .from("customer_snapshots")
         .select("customer_id, mrr, status, plan_handle, plan_name")
@@ -43,6 +48,10 @@ export async function GET(request: NextRequest) {
         .select("customer_count, new_logos, churned_logos, arpa, top10_concentration")
         .eq("month", month)
         .maybeSingle(),
+      supabase
+        .from("customer_links")
+        .select("canonical_handle, linked_handle")
+        .eq("status", "confirmed"),
     ]);
 
     if (snapshotsRes.error) {
@@ -60,43 +69,54 @@ export async function GET(request: NextRequest) {
     // Build customer map for lookups
     const customerMap = new Map(customers.map((c) => [c.id, c]));
 
-    // Build customer list with snapshot data merged
-    const customerList: CustomerSummary[] = snapshots
-      .sort((a, b) => b.mrr - a.mrr)
-      .map((cs) => {
-        const cust = customerMap.get(cs.customer_id);
-        const planHandle = cs.plan_handle ?? cust?.plan_handle;
-        return {
-          id: cs.customer_id,
-          name: cust?.name ?? `Customer ${cs.customer_id}`,
-          mrr: cs.mrr,
-          plan: formatPlanName(cs.plan_name ?? planHandle),
-          scope: cust?.scope_override ?? inferScopeFromPlan(planHandle),
-          tier: cust?.tier_override ?? inferTierFromPlan(planHandle),
-          status: cs.status,
-          partner: cust?.partner ?? null,
-          segment: cust?.segment ?? null,
-          matchConfidence: cust?.match_confidence ?? "unknown",
-        };
-      });
+    // Resolve confirmed links → canonical customer id per customer
+    const confirmedLinks = new Map(
+      (linksRes.data ?? []).map((l) => [l.linked_handle, l.canonical_handle])
+    );
+    const canonicalIdMap = buildCanonicalIdMap(
+      customers.map((c) => ({ id: c.id, frisbii_handle: c.frisbii_handle })),
+      confirmedLinks
+    );
 
-    // Compute segment breakdown
-    const totalMRR = snapshots.reduce((sum, s) => sum + s.mrr, 0);
+    // Build per-handle rows, then collapse linked groups into one row each
+    const rows: CustomerRowForCollapse[] = snapshots.map((cs) => {
+      const cust = customerMap.get(cs.customer_id);
+      const planHandle = cs.plan_handle ?? cust?.plan_handle;
+      return {
+        id: cs.customer_id,
+        name: cust?.name ?? `Customer ${cs.customer_id}`,
+        mrr: cs.mrr,
+        plan: formatPlanName(cs.plan_name ?? planHandle),
+        scope: cust?.scope_override ?? inferScopeFromPlan(planHandle),
+        tier: cust?.tier_override ?? inferTierFromPlan(planHandle),
+        status: cs.status,
+        partner: cust?.partner ?? null,
+        segment: cust?.segment ?? null,
+        matchConfidence: cust?.match_confidence ?? "unknown",
+        frisbiiHandle: cust?.frisbii_handle ?? `id-${cs.customer_id}`,
+        startDate: cust?.start_date ?? null,
+        canonicalId: canonicalIdMap.get(cs.customer_id) ?? cs.customer_id,
+      };
+    });
+
+    const customerList: CustomerSummary[] = collapseCustomerSummaries(rows);
+
+    // Compute segment breakdown from the collapsed list (one count per group)
+    const totalMRR = customerList.reduce((sum, c) => sum + c.mrr, 0);
     const segmentAgg = new Map<
       string,
       { customerCount: number; mrr: number }
     >();
 
-    for (const cs of snapshots) {
-      const cust = customerMap.get(cs.customer_id);
-      const segment = cust?.segment ?? "Unknown";
+    for (const c of customerList) {
+      const segment = c.segment ?? "Unknown";
       const existing = segmentAgg.get(segment) ?? {
         customerCount: 0,
         mrr: 0,
       };
       segmentAgg.set(segment, {
         customerCount: existing.customerCount + 1,
-        mrr: existing.mrr + cs.mrr,
+        mrr: existing.mrr + c.mrr,
       });
     }
 
@@ -114,7 +134,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       month,
-      count: monthly?.customer_count ?? snapshots.length,
+      count: monthly?.customer_count ?? customerList.length,
       newLogos: monthly?.new_logos ?? 0,
       churnedLogos: monthly?.churned_logos ?? 0,
       arpa: monthly?.arpa ?? 0,
