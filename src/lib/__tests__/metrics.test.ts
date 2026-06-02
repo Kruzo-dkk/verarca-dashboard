@@ -14,6 +14,7 @@ import {
   collapseLinkedSnapshots,
   suppressLinkedChurn,
   decomposeMRR,
+  getChurnedCustomers,
   getMonthlyChurn,
   getMonthlyChurnFromSnapshots,
   type CustomerMRRSnapshot,
@@ -597,5 +598,44 @@ describe("suppressLinkedChurn", () => {
     expect(
       suppressLinkedChurn(churned, links, new Set(["cust-0046", "cust-solo"]))
     ).toHaveLength(1);
+  });
+});
+
+describe("decomposeMRR with linked groups (collapse)", () => {
+  const a = (id: string, mrr: number): CustomerMRRSnapshot => ({ customerId: id, mrr, status: "active", planHandle: "p" });
+  const churned = (id: string): CustomerMRRSnapshot => ({ customerId: id, mrr: 0, status: "churned", planHandle: "" });
+
+  it("a linked sibling churning while canonical stays active is NOT churn", () => {
+    // canonical "1" active both months; sibling "2" active last month, gone now.
+    const prev = [a("1", 2000), a("2", 2000)];
+    const curr = [a("1", 2000), churned("2")];
+    const links = new Map([["2", "1"]]); // secondary 2 -> canonical 1
+    const r = decomposeMRR(curr, prev, links);
+    expect(r.churnedMRR).toBe(0); // group still active
+    expect(r.contractionMRR).toBe(2000); // group went 4000 -> 2000
+    expect(r.newMRR).toBe(0);
+  });
+
+  it("a fully-gone unlinked customer is churn", () => {
+    const prev = [a("1", 2499), a("2", 1199)];
+    const curr = [churned("1"), churned("2")];
+    const r = decomposeMRR(curr, prev);
+    expect(r.churnedMRR).toBe(3698);
+  });
+});
+
+describe("getChurnedCustomers", () => {
+  const a = (id: string, mrr: number): CustomerMRRSnapshot => ({ customerId: id, mrr, status: "active", planHandle: "p" });
+  const churned = (id: string): CustomerMRRSnapshot => ({ customerId: id, mrr: 0, status: "churned", planHandle: "" });
+
+  it("lists only fully-churned groups with the MRR lost", () => {
+    const prev = [a("esmark", 2499), a("era", 1199), a("1", 2000), a("2", 2000)];
+    const curr = [churned("esmark"), churned("era"), a("1", 2000), churned("2")];
+    const links = new Map([["2", "1"]]);
+    const out = getChurnedCustomers(curr, prev, links).sort((x, y) => y.mrr - x.mrr);
+    expect(out).toEqual([
+      { canonicalId: "esmark", mrr: 2499 },
+      { canonicalId: "era", mrr: 1199 },
+    ]);
   });
 });

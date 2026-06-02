@@ -63,7 +63,9 @@ export async function GET(request: NextRequest) {
     { data: auditLogs },
     { count: scopeOverrideCount },
     { count: tierOverrideCount },
-    { count: supabaseActiveCount },
+    { data: activeSnapRows },
+    { data: confirmedLinkRows },
+    { data: linkCustomerRows },
   ] = await Promise.all([
     admin
       .from("monthly_snapshots")
@@ -91,10 +93,38 @@ export async function GET(request: NextRequest) {
       .not("tier_override", "is", null),
     admin
       .from("customer_snapshots")
-      .select("id", { count: "exact", head: true })
+      .select("customer_id")
       .eq("month", month)
       .eq("status", "active"),
+    admin
+      .from("customer_links")
+      .select("canonical_handle, linked_handle")
+      .eq("status", "confirmed"),
+    admin.from("customers").select("id, frisbii_handle"),
   ]);
+
+  // Resolve a handle to its canonical so linked customers count once on BOTH
+  // sides of the reconciliation (matches the deduped dashboard count).
+  const confirmedLinks = new Map(
+    (confirmedLinkRows ?? []).map((l) => [l.linked_handle, l.canonical_handle])
+  );
+  const idToHandle = new Map(
+    (linkCustomerRows ?? []).map((c) => [c.id, c.frisbii_handle])
+  );
+  const resolveCanonicalHandle = (handle: string): string => {
+    let cur = handle;
+    const seen = new Set<string>();
+    while (confirmedLinks.has(cur) && !seen.has(cur)) {
+      seen.add(cur);
+      cur = confirmedLinks.get(cur)!;
+    }
+    return cur;
+  };
+  const supabaseActiveCount = new Set(
+    (activeSnapRows ?? []).map((r) =>
+      resolveCanonicalHandle(idToHandle.get(r.customer_id) ?? `id-${r.customer_id}`)
+    )
+  ).size;
 
   // Exclusions query wrapped in try-catch — table may not exist yet
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -187,8 +217,11 @@ export async function GET(request: NextRequest) {
   let frisbiiError: string | null = null;
   try {
     const activeSubs = await listSubscriptions({ state: "active" });
-    // Count unique customers, not subscriptions (customers can have multiple subs)
-    const uniqueCustomers = new Set(activeSubs.map((s) => s.customer));
+    // Count unique real-world customers: collapse multiple subs per handle AND
+    // linked handles (same dedup as Supabase) so both sides are comparable.
+    const uniqueCustomers = new Set(
+      activeSubs.map((s) => resolveCanonicalHandle(s.customer))
+    );
     const frisbiiCount = uniqueCustomers.size;
     const sbCount = supabaseActiveCount ?? 0;
 

@@ -5,6 +5,8 @@ import {
   calculateRevenuePerEmployee,
   calculateLogoChurnRate,
   calculateRevenueChurnRate,
+  getChurnedCustomers,
+  type CustomerMRRSnapshot,
 } from "@/lib/metrics";
 import { computeCommittedMRR } from "@/lib/committed-mrr";
 import { formatPlanName, inferScopeFromPlan, inferTierFromPlan } from "@/lib/format-plan-name";
@@ -273,24 +275,64 @@ export async function getReportData(
     .slice(0, 20)
     .map(mapSnapshot);
 
-  // Recently churned customers (status = churned, sorted by most recent churn date)
-  const recentlyChurned: CustomerSummary[] = customers
-    .filter(c => c.status === "churned" && c.churn_date)
-    .sort((a, b) => (b.churn_date ?? "").localeCompare(a.churn_date ?? ""))
-    .slice(0, 20)
-    .map(c => ({
-      id: c.id,
-      name: c.name ?? c.frisbii_handle,
-      mrr: 0,
-      plan: formatPlanName(c.plan_name ?? c.plan_handle),
-      scope: c.scope_override ?? inferScopeFromPlan(c.plan_handle),
-      tier: c.tier_override ?? inferTierFromPlan(c.plan_handle),
-      status: "churned",
-      partner: c.partner ?? null,
-      segment: c.segment ?? null,
-      matchConfidence: c.match_confidence ?? "unknown",
-      churnDate: c.churn_date ?? null,
+  // Recently churned = the grundlag behind churnedMRR: linked-collapsed
+  // customers active at the start of the period but gone by the end, each with
+  // the MRR lost. Derived from the SAME collapse as the churn aggregate so the
+  // list always reconciles with the headline number.
+  const churnStartMonth = isRange ? startMonth : endMonth;
+  const churnPrevMonth = monthsAgo(churnStartMonth, 1);
+  const [churnPrevSnapsRes, churnLinksRes] = await Promise.all([
+    supabase
+      .from("customer_snapshots")
+      .select("customer_id, mrr, status, plan_handle")
+      .eq("month", churnPrevMonth),
+    supabase
+      .from("customer_links")
+      .select("canonical_handle, linked_handle")
+      .eq("status", "confirmed"),
+  ]);
+
+  const churnHandleToId = new Map(customers.map((c) => [c.frisbii_handle, String(c.id)]));
+  const churnLinkIdMap = new Map<string, string>(); // secondaryId → canonicalId
+  for (const l of churnLinksRes.data ?? []) {
+    const o = churnHandleToId.get(l.linked_handle);
+    const n = churnHandleToId.get(l.canonical_handle);
+    if (o && n && o !== n) churnLinkIdMap.set(o, n);
+  }
+  const toMRRSnap = (
+    rows: { customer_id: number; mrr: number; status: string; plan_handle: string | null }[]
+  ): CustomerMRRSnapshot[] =>
+    rows.map((cs) => ({
+      customerId: String(cs.customer_id),
+      mrr: cs.mrr,
+      status: cs.status,
+      planHandle: cs.plan_handle ?? "",
     }));
+
+  const custById = new Map(customers.map((c) => [c.id, c]));
+  const recentlyChurned: CustomerSummary[] = getChurnedCustomers(
+    toMRRSnap(customerSnapshots),
+    toMRRSnap(churnPrevSnapsRes.data ?? []),
+    churnLinkIdMap.size > 0 ? churnLinkIdMap : undefined
+  )
+    .map((ch) => {
+      const c = custById.get(Number(ch.canonicalId));
+      return {
+        id: Number(ch.canonicalId),
+        name: c?.name ?? c?.frisbii_handle ?? `Customer ${ch.canonicalId}`,
+        mrr: ch.mrr, // MRR lost
+        plan: formatPlanName(c?.plan_name ?? c?.plan_handle),
+        scope: c?.scope_override ?? inferScopeFromPlan(c?.plan_handle),
+        tier: c?.tier_override ?? inferTierFromPlan(c?.plan_handle),
+        status: "churned",
+        partner: c?.partner ?? null,
+        segment: c?.segment ?? null,
+        matchConfidence: c?.match_confidence ?? "unknown",
+        churnDate: c?.churn_date ?? null,
+      };
+    })
+    .sort((a, b) => b.mrr - a.mrr)
+    .slice(0, 20);
 
   // ------ Cohort data ----------------------------------------------------
 

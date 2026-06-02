@@ -413,31 +413,19 @@ export function decomposeMRR(
   prevSnapshots: CustomerMRRSnapshot[],
   customerLinks?: Map<string, string>
 ): MRRDecomposition {
-  // Build reverse map: newId -> oldId
-  const newToOld = new Map<string, string>();
-  if (customerLinks) {
-    for (const [oldId, newId] of customerLinks) {
-      newToOld.set(newId, oldId);
-    }
-  }
-
-  // Snapshot tables include a row for every customer every month (inactive
-  // rows have status="churned" and mrr=0). Treat those as "absent" for
-  // decomposition purposes so new logos aren't misclassified as expansion
-  // and churn isn't misclassified as contraction.
-  const isPresent = (s: { status: string; mrr: number }) =>
-    s.status === "active" && s.mrr > 0;
+  // Collapse linked groups first so a real-world customer with multiple handles
+  // is one logical customer (summed MRR, present if any member active). This is
+  // the SAME collapse used by countActiveCustomers — keeping count, churn, and
+  // decomposition consistent. A linked sibling that churns while the canonical
+  // stays active reads as contraction, never churn+new.
+  const prev = collapseLinkedSnapshots(prevSnapshots, customerLinks);
+  const curr = collapseLinkedSnapshots(currentSnapshots, customerLinks);
 
   const prevMap = new Map(
-    prevSnapshots
-      .filter(isPresent)
-      .map((s) => [s.customerId, s.mrr])
+    prev.filter((c) => c.active).map((c) => [c.canonicalId, c.mrr])
   );
   const currMap = new Map(
-    currentSnapshots.map((s) => [
-      s.customerId,
-      { mrr: s.mrr, present: isPresent(s) },
-    ])
+    curr.map((c) => [c.canonicalId, { mrr: c.mrr, present: c.active }])
   );
 
   let newMRR = 0;
@@ -445,34 +433,22 @@ export function decomposeMRR(
   let contractionMRR = 0;
   let churnedMRR = 0;
 
-  // Track which previous-month customer IDs have been accounted for
-  const handledPrevIds = new Set<string>();
-
-  // Check current customers against previous
-  for (const [id, curr] of currMap) {
-    const linkedOldId = newToOld.get(id);
-    const prevMrr =
-      prevMap.get(id) ?? (linkedOldId ? prevMap.get(linkedOldId) : undefined);
-
-    if (!curr.present) {
+  for (const [id, c] of currMap) {
+    const prevMrr = prevMap.get(id);
+    if (!c.present) {
       if (prevMrr !== undefined) churnedMRR += prevMrr;
     } else if (prevMrr === undefined) {
-      newMRR += curr.mrr;
-    } else if (curr.mrr > prevMrr) {
-      expansionMRR += curr.mrr - prevMrr;
-    } else if (curr.mrr < prevMrr) {
-      contractionMRR += prevMrr - curr.mrr;
+      newMRR += c.mrr;
+    } else if (c.mrr > prevMrr) {
+      expansionMRR += c.mrr - prevMrr;
+    } else if (c.mrr < prevMrr) {
+      contractionMRR += prevMrr - c.mrr;
     }
-
-    handledPrevIds.add(id);
-    if (linkedOldId) handledPrevIds.add(linkedOldId);
   }
 
-  // Customers present previously but not at all in current map
+  // Groups active last month with no snapshot row at all this month.
   for (const [id, prevMrr] of prevMap) {
-    if (!handledPrevIds.has(id) && !currMap.has(id)) {
-      churnedMRR += prevMrr;
-    }
+    if (!currMap.has(id)) churnedMRR += prevMrr;
   }
 
   return {
@@ -482,6 +458,32 @@ export function decomposeMRR(
     churnedMRR,
     netNewMRR: newMRR + expansionMRR - contractionMRR - churnedMRR,
   };
+}
+
+/** A churned logical customer and the MRR lost (its prior-month group MRR). */
+export interface ChurnedCustomer {
+  canonicalId: string;
+  mrr: number;
+}
+
+/**
+ * The grundlag behind churn: linked-collapsed customers that were active last
+ * month and are no longer active this month, with the MRR lost. Consistent with
+ * decomposeMRR — the sum of these equals churnedMRR for fully-gone groups.
+ */
+export function getChurnedCustomers(
+  currentSnapshots: CustomerMRRSnapshot[],
+  prevSnapshots: CustomerMRRSnapshot[],
+  customerLinks?: Map<string, string>
+): ChurnedCustomer[] {
+  const prev = collapseLinkedSnapshots(prevSnapshots, customerLinks);
+  const curr = collapseLinkedSnapshots(currentSnapshots, customerLinks);
+  const currActive = new Set(
+    curr.filter((c) => c.active).map((c) => c.canonicalId)
+  );
+  return prev
+    .filter((c) => c.active && !currActive.has(c.canonicalId))
+    .map((c) => ({ canonicalId: c.canonicalId, mrr: c.mrr }));
 }
 
 /**
