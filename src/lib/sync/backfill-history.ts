@@ -17,11 +17,11 @@ import {
   calculateLogoRetention,
   calculateMRRGrowth,
   countActiveCustomers,
-  suppressLinkedChurn,
+  eventChurnedCanonicalIds,
+  buildIdToCanonicalId,
   type CustomerMRRSnapshot,
 } from "@/lib/metrics";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getExcludedSubscriptionHandles } from "./get-exclusions";
 import { getConfirmedLinks } from "./get-customer-links";
 import { syncLog } from "./logger";
 
@@ -121,17 +121,6 @@ function isCreatedInMonth(sub: Subscription, month: string): boolean {
   return created.startsWith(month);
 }
 
-function isChurnedInMonth(
-  sub: Subscription,
-  month: string,
-  excludedHandles?: Set<string>
-): boolean {
-  if (excludedHandles?.has(sub.handle)) return false;
-  if (sub.expired_date && sub.expired_date.startsWith(month)) return true;
-  if (sub.cancelled_date && sub.cancelled_date.startsWith(month)) return true;
-  return false;
-}
-
 // ─── Main backfill ──────────────────────────────────────────────
 
 export interface BackfillResult {
@@ -179,8 +168,6 @@ export async function backfillHistory(
   // Fetch add-on totals for all subscriptions (not just active)
   const addOnTotals = await fetchSubscriptionAddOnTotals(allSubscriptions);
 
-  // Fetch subscription exclusions (administrative replacements etc.)
-  const excludedHandles = await getExcludedSubscriptionHandles();
 
   syncLog.info(
     `[backfill] Loaded ${allSubscriptions.length} subscriptions, ${plans.length} plans`
@@ -189,7 +176,7 @@ export async function backfillHistory(
   // ── 2. Fetch all customers from DB ────────────────────────────
   const { data: customers, error: custError } = await supabase
     .from("customers")
-    .select("id, frisbii_handle, plan_handle, status");
+    .select("id, frisbii_handle, plan_handle, status, churn_date");
 
   if (custError) {
     throw new Error(`[backfill] Failed to fetch customers: ${custError.message}`);
@@ -216,16 +203,8 @@ export async function backfillHistory(
     if (idMap.size > 0) customerLinks = idMap;
   }
 
-  // Canonical handles whose linked group still has a currently-active
-  // subscription. A churned sibling in such a group is not real logo churn.
-  // Uses currently-active state (not "active during month") to match
-  // sync-frisbii.ts — otherwise a sub that churns within a month would count
-  // itself as still active and suppress all churn.
-  const activeCanonicalHandles = new Set(
-    allSubscriptions
-      .filter((s) => s.state === "active")
-      .map((s) => confirmedLinks.get(s.customer) ?? s.customer)
-  );
+  // customer_id → canonical id, for event-based churn MRR summation.
+  const idToCanonicalId = buildIdToCanonicalId(customers, confirmedLinks);
 
   // ── 3. Determine date range ───────────────────────────────────
   const activationDates = allSubscriptions
@@ -388,18 +367,20 @@ export async function backfillHistory(
       const newThisMonth = allSubscriptions.filter((s) =>
         isCreatedInMonth(s, month)
       );
-      const churnedThisMonth = allSubscriptions.filter((s) =>
-        isChurnedInMonth(s, month, excludedHandles)
+      // Event-based churn (close-month): customers whose subscription ended
+      // this month, deduped by canonical, excluding still-active groups.
+      const churnedCanonicalIds = eventChurnedCanonicalIds(
+        month,
+        month,
+        customers,
+        confirmedLinks
       );
-      // Suppress false churn: a churned sibling is not churn if its linked
-      // group still has a currently-active member (activeCanonicalHandles).
-      const churnedAfterLinks = suppressLinkedChurn(
-        churnedThisMonth,
-        confirmedLinks,
-        activeCanonicalHandles
-      );
+      const churnedMrrEvent = custSnapRows.reduce((sum, r) => {
+        const cid = idToCanonicalId.get(r.customer_id) ?? r.customer_id;
+        return churnedCanonicalIds.has(cid) ? sum + r.mrr : sum;
+      }, 0);
       const newLogos = newThisMonth.length;
-      const churnedLogos = churnedAfterLinks.length;
+      const churnedLogos = churnedCanonicalIds.size;
       const prevCustomerCount = countActiveCustomers(prevSnapshots, customerLinks);
       const logoRetention = calculateLogoRetention(
         prevCustomerCount,
@@ -458,6 +439,7 @@ export async function backfillHistory(
         expansion_mrr: decomposition.expansionMRR,
         contraction_mrr: decomposition.contractionMRR,
         churned_mrr: decomposition.churnedMRR,
+        churned_mrr_event: churnedMrrEvent,
         non_recurring_revenue: 0,
         nrr,
         grr,

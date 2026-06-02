@@ -486,6 +486,79 @@ export function getChurnedCustomers(
     .map((c) => ({ canonicalId: c.canonicalId, mrr: c.mrr }));
 }
 
+/** Minimal customer shape needed to determine event-based churn. */
+export interface CustomerChurnState {
+  id: number;
+  frisbii_handle: string;
+  churn_date: string | null;
+  status: string;
+}
+
+/** Map each customer id to its canonical customer id via confirmed links. */
+export function buildIdToCanonicalId(
+  customers: { id: number; frisbii_handle: string }[],
+  confirmedLinks: Map<string, string>
+): Map<number, number> {
+  const handleToId = new Map(customers.map((c) => [c.frisbii_handle, c.id]));
+  const map = new Map<number, number>();
+  for (const c of customers) {
+    let handle = c.frisbii_handle;
+    const seen = new Set<string>();
+    while (confirmedLinks.has(handle) && !seen.has(handle)) {
+      seen.add(handle);
+      handle = confirmedLinks.get(handle)!;
+    }
+    map.set(c.id, handleToId.get(handle) ?? c.id);
+  }
+  return map;
+}
+
+/**
+ * Event-based churn: the canonical customers whose subscription ENDED within
+ * [startMonth, endMonth] (close-month convention) and whose linked group has no
+ * currently-active member. Returns canonical customer ids. The same definition
+ * powers logo churn (count), revenue churn (their MRR), and the churned list,
+ * so all three reconcile.
+ *
+ * @param startMonth/endMonth - inclusive YYYY-MM bounds for the churn_date
+ * @param confirmedLinks - linkedHandle → canonicalHandle
+ */
+export function eventChurnedCanonicalIds(
+  startMonth: string,
+  endMonth: string,
+  customers: CustomerChurnState[],
+  confirmedLinks: Map<string, string>
+): Set<number> {
+  const handleToId = new Map(customers.map((c) => [c.frisbii_handle, c.id]));
+  const canonicalIdOf = (c: CustomerChurnState): number => {
+    let handle = c.frisbii_handle;
+    const seen = new Set<string>();
+    while (confirmedLinks.has(handle) && !seen.has(handle)) {
+      seen.add(handle);
+      handle = confirmedLinks.get(handle)!;
+    }
+    return handleToId.get(handle) ?? c.id;
+  };
+
+  const lo = `${startMonth}-01`;
+  const hi = `${endMonth}-31`;
+  const activeCanonical = new Set<number>();
+  const churnedCanonical = new Set<number>();
+  for (const c of customers) {
+    const cid = canonicalIdOf(c);
+    if (c.status === "active") activeCanonical.add(cid);
+    if (c.churn_date && c.churn_date >= lo && c.churn_date <= hi) {
+      churnedCanonical.add(cid);
+    }
+  }
+
+  const result = new Set<number>();
+  for (const cid of churnedCanonical) {
+    if (!activeCanonical.has(cid)) result.add(cid); // group fully gone
+  }
+  return result;
+}
+
 /**
  * New logical customers this period: linked-collapsed customers active now that
  * were not active last month, with their current MRR. Symmetric to

@@ -5,8 +5,9 @@ import {
   calculateRevenuePerEmployee,
   calculateLogoChurnRate,
   calculateRevenueChurnRate,
-  getChurnedCustomers,
   getNewCustomers,
+  eventChurnedCanonicalIds,
+  buildIdToCanonicalId,
   type CustomerMRRSnapshot,
 } from "@/lib/metrics";
 import { computeCommittedMRR } from "@/lib/committed-mrr";
@@ -221,6 +222,13 @@ export async function getReportData(
     totalNonRecurring = snap?.non_recurring_revenue ?? 0;
   }
 
+  // Event-based revenue churn (close-month) for the Churn module. Separate from
+  // decomposition.churnedMRR (snapshot-based), which stays for the MRR waterfall.
+  const totalChurnedMrrEvent =
+    isRange && rangeSnaps.length > 0
+      ? sumField(rangeSnaps, "churned_mrr_event")
+      : snap?.churned_mrr_event ?? 0;
+
   // ------ Segment breakdown ----------------------------------------------
 
   const customerMap = new Map(customers.map((c) => [c.id, c]));
@@ -311,17 +319,39 @@ export async function getReportData(
     }));
 
   const custById = new Map(customers.map((c) => [c.id, c]));
-  const recentlyChurned: CustomerSummary[] = getChurnedCustomers(
-    toMRRSnap(customerSnapshots),
-    toMRRSnap(churnPrevSnapsRes.data ?? []),
-    churnLinkIdMap.size > 0 ? churnLinkIdMap : undefined
-  )
-    .map((ch) => {
-      const c = custById.get(Number(ch.canonicalId));
+
+  // Event-based churn (close-month): customers whose subscription ENDED within
+  // the period, deduped by canonical, group fully gone. Count + MRR reconcile
+  // with churned_logos / churned_mrr_event in monthly_snapshots.
+  const confirmedLinksHandleMap = new Map(
+    (churnLinksRes.data ?? []).map((l) => [l.linked_handle, l.canonical_handle])
+  );
+  const idToCanonical = buildIdToCanonicalId(customers, confirmedLinksHandleMap);
+  // Last-active MRR per canonical across the churn window (a churned customer is
+  // active during their close month, so this captures the MRR lost).
+  const { data: churnWindowSnaps } = await supabase
+    .from("customer_snapshots")
+    .select("customer_id, mrr")
+    .gte("month", churnPrevMonth)
+    .lte("month", endMonth);
+  const lostMrrByCanonical = new Map<number, number>();
+  for (const s of churnWindowSnaps ?? []) {
+    const cid = idToCanonical.get(s.customer_id) ?? s.customer_id;
+    lostMrrByCanonical.set(cid, Math.max(lostMrrByCanonical.get(cid) ?? 0, s.mrr));
+  }
+  const churnedCanonicalIds = eventChurnedCanonicalIds(
+    churnStartMonth,
+    endMonth,
+    customers,
+    confirmedLinksHandleMap
+  );
+  const recentlyChurned: CustomerSummary[] = [...churnedCanonicalIds]
+    .map((cid) => {
+      const c = custById.get(cid);
       return {
-        id: Number(ch.canonicalId),
-        name: c?.name ?? c?.frisbii_handle ?? `Customer ${ch.canonicalId}`,
-        mrr: ch.mrr, // MRR lost
+        id: cid,
+        name: c?.name ?? c?.frisbii_handle ?? `Customer ${cid}`,
+        mrr: lostMrrByCanonical.get(cid) ?? 0, // MRR lost
         plan: formatPlanName(c?.plan_name ?? c?.plan_handle),
         scope: c?.scope_override ?? inferScopeFromPlan(c?.plan_handle),
         tier: c?.tier_override ?? inferTierFromPlan(c?.plan_handle),
@@ -333,7 +363,7 @@ export async function getReportData(
       };
     })
     .sort((a, b) => b.mrr - a.mrr)
-    .slice(0, 20);
+    .slice(0, 50);
 
   // New customers = the grundlag behind new logos: linked-collapsed customers
   // active this period that were not active last month, with their current MRR.
@@ -425,7 +455,7 @@ export async function getReportData(
 
   const logoChurnRate = calculateLogoChurnRate(totalChurnedLogos, startCustomerCount);
   const revenueChurnRate = calculateRevenueChurnRate(
-    decomposition.churnedMRR,
+    totalChurnedMrrEvent,
     startMRR
   );
 
@@ -579,7 +609,7 @@ export async function getReportData(
       count: snap?.customer_count ?? 0,
       newLogos: totalNewLogos,
       churnedLogos: totalChurnedLogos,
-      churnedMRR: decomposition.churnedMRR,
+      churnedMRR: totalChurnedMrrEvent,
       arpa: snap?.arpa ?? 0,
       top10Concentration: snap?.top10_concentration ?? null,
       segments,

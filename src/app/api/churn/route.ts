@@ -14,18 +14,19 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await supabase
       .from("monthly_snapshots")
-      .select("month, mrr, customer_count, churned_logos, churned_mrr")
+      .select("month, mrr, customer_count, churned_logos, churned_mrr_event")
       .gte("month", windowStartKey)
       .order("month", { ascending: true });
 
     if (error) throw error;
 
+    // Revenue churn in the Churn module uses event-based churn (close-month).
     const snapshots: SnapshotForChurn[] = (data ?? []).map((row) => ({
       month: row.month,
       mrr: row.mrr,
       customer_count: row.customer_count,
       churned_logos: row.churned_logos,
-      churned_mrr: row.churned_mrr,
+      churned_mrr: row.churned_mrr_event,
     }));
 
     const monthlyChurn = getMonthlyChurnFromSnapshots(snapshots).slice(-months);

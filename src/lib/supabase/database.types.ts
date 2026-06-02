@@ -444,6 +444,7 @@ export type Database = {
           arr: number
           churned_logos: number
           churned_mrr: number
+          churned_mrr_event: number
           contraction_mrr: number
           created_at: string
           customer_count: number
@@ -474,6 +475,7 @@ export type Database = {
           arr?: number
           churned_logos?: number
           churned_mrr?: number
+          churned_mrr_event?: number
           contraction_mrr?: number
           created_at?: string
           customer_count?: number
@@ -504,6 +506,7 @@ export type Database = {
           arr?: number
           churned_logos?: number
           churned_mrr?: number
+          churned_mrr_event?: number
           contraction_mrr?: number
           created_at?: string
           customer_count?: number

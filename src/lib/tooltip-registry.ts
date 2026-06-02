@@ -176,15 +176,15 @@ export const tooltipRegistry: Record<MetricKey, TooltipContent> = {
   },
   logoChurnRate: {
     name: "Logo Churn Rate",
-    formula: "(Churned logos / Active customers at start) × 100",
-    source: "Monthly snapshots",
-    benchmark: "Target: <10% (i.e. >90% logo retention). Counts all lost customers, including those who churned before receiving their first invoice.",
+    formula: "(Customers lost / Active customers at start) × 100",
+    source: "Monthly snapshots (close-month)",
+    benchmark: "A customer counts as churned in the month their subscription ends (close month), counted once per real-world customer even if they hold several handles. Target: <10% (i.e. >90% logo retention).",
   },
   revenueChurnRate: {
     name: "Revenue Churn Rate",
-    formula: "(Churned MRR / Start MRR) × 100",
-    source: "Monthly snapshots",
-    benchmark: "Target: <5%. Only counts MRR actually lost — a customer who churned before their first invoice contributes 0 here but still counts toward logo churn.",
+    formula: "(MRR of customers lost this month / Start MRR) × 100",
+    source: "Monthly snapshots (close-month)",
+    benchmark: "The MRR of the customers whose subscription ended this month — the same customers shown in 'Recently Closed', so the number and the list always match. Note: this is event-based and differs from the snapshot-based churn bar in the MRR Waterfall. Target: <5%.",
   },
   cohortRetention: {
     name: "Cohort Retention",
