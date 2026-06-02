@@ -706,10 +706,10 @@ describe("decomposeMRRByCustomer", () => {
     const prev = [a("A", 10_000), a("B", 20_000), a("C", 5_000)];
     const curr = [a("A", 15_000), a("B", 18_000), a("D", 8_000), churned("C")];
     const bd = decomposeMRRByCustomer(curr, prev);
-    expect(bd.newCustomers).toEqual([{ canonicalId: "D", amount: 8_000 }]);
-    expect(bd.expansion).toEqual([{ canonicalId: "A", amount: 5_000 }]);
-    expect(bd.contraction).toEqual([{ canonicalId: "B", amount: 2_000 }]);
-    expect(bd.churned).toEqual([{ canonicalId: "C", amount: 5_000 }]);
+    expect(bd.newCustomers).toEqual([{ canonicalId: "D", amount: 8_000, fromMrr: 0, toMrr: 8_000 }]);
+    expect(bd.expansion).toEqual([{ canonicalId: "A", amount: 5_000, fromMrr: 10_000, toMrr: 15_000 }]);
+    expect(bd.contraction).toEqual([{ canonicalId: "B", amount: 2_000, fromMrr: 20_000, toMrr: 18_000 }]);
+    expect(bd.churned).toEqual([{ canonicalId: "C", amount: 5_000, fromMrr: 5_000, toMrr: 0 }]);
 
     const sums = decomposeMRR(curr, prev);
     expect(bd.newCustomers.reduce((s, x) => s + x.amount, 0)).toBe(sums.newMRR);
@@ -723,6 +723,6 @@ describe("decomposeMRRByCustomer", () => {
     const curr = [a("1", 2_000), churned("2")];
     const bd = decomposeMRRByCustomer(curr, prev, new Map([["2", "1"]]));
     expect(bd.churned).toEqual([]);
-    expect(bd.contraction).toEqual([{ canonicalId: "1", amount: 2_000 }]);
+    expect(bd.contraction).toEqual([{ canonicalId: "1", amount: 2_000, fromMrr: 4_000, toMrr: 2_000 }]);
   });
 });

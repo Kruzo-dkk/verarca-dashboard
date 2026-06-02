@@ -154,6 +154,9 @@ export interface CustomerSummary {
   /** Company/legal name from HubSpot, when the display name is a person. */
   companyName?: string | null;
   mrr: number;
+  /** MRR before/after — set for expansion/contraction rows in MRR Movement. */
+  mrrFrom?: number;
+  mrrTo?: number;
   plan: string | null;
   scope: string | null;
   tier: string | null;

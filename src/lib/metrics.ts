@@ -464,6 +464,9 @@ export function decomposeMRR(
 export interface CustomerMovement {
   canonicalId: string;
   amount: number;
+  /** MRR last month and this month (for before → after display). */
+  fromMrr: number;
+  toMrr: number;
 }
 
 export interface MRRMovementBreakdown {
@@ -501,17 +504,19 @@ export function decomposeMRRByCustomer(
   for (const [id, c] of currMap) {
     const prevMrr = prevMap.get(id);
     if (!c.present) {
-      if (prevMrr !== undefined) out.churned.push({ canonicalId: id, amount: prevMrr });
+      if (prevMrr !== undefined)
+        out.churned.push({ canonicalId: id, amount: prevMrr, fromMrr: prevMrr, toMrr: 0 });
     } else if (prevMrr === undefined) {
-      out.newCustomers.push({ canonicalId: id, amount: c.mrr });
+      out.newCustomers.push({ canonicalId: id, amount: c.mrr, fromMrr: 0, toMrr: c.mrr });
     } else if (c.mrr > prevMrr) {
-      out.expansion.push({ canonicalId: id, amount: c.mrr - prevMrr });
+      out.expansion.push({ canonicalId: id, amount: c.mrr - prevMrr, fromMrr: prevMrr, toMrr: c.mrr });
     } else if (c.mrr < prevMrr) {
-      out.contraction.push({ canonicalId: id, amount: prevMrr - c.mrr });
+      out.contraction.push({ canonicalId: id, amount: prevMrr - c.mrr, fromMrr: prevMrr, toMrr: c.mrr });
     }
   }
   for (const [id, prevMrr] of prevMap) {
-    if (!currMap.has(id)) out.churned.push({ canonicalId: id, amount: prevMrr });
+    if (!currMap.has(id))
+      out.churned.push({ canonicalId: id, amount: prevMrr, fromMrr: prevMrr, toMrr: 0 });
   }
   return out;
 }
