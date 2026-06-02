@@ -492,6 +492,7 @@ export interface CustomerChurnState {
   frisbii_handle: string;
   churn_date: string | null;
   status: string;
+  excluded?: boolean;
 }
 
 /** Map each customer id to its canonical customer id via confirmed links. */
@@ -545,6 +546,7 @@ export function eventChurnedCanonicalIds(
   const activeCanonical = new Set<number>();
   const churnedCanonical = new Set<number>();
   for (const c of customers) {
+    if (c.excluded) continue; // test/internal accounts never count as churn
     const cid = canonicalIdOf(c);
     if (c.status === "active") activeCanonical.add(cid);
     if (c.churn_date && c.churn_date >= lo && c.churn_date <= hi) {

@@ -86,7 +86,8 @@ export async function syncCustomerSnapshots(month: string): Promise<void> {
   // ── Fetch all customers from the DB ────────────────────────
   const { data: customers, error: custError } = await supabase
     .from("customers")
-    .select("id, frisbii_handle, plan_handle, status");
+    .select("id, frisbii_handle, plan_handle, status, excluded")
+    .eq("excluded", false);
 
   if (custError) {
     throw new Error(
