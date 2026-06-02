@@ -54,6 +54,7 @@ export interface ReportData {
     top10Concentration: number | null;
     segments: SegmentBreakdown[];
     topCustomers: CustomerSummary[];
+    newCustomers: CustomerSummary[];
     recentlyChurned: CustomerSummary[];
     countHistory: { month: string; count: number }[];
     arpaHistory: { month: string; arpa: number }[];

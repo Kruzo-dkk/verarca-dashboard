@@ -487,6 +487,26 @@ export function getChurnedCustomers(
 }
 
 /**
+ * New logical customers this period: linked-collapsed customers active now that
+ * were not active last month, with their current MRR. Symmetric to
+ * getChurnedCustomers and consistent with the same collapse.
+ */
+export function getNewCustomers(
+  currentSnapshots: CustomerMRRSnapshot[],
+  prevSnapshots: CustomerMRRSnapshot[],
+  customerLinks?: Map<string, string>
+): ChurnedCustomer[] {
+  const prev = collapseLinkedSnapshots(prevSnapshots, customerLinks);
+  const curr = collapseLinkedSnapshots(currentSnapshots, customerLinks);
+  const prevActive = new Set(
+    prev.filter((c) => c.active).map((c) => c.canonicalId)
+  );
+  return curr
+    .filter((c) => c.active && !prevActive.has(c.canonicalId))
+    .map((c) => ({ canonicalId: c.canonicalId, mrr: c.mrr }));
+}
+
+/**
  * Net Revenue Retention (NRR).
  * Measures revenue retained + expanded from existing customers over a period.
  *

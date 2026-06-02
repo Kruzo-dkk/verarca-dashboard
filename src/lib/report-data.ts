@@ -6,6 +6,7 @@ import {
   calculateLogoChurnRate,
   calculateRevenueChurnRate,
   getChurnedCustomers,
+  getNewCustomers,
   type CustomerMRRSnapshot,
 } from "@/lib/metrics";
 import { computeCommittedMRR } from "@/lib/committed-mrr";
@@ -334,6 +335,35 @@ export async function getReportData(
     .sort((a, b) => b.mrr - a.mrr)
     .slice(0, 20);
 
+  // New customers = the grundlag behind new logos: linked-collapsed customers
+  // active this period that were not active last month, with their current MRR.
+  const newCustomerSnapMap = new Map(
+    customerSnapshots.map((cs) => [cs.customer_id, cs])
+  );
+  const newCustomers: CustomerSummary[] = getNewCustomers(
+    toMRRSnap(customerSnapshots),
+    toMRRSnap(churnPrevSnapsRes.data ?? []),
+    churnLinkIdMap.size > 0 ? churnLinkIdMap : undefined
+  )
+    .map((nc) => {
+      const c = custById.get(Number(nc.canonicalId));
+      const cs = newCustomerSnapMap.get(Number(nc.canonicalId));
+      const planHandle = cs?.plan_handle ?? c?.plan_handle;
+      return {
+        id: Number(nc.canonicalId),
+        name: c?.name ?? c?.frisbii_handle ?? `Customer ${nc.canonicalId}`,
+        mrr: nc.mrr,
+        plan: formatPlanName(cs?.plan_name ?? c?.plan_name ?? planHandle),
+        scope: c?.scope_override ?? inferScopeFromPlan(planHandle),
+        tier: c?.tier_override ?? inferTierFromPlan(planHandle),
+        status: "active",
+        partner: c?.partner ?? null,
+        segment: c?.segment ?? null,
+        matchConfidence: c?.match_confidence ?? "unknown",
+      };
+    })
+    .sort((a, b) => b.mrr - a.mrr);
+
   // ------ Cohort data ----------------------------------------------------
 
   const cohortSnapshotsRes = await supabase
@@ -554,6 +584,7 @@ export async function getReportData(
       top10Concentration: snap?.top10_concentration ?? null,
       segments,
       topCustomers,
+      newCustomers,
       recentlyChurned,
       countHistory,
       arpaHistory,
