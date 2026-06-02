@@ -98,6 +98,45 @@ export type Database = {
         }
         Relationships: []
       }
+      customer_links: {
+        Row: {
+          canonical_handle: string
+          confidence: string
+          created_at: string
+          created_by: string
+          cvr: string | null
+          id: number
+          linked_handle: string
+          match_method: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          canonical_handle: string
+          confidence?: string
+          created_at?: string
+          created_by?: string
+          cvr?: string | null
+          id?: never
+          linked_handle: string
+          match_method: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          canonical_handle?: string
+          confidence?: string
+          created_at?: string
+          created_by?: string
+          cvr?: string | null
+          id?: never
+          linked_handle?: string
+          match_method?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       customer_snapshots: {
         Row: {
           created_at: string
