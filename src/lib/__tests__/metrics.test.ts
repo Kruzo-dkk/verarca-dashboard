@@ -11,6 +11,8 @@ import {
   calculateRevenueChurnRate,
   calculateMRRGrowth,
   countActiveCustomers,
+  collapseLinkedSnapshots,
+  suppressLinkedChurn,
   decomposeMRR,
   getMonthlyChurn,
   getMonthlyChurnFromSnapshots,
@@ -519,5 +521,72 @@ describe("countActiveCustomers", () => {
       { customerId: "2", mrr: 100, status: "active", planHandle: "plan-b" },
     ];
     expect(countActiveCustomers(snapshots)).toBe(1);
+  });
+});
+
+describe("collapseLinkedSnapshots", () => {
+  it("collapses two linked ids into one customer and sums MRR", () => {
+    const snaps = [
+      { customerId: "16", mrr: 1199, status: "active", planHandle: "p" },
+      { customerId: "79", mrr: 2199, status: "active", planHandle: "p" },
+    ];
+    const links = new Map([["79", "16"]]); // secondary 79 -> canonical 16
+    const result = collapseLinkedSnapshots(snaps, links);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ canonicalId: "16", mrr: 3398, active: true });
+  });
+
+  it("group is active if ANY member is active, even when the canonical churned", () => {
+    const snaps = [
+      { customerId: "46", mrr: 6041, status: "active", planHandle: "p" },
+      { customerId: "74", mrr: 0, status: "churned", planHandle: "" },
+    ];
+    const links = new Map([["74", "46"]]);
+    const [collapsed] = collapseLinkedSnapshots(snaps, links);
+    expect(collapsed.active).toBe(true);
+    expect(collapsed.mrr).toBe(6041);
+  });
+
+  it("with no links, returns one entry per snapshot (identity)", () => {
+    const snaps = [
+      { customerId: "1", mrr: 100, status: "active", planHandle: "p" },
+      { customerId: "2", mrr: 0, status: "churned", planHandle: "" },
+    ];
+    expect(collapseLinkedSnapshots(snaps)).toHaveLength(2);
+  });
+});
+
+describe("countActiveCustomers with links", () => {
+  it("counts two active linked rows as one logo", () => {
+    const snaps = [
+      { customerId: "16", mrr: 1199, status: "active", planHandle: "p" },
+      { customerId: "79", mrr: 2199, status: "active", planHandle: "p" },
+    ];
+    expect(countActiveCustomers(snaps, new Map([["79", "16"]]))).toBe(1);
+  });
+
+  it("regression: identical result to no-arg form when links are empty", () => {
+    const snaps = [
+      { customerId: "1", mrr: 100, status: "active", planHandle: "p" },
+      { customerId: "2", mrr: 0, status: "churned", planHandle: "" },
+      { customerId: "3", mrr: 50, status: "active", planHandle: "p" },
+    ];
+    expect(countActiveCustomers(snaps, new Map())).toBe(countActiveCustomers(snaps));
+    expect(countActiveCustomers(snaps)).toBe(2);
+  });
+});
+
+describe("suppressLinkedChurn", () => {
+  const links = new Map([["cust-0074", "cust-0046"]]); // secondary -> canonical
+  const activeCanon = new Set(["cust-0046"]);
+
+  it("removes a churned sibling whose group still has an active member", () => {
+    const churned = [{ customer: "cust-0074", handle: "s1" }];
+    expect(suppressLinkedChurn(churned, links, activeCanon)).toHaveLength(0);
+  });
+
+  it("keeps a genuinely churned customer with no active sibling", () => {
+    const churned = [{ customer: "cust-9999", handle: "s2" }];
+    expect(suppressLinkedChurn(churned, links, activeCanon)).toHaveLength(1);
   });
 });
