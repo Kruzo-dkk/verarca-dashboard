@@ -400,7 +400,12 @@ export async function getReportData(
 
   // Per-customer MRR waterfall breakdown (snapshot basis — sums match the
   // New/Expansion/Contraction/Churned bars). mrr = the movement amount.
-  const movementToSummary = (m: { canonicalId: string; amount: number }): CustomerSummary => {
+  const movementToSummary = (m: {
+    canonicalId: string;
+    amount: number;
+    fromMrr: number;
+    toMrr: number;
+  }): CustomerSummary => {
     const c = custById.get(Number(m.canonicalId));
     const cs = newCustomerSnapMap.get(Number(m.canonicalId));
     const planHandle = cs?.plan_handle ?? c?.plan_handle;
@@ -409,6 +414,8 @@ export async function getReportData(
       name: c?.name ?? c?.frisbii_handle ?? `Customer ${m.canonicalId}`,
       companyName: c?.company_name ?? null,
       mrr: m.amount,
+      mrrFrom: m.fromMrr,
+      mrrTo: m.toMrr,
       plan: formatPlanName(cs?.plan_name ?? c?.plan_name ?? planHandle),
       scope: c?.scope_override ?? inferScopeFromPlan(planHandle),
       tier: c?.tier_override ?? inferTierFromPlan(planHandle),

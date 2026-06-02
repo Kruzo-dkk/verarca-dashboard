@@ -77,6 +77,7 @@ export function MRRMovementBreakdown({ movement, formatValue }: MRRMovementBreak
           customers={active}
           formatValue={formatValue}
           expandable
+          movementColumn={activeTab === "expansion" || activeTab === "contraction"}
           emptyMessage={`No ${activeMeta.label.toLowerCase()} this period`}
         />
       </div>

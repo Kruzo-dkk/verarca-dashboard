@@ -11,6 +11,8 @@ interface CustomerTableProps {
   emptyMessage: string;
   /** When true, clicking a row expands the full customer detail. */
   expandable?: boolean;
+  /** When true, the MRR column shows "before → after" (for expansion/contraction). */
+  movementColumn?: boolean;
 }
 
 export function CustomerTable({
@@ -19,6 +21,7 @@ export function CustomerTable({
   showChurnDate,
   emptyMessage,
   expandable,
+  movementColumn,
 }: CustomerTableProps) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
@@ -38,7 +41,7 @@ export function CustomerTable({
       <thead>
         <tr className="text-left text-[var(--text-muted)] text-xs uppercase tracking-wider">
           <th className="pb-2 font-medium">Customer</th>
-          <th className="pb-2 font-medium text-right pr-4">MRR</th>
+          <th className="pb-2 font-medium text-right pr-4">{movementColumn ? "Before → After" : "MRR"}</th>
           <th className="pb-2 font-medium hidden sm:table-cell pl-4">Scope</th>
           <th className="pb-2 font-medium hidden md:table-cell">Partner</th>
           {showChurnDate ? (
@@ -103,7 +106,17 @@ export function CustomerTable({
                     )}
                   </div>
                 </td>
-                <td className="py-1.5 text-right metric-value pr-4 tabular-nums">{formatValue(c.mrr)}</td>
+                <td className="py-1.5 text-right metric-value pr-4 tabular-nums">
+                  {movementColumn && c.mrrFrom != null && c.mrrTo != null ? (
+                    <span className="whitespace-nowrap">
+                      <span className="text-[var(--text-muted)]">{formatValue(c.mrrFrom)}</span>
+                      <span className="text-[var(--text-muted)] mx-1">→</span>
+                      <span>{formatValue(c.mrrTo)}</span>
+                    </span>
+                  ) : (
+                    formatValue(c.mrr)
+                  )}
+                </td>
                 <td className="py-1.5 text-[var(--text-secondary)] hidden sm:table-cell pl-4 truncate">
                   <span>{c.scope ?? "—"}</span>
                   {c.tier && c.tier !== "Standard" && (
