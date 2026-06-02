@@ -16,10 +16,13 @@ import {
   calculateConcentration,
   calculateLogoRetention,
   calculateMRRGrowth,
+  countActiveCustomers,
+  suppressLinkedChurn,
   type CustomerMRRSnapshot,
 } from "@/lib/metrics";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getExcludedSubscriptionHandles } from "./get-exclusions";
+import { getConfirmedLinks } from "./get-customer-links";
 import { syncLog } from "./logger";
 
 // ─── Helpers ────────────────────────────────────────────────────
@@ -198,6 +201,21 @@ export async function backfillHistory(
 
   syncLog.info(`[backfill] Found ${customers.length} customers in DB`);
 
+  // ── Customer linking: dedupe real-world customers with multiple handles.
+  //    Built once (current state) and applied to every historic month. ──
+  const confirmedLinks = await getConfirmedLinks(); // linkedHandle → canonicalHandle
+  let customerLinks: Map<string, string> | undefined;
+  {
+    const handleToId = new Map(customers.map((c) => [c.frisbii_handle, String(c.id)]));
+    const idMap = new Map<string, string>(); // secondaryId → canonicalId
+    for (const [linked, canon] of confirmedLinks) {
+      const oldId = handleToId.get(linked);
+      const newId = handleToId.get(canon);
+      if (oldId && newId && oldId !== newId) idMap.set(oldId, newId);
+    }
+    if (idMap.size > 0) customerLinks = idMap;
+  }
+
   // ── 3. Determine date range ───────────────────────────────────
   const activationDates = allSubscriptions
     .map((s) => (s.activated || s.created)?.slice(0, 7))
@@ -320,13 +338,11 @@ export async function backfillHistory(
         .filter((s) => s.status === "active")
         .reduce((sum, s) => sum + s.mrr, 0);
       const arr = calculateARR(mrr);
-      const customerCount = currentSnapshots.filter(
-        (s) => s.status === "active" && s.mrr > 0
-      ).length;
+      const customerCount = countActiveCustomers(currentSnapshots, customerLinks);
       const arpa = Math.round(calculateARPC(mrr, customerCount));
 
-      // MRR decomposition
-      const decomposition = decomposeMRR(currentSnapshots, prevSnapshots);
+      // MRR decomposition (links treat re-signups as continuity, not churn+new)
+      const decomposition = decomposeMRR(currentSnapshots, prevSnapshots, customerLinks);
 
       // Retention
       const prevMRR = prevSnapshots.reduce((sum, s) => sum + s.mrr, 0);
@@ -364,11 +380,19 @@ export async function backfillHistory(
       const churnedThisMonth = allSubscriptions.filter((s) =>
         isChurnedInMonth(s, month, excludedHandles)
       );
+      // Suppress false churn: a churned sibling is not churn if any member of
+      // its linked group was still active during the month.
+      const activeCanonicalHandles = new Set(
+        subsActiveDuringMonth.map((s) => confirmedLinks.get(s.customer) ?? s.customer)
+      );
+      const churnedAfterLinks = suppressLinkedChurn(
+        churnedThisMonth,
+        confirmedLinks,
+        activeCanonicalHandles
+      );
       const newLogos = newThisMonth.length;
-      const churnedLogos = churnedThisMonth.length;
-      const prevCustomerCount = prevSnapshots.filter(
-        (s) => s.status === "active" && s.mrr > 0
-      ).length;
+      const churnedLogos = churnedAfterLinks.length;
+      const prevCustomerCount = countActiveCustomers(prevSnapshots, customerLinks);
       const logoRetention = calculateLogoRetention(
         prevCustomerCount,
         churnedLogos
