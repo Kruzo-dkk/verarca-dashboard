@@ -2,6 +2,7 @@
 
 import { useReportContext } from "@/components/providers/ReportProvider";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { HeroKPIs } from "./HeroKPIs";
 import { RevenueSection } from "./RevenueSection";
 import { RetentionSection } from "./RetentionSection";
@@ -50,21 +51,23 @@ export function ReportShell() {
       {/* Report sections */}
       {data && (
         <div className="space-y-10">
-          <HeroKPIs data={data} formatValue={formatValue} />
-          <RevenueSection data={data} formatValue={formatValue} />
-          <RetentionSection data={data} />
-          <ChurnSection data={data} formatValue={formatValue} />
-          <CustomerSection data={data} formatValue={formatValue} />
-          <PipelineSection data={data} formatValue={formatValue} />
-          <ChannelSection data={data} formatValue={formatValue} />
-          <UnitEconomicsSection data={data} formatValue={formatValue} />
-          <CommentarySection
-            month={month}
-            executiveSummary={data.commentary.executiveSummary}
-            highlights={data.commentary.highlights}
-            lowlights={data.commentary.lowlights}
-            whatsAhead={data.commentary.whatsAhead}
-          />
+          <ErrorBoundary section="KPI'er"><HeroKPIs data={data} formatValue={formatValue} /></ErrorBoundary>
+          <ErrorBoundary section="Revenue"><RevenueSection data={data} formatValue={formatValue} /></ErrorBoundary>
+          <ErrorBoundary section="Retention"><RetentionSection data={data} /></ErrorBoundary>
+          <ErrorBoundary section="Churn"><ChurnSection data={data} formatValue={formatValue} /></ErrorBoundary>
+          <ErrorBoundary section="Customers"><CustomerSection data={data} formatValue={formatValue} /></ErrorBoundary>
+          <ErrorBoundary section="Pipeline"><PipelineSection data={data} formatValue={formatValue} /></ErrorBoundary>
+          <ErrorBoundary section="Channels"><ChannelSection data={data} formatValue={formatValue} /></ErrorBoundary>
+          <ErrorBoundary section="Unit economics"><UnitEconomicsSection data={data} formatValue={formatValue} /></ErrorBoundary>
+          <ErrorBoundary section="Commentary">
+            <CommentarySection
+              month={month}
+              executiveSummary={data.commentary.executiveSummary}
+              highlights={data.commentary.highlights}
+              lowlights={data.commentary.lowlights}
+              whatsAhead={data.commentary.whatsAhead}
+            />
+          </ErrorBoundary>
         </div>
       )}
 
