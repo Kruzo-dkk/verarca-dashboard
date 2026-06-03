@@ -214,31 +214,6 @@ export function buildActiveCountByCanonical(
   return count;
 }
 
-/**
- * Drop churned subscriptions whose customer belongs to a linked group that
- * still has an active member — if any sibling is active, the customer is not
- * churned.
- *
- * @param linkedToCanonical - linkedHandle → canonicalHandle (frisbii handles)
- * @param activeCanonicalHandles - canonical handles with at least one active member
- */
-export function suppressLinkedChurn<T extends { customer: string }>(
-  churnedSubs: T[],
-  linkedToCanonical: Map<string, string>,
-  activeCanonicalHandles: Set<string>
-): T[] {
-  // Only customers that belong to a linked group are eligible for suppression —
-  // a single handle's own plan changes are out of scope and handled elsewhere.
-  const linkedHandles = new Set<string>([
-    ...linkedToCanonical.keys(),
-    ...linkedToCanonical.values(),
-  ]);
-  return churnedSubs.filter((s) => {
-    if (!linkedHandles.has(s.customer)) return true;
-    return !activeCanonicalHandles.has(resolveCanonical(s.customer, linkedToCanonical));
-  });
-}
-
 export interface MonthlyRevenue {
   month: string; // YYYY-MM
   revenue: number;
@@ -568,26 +543,6 @@ export function decomposeMRRByCustomer(
 export interface ChurnedCustomer {
   canonicalId: string;
   mrr: number;
-}
-
-/**
- * The grundlag behind churn: linked-collapsed customers that were active last
- * month and are no longer active this month, with the MRR lost. Consistent with
- * decomposeMRR — the sum of these equals churnedMRR for fully-gone groups.
- */
-export function getChurnedCustomers(
-  currentSnapshots: CustomerMRRSnapshot[],
-  prevSnapshots: CustomerMRRSnapshot[],
-  customerLinks?: Map<string, string>
-): ChurnedCustomer[] {
-  const prev = collapseLinkedSnapshots(prevSnapshots, customerLinks);
-  const curr = collapseLinkedSnapshots(currentSnapshots, customerLinks);
-  const currActive = new Set(
-    curr.filter((c) => c.active).map((c) => c.canonicalId)
-  );
-  return prev
-    .filter((c) => c.active && !currActive.has(c.canonicalId))
-    .map((c) => ({ canonicalId: c.canonicalId, mrr: c.mrr }));
 }
 
 /** Minimal customer shape needed to determine event-based churn. */
