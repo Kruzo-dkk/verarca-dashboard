@@ -6,23 +6,8 @@ import {
   type Subscription,
   type Plan,
 } from "@/lib/frisbii";
-import {
-  decomposeMRR,
-  calculateARR,
-  calculateARPC,
-  calculateNRR,
-  calculateGRR,
-  calculateQuickRatio,
-  calculateConcentration,
-  calculateLogoRetention,
-  calculateMRRGrowth,
-  countActiveCustomers,
-  collapseLinkedSnapshots,
-  buildActiveCountByCanonical,
-  eventChurnedCanonicalIds,
-  buildIdToCanonicalId,
-  type CustomerMRRSnapshot,
-} from "@/lib/metrics";
+import { type CustomerMRRSnapshot } from "@/lib/metrics";
+import { computeMonthlyMetrics } from "./monthly-metrics";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getConfirmedLinks } from "./get-customer-links";
 import { syncLog } from "./logger";
@@ -194,22 +179,7 @@ export async function backfillHistory(
   // ── Customer linking: dedupe real-world customers with multiple handles.
   //    Built once (current state) and applied to every historic month. ──
   const confirmedLinks = await getConfirmedLinks(); // linkedHandle → canonicalHandle
-  let customerLinks: Map<string, string> | undefined;
-  {
-    const handleToId = new Map(customers.map((c) => [c.frisbii_handle, String(c.id)]));
-    const idMap = new Map<string, string>(); // secondaryId → canonicalId
-    for (const [linked, canon] of confirmedLinks) {
-      const oldId = handleToId.get(linked);
-      const newId = handleToId.get(canon);
-      if (oldId && newId && oldId !== newId) idMap.set(oldId, newId);
-    }
-    if (idMap.size > 0) customerLinks = idMap;
-  }
-
   // customer_id → canonical id, for event-based churn MRR summation.
-  const idToCanonicalId = buildIdToCanonicalId(customers, confirmedLinks);
-  // K per group = current active-subscription count, so re-signups don't inflate MRR.
-  const activeCount = buildActiveCountByCanonical(customers, confirmedLinks);
 
   // ── 3. Determine date range ───────────────────────────────────
   const activationDates = allSubscriptions
@@ -328,93 +298,23 @@ export async function backfillHistory(
         planHandle: r.plan_handle || "",
       }));
 
-      // Core metrics
-      const mrr = collapseLinkedSnapshots(currentSnapshots, customerLinks, activeCount).reduce(
-        (sum, c) => sum + c.mrr,
-        0
-      );
-      const arr = calculateARR(mrr);
-      const customerCount = countActiveCustomers(currentSnapshots, customerLinks, activeCount);
-      const arpa = Math.round(calculateARPC(mrr, customerCount));
-
-      // MRR decomposition (links treat re-signups as continuity, not churn+new)
-      const decomposition = decomposeMRR(currentSnapshots, prevSnapshots, customerLinks, activeCount);
-
-      // Retention
-      const prevMRR = prevSnapshots.reduce((sum, s) => sum + s.mrr, 0);
-      const prevCustomerIds = new Set(prevSnapshots.map((s) => s.customerId));
-      const endMRRExisting = currentSnapshots
-        .filter((s) => prevCustomerIds.has(s.customerId))
-        .reduce((sum, s) => sum + s.mrr, 0);
-
-      const nrr = calculateNRR(prevMRR, endMRRExisting);
-      const grr = calculateGRR(
-        prevMRR,
-        decomposition.contractionMRR,
-        decomposition.churnedMRR
-      );
-
-      // Quick ratio
-      const quickRatio = calculateQuickRatio(
-        decomposition.newMRR,
-        decomposition.expansionMRR,
-        decomposition.churnedMRR,
-        decomposition.contractionMRR
-      );
-      const quickRatioValue = Number.isFinite(quickRatio) ? quickRatio : null;
-
-      // Concentration
-      const customerMRRs = currentSnapshots
-        .filter((s) => s.mrr > 0)
-        .map((s) => s.mrr);
-      const top10Concentration = calculateConcentration(customerMRRs, 10);
-
-      // Logo metrics
-      const newThisMonth = allSubscriptions.filter((s) =>
-        isCreatedInMonth(s, month)
-      );
-      // Event-based churn (close-month): customers whose subscription ended
-      // this month, deduped by canonical, excluding still-active groups.
-      const churnedCanonicalIds = eventChurnedCanonicalIds(
-        month,
-        month,
-        customers,
-        confirmedLinks
-      );
-      const churnedMrrEvent = custSnapRows.reduce((sum, r) => {
-        const cid = idToCanonicalId.get(r.customer_id) ?? r.customer_id;
-        return churnedCanonicalIds.has(cid) ? sum + r.mrr : sum;
-      }, 0);
-      const newLogos = newThisMonth.length;
-      const churnedLogos = churnedCanonicalIds.size;
-      const prevCustomerCount = countActiveCustomers(prevSnapshots, customerLinks, activeCount);
-      const logoRetention = calculateLogoRetention(
-        prevCustomerCount,
-        churnedLogos
-      );
-
-      // Growth rates
+      // Aggregate metrics — single source of truth (monthly-metrics.ts),
+      // shared with syncMonthlySnapshot so the two paths cannot drift.
+      const newLogos = allSubscriptions.filter((sub) => isCreatedInMonth(sub, month)).length;
       const { data: prevRow } = await supabase
-        .from("monthly_snapshots")
-        .select("mrr")
-        .eq("month", prevMonthKey)
-        .maybeSingle();
-
-      const mrrGrowthMoM = prevRow
-        ? calculateMRRGrowth(mrr, prevRow.mrr)
-        : null;
-
-      const prevYearKey = previousYear(month);
+        .from("monthly_snapshots").select("mrr").eq("month", prevMonthKey).maybeSingle();
       const { data: prevYearRow } = await supabase
-        .from("monthly_snapshots")
-        .select("mrr")
-        .eq("month", prevYearKey)
-        .maybeSingle();
-
-      const mrrGrowthYoY = prevYearRow
-        ? calculateMRRGrowth(mrr, prevYearRow.mrr)
-        : null;
-
+        .from("monthly_snapshots").select("mrr").eq("month", previousYear(month)).maybeSingle();
+      const m = computeMonthlyMetrics({
+        month,
+        currentSnapshots,
+        prevSnapshots,
+        customers,
+        confirmedLinks,
+        newLogos,
+        prevMonthMRR: prevRow?.mrr ?? null,
+        prevYearMRR: prevYearRow?.mrr ?? null,
+      });
       // Check if month is locked
       const { data: lockCheck } = await supabase
         .from("monthly_snapshots")
@@ -438,26 +338,26 @@ export async function backfillHistory(
       // --- 4d. Upsert monthly_snapshots ---
       const row = {
         month,
-        mrr,
-        arr,
-        net_new_mrr: decomposition.netNewMRR,
-        new_mrr: decomposition.newMRR,
-        expansion_mrr: decomposition.expansionMRR,
-        contraction_mrr: decomposition.contractionMRR,
-        churned_mrr: decomposition.churnedMRR,
-        churned_mrr_event: churnedMrrEvent,
+        mrr: m.mrr,
+        arr: m.arr,
+        net_new_mrr: m.netNewMRR,
+        new_mrr: m.newMRR,
+        expansion_mrr: m.expansionMRR,
+        contraction_mrr: m.contractionMRR,
+        churned_mrr: m.churnedMRR,
+        churned_mrr_event: m.churnedMrrEvent,
         non_recurring_revenue: 0,
-        nrr,
-        grr,
-        logo_retention_rate: logoRetention,
-        quick_ratio: quickRatioValue,
-        customer_count: customerCount,
-        new_logos: newLogos,
-        churned_logos: churnedLogos,
-        arpa,
-        top10_concentration: top10Concentration,
-        mrr_growth_mom: mrrGrowthMoM,
-        mrr_growth_yoy: mrrGrowthYoY,
+        nrr: m.nrr,
+        grr: m.grr,
+        logo_retention_rate: m.logoRetention,
+        quick_ratio: m.quickRatio,
+        customer_count: m.customerCount,
+        new_logos: m.newLogos,
+        churned_logos: m.churnedLogos,
+        arpa: m.arpa,
+        top10_concentration: m.top10Concentration,
+        mrr_growth_mom: m.mrrGrowthMoM,
+        mrr_growth_yoy: m.mrrGrowthYoY,
         executive_summary: existingRow?.executive_summary ?? null,
         highlights: existingRow?.highlights ?? null,
         lowlights: existingRow?.lowlights ?? null,
@@ -472,8 +372,8 @@ export async function backfillHistory(
 
       processed++;
       syncLog.info(
-        `[backfill] ${month}: MRR=${mrr}, ARR=${arr}, customers=${customerCount}, ` +
-          `new=${newLogos}, churned=${churnedLogos}`
+        `[backfill] ${month}: MRR=${m.mrr}, ARR=${m.arr}, customers=${m.customerCount}, ` +
+          `new=${m.newLogos}, churned=${m.churnedLogos}`
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
