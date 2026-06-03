@@ -9,6 +9,7 @@ import {
 import { calculateMRR } from "@/lib/metrics";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { syncLog } from "./logger";
+import { wasActiveDuringMonth } from "./snapshot-helpers";
 
 /**
  * Compute MRR for a single subscription, normalised to monthly.
@@ -32,41 +33,6 @@ function singleSubMRR(
   }
 
   return total;
-}
-
-/**
- * Check whether a subscription was active during a given month.
- *
- * A subscription was active during month M if:
- *   1. It was activated/created on or before the last day of M, AND
- *   2. EITHER it is currently active (state === "active"),
- *      OR it has an end date on or after the first day of M
- *      (i.e., it was properly terminated during or after this month)
- *
- * Subscriptions that are expired/on_hold WITHOUT end dates are excluded —
- * these are typically manually deactivated in Frisbii without a billing
- * lifecycle event and should not count as active.
- */
-function wasActiveDuringMonth(sub: Subscription, month: string): boolean {
-  const monthStart = `${month}-01`;
-  const [y, m] = month.split("-").map(Number);
-  const lastDay = new Date(y, m, 0).getDate();
-  const monthEnd = `${month}-${String(lastDay).padStart(2, "0")}`;
-
-  // When was the subscription activated?
-  const activatedDate = (sub.activated || sub.created)?.slice(0, 10);
-  if (!activatedDate || activatedDate > monthEnd) return false;
-
-  // Currently active subscriptions are always included
-  if (sub.state === "active") return true;
-
-  // For non-active subscriptions, require an end date to prove they were
-  // active during this month (not a ghost with no termination record)
-  const endDate = (sub.expired_date || sub.cancelled_date)?.slice(0, 10) ?? null;
-  if (!endDate) return false; // no end date + not active = ghost subscription
-  if (endDate < monthStart) return false; // ended before this month
-
-  return true;
 }
 
 /**

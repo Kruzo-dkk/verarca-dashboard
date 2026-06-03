@@ -11,6 +11,7 @@ import { computeMonthlyMetrics } from "./monthly-metrics";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getConfirmedLinks } from "./get-customer-links";
 import { syncLog } from "./logger";
+import { wasActiveDuringMonth } from "./snapshot-helpers";
 
 // ─── Helpers ────────────────────────────────────────────────────
 
@@ -50,33 +51,6 @@ function monthRange(startMonth: string, endMonth: string): string[] {
   }
 
   return months;
-}
-
-/**
- * Check whether a subscription was active during a given month.
- * Mirrors the logic from sync-customer-snapshots.ts.
- *
- * Excludes subscriptions that are expired/on_hold without end dates
- * (ghost subscriptions manually deactivated in Frisbii).
- */
-function wasActiveDuringMonth(sub: Subscription, month: string): boolean {
-  const monthStart = `${month}-01`;
-  const [y, m] = month.split("-").map(Number);
-  const lastDay = new Date(y, m, 0).getDate();
-  const monthEnd = `${month}-${String(lastDay).padStart(2, "0")}`;
-
-  const activatedDate = (sub.activated || sub.created)?.slice(0, 10);
-  if (!activatedDate || activatedDate > monthEnd) return false;
-
-  // Currently active subscriptions are always included
-  if (sub.state === "active") return true;
-
-  // For non-active subscriptions, require an end date
-  const endDate = (sub.expired_date || sub.cancelled_date)?.slice(0, 10) ?? null;
-  if (!endDate) return false;
-  if (endDate < monthStart) return false;
-
-  return true;
 }
 
 /**
