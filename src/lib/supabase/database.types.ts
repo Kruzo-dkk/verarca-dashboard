@@ -316,6 +316,30 @@ export type Database = {
         }
         Relationships: []
       }
+      digest_sends: {
+        Row: {
+          id: number
+          month: string
+          recipients: string
+          resend_id: string | null
+          sent_at: string
+        }
+        Insert: {
+          id?: never
+          month: string
+          recipients: string
+          resend_id?: string | null
+          sent_at?: string
+        }
+        Update: {
+          id?: never
+          month?: string
+          recipients?: string
+          resend_id?: string | null
+          sent_at?: string
+        }
+        Relationships: []
+      }
       discount_snapshots: {
         Row: {
           created_at: string | null

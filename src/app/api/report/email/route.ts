@@ -1,13 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getReportData } from "@/lib/report-data";
-import { buildReportEmailHTML } from "@/lib/email-builder";
+import { sendReportEmail, isValidMonth } from "@/lib/report-email";
 import type { Currency } from "@/lib/currency";
-
-function getResend() {
-  const { Resend } = require("resend") as { Resend: new (key?: string) => import("resend").Resend };
-  return new Resend(process.env.RESEND_API_KEY);
-}
 
 interface EmailRequestBody {
   month?: string;
@@ -62,38 +56,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Build report data
-    const reportData = await getReportData(month, month, currency);
-
-    // Build HTML
-    const html = await buildReportEmailHTML(
-      reportData,
-      month,
-      currency,
-      reportData.fxRates
-    );
-
-    // Send via Resend
-    const monthLabel = formatMonthLabel(month);
-    const resend = getResend();
-    const { data, error } = await resend.emails.send({
-      from: "Verarca Reports <reports@verarca.dk>",
-      to: body.recipients,
-      subject: `Verarca M&A Report — ${monthLabel}`,
-      html,
-    });
-
-    if (error) {
-      console.error("Failed to send report email:", error);
-      return NextResponse.json(
-        { error: "Failed to send email", details: error.message },
-        { status: 500 }
-      );
-    }
+    const { id } = await sendReportEmail(month, currency, body.recipients);
 
     return NextResponse.json({
       message: "Report email sent",
-      id: data?.id,
+      id,
       recipients: body.recipients,
       month,
       currency,
@@ -107,24 +74,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function getCurrentMonth(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function isValidMonth(month: string): boolean {
-  return /^\d{4}-(0[1-9]|1[0-2])$/.test(month);
-}
-
-function formatMonthLabel(month: string): string {
-  const [year, mo] = month.split("-");
-  const names = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December",
-  ];
-  return `${names[parseInt(mo!) - 1]} ${year}`;
 }
