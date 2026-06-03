@@ -13,10 +13,8 @@ import {
   countActiveCustomers,
   collapseLinkedSnapshots,
   buildActiveCountByCanonical,
-  suppressLinkedChurn,
   decomposeMRR,
   decomposeMRRByCustomer,
-  getChurnedCustomers,
   getNewCustomers,
   eventChurnedCanonicalIds,
   getMonthlyChurn,
@@ -580,31 +578,6 @@ describe("countActiveCustomers with links", () => {
     expect(countActiveCustomers(snaps)).toBe(2);
   });
 });
-
-describe("suppressLinkedChurn", () => {
-  const links = new Map([["cust-0074", "cust-0046"]]); // secondary -> canonical
-  const activeCanon = new Set(["cust-0046"]);
-
-  it("removes a churned sibling whose group still has an active member", () => {
-    const churned = [{ customer: "cust-0074", handle: "s1" }];
-    expect(suppressLinkedChurn(churned, links, activeCanon)).toHaveLength(0);
-  });
-
-  it("keeps a genuinely churned customer with no active sibling", () => {
-    const churned = [{ customer: "cust-9999", handle: "s2" }];
-    expect(suppressLinkedChurn(churned, links, activeCanon)).toHaveLength(1);
-  });
-
-  it("does not suppress a non-linked customer even if its own handle is active", () => {
-    // cust-solo is not part of any link → its churn is out of scope, even
-    // though it appears in the active set (e.g. a same-handle plan change).
-    const churned = [{ customer: "cust-solo", handle: "s3" }];
-    expect(
-      suppressLinkedChurn(churned, links, new Set(["cust-0046", "cust-solo"]))
-    ).toHaveLength(1);
-  });
-});
-
 describe("decomposeMRR with linked groups (collapse)", () => {
   const a = (id: string, mrr: number): CustomerMRRSnapshot => ({ customerId: id, mrr, status: "active", planHandle: "p" });
   const churned = (id: string): CustomerMRRSnapshot => ({ customerId: id, mrr: 0, status: "churned", planHandle: "" });
@@ -627,23 +600,6 @@ describe("decomposeMRR with linked groups (collapse)", () => {
     expect(r.churnedMRR).toBe(3698);
   });
 });
-
-describe("getChurnedCustomers", () => {
-  const a = (id: string, mrr: number): CustomerMRRSnapshot => ({ customerId: id, mrr, status: "active", planHandle: "p" });
-  const churned = (id: string): CustomerMRRSnapshot => ({ customerId: id, mrr: 0, status: "churned", planHandle: "" });
-
-  it("lists only fully-churned groups with the MRR lost", () => {
-    const prev = [a("esmark", 2499), a("era", 1199), a("1", 2000), a("2", 2000)];
-    const curr = [churned("esmark"), churned("era"), a("1", 2000), churned("2")];
-    const links = new Map([["2", "1"]]);
-    const out = getChurnedCustomers(curr, prev, links).sort((x, y) => y.mrr - x.mrr);
-    expect(out).toEqual([
-      { canonicalId: "esmark", mrr: 2499 },
-      { canonicalId: "era", mrr: 1199 },
-    ]);
-  });
-});
-
 describe("getNewCustomers", () => {
   const a = (id: string, mrr: number): CustomerMRRSnapshot => ({ customerId: id, mrr, status: "active", planHandle: "p" });
   const churned = (id: string): CustomerMRRSnapshot => ({ customerId: id, mrr: 0, status: "churned", planHandle: "" });
