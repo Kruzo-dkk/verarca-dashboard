@@ -5,6 +5,7 @@ import { GlassCard } from "@/components/ui/GlassCard";
 import { useReportContext } from "@/components/providers/ReportProvider";
 import { CustomerDetailRow } from "./CustomerDetailRow";
 import type { CustomerSummary } from "@/lib/types/report";
+import { toCsv, downloadCsv } from "@/lib/csv";
 
 interface SegmentBreakdown {
   segment: string;
@@ -139,6 +140,20 @@ export function CustomerList() {
 
     return list;
   }, [data, search, statusFilter, sortField, sortDirection]);
+
+  const exportCsv = () => {
+    const csv = toCsv(filteredCustomers, [
+      { header: "Customer", value: (c) => (c.companyName && c.companyName !== c.name ? c.companyName : c.name) },
+      { header: "Person", value: (c) => (c.companyName && c.companyName !== c.name ? c.name : "") },
+      { header: "MRR (kr)", value: (c) => Math.round(c.mrr / 100) },
+      { header: "Scope", value: (c) => c.scope ?? "" },
+      { header: "Tier", value: (c) => c.tier ?? "" },
+      { header: "Partner", value: (c) => c.partner ?? "" },
+      { header: "Segment", value: (c) => c.segment ?? "" },
+      { header: "Status", value: (c) => c.status },
+    ]);
+    downloadCsv(`customers-${data?.month ?? "export"}.csv`, csv);
+  };
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -290,6 +305,16 @@ export function CustomerList() {
               </button>
             ))}
           </div>
+
+          {/* Export */}
+          <button
+            onClick={exportCsv}
+            disabled={filteredCustomers.length === 0}
+            className="px-3 py-2 sm:py-1.5 text-sm font-medium rounded-lg border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-50 transition-colors"
+            title="Download the current view as CSV"
+          >
+            Export CSV
+          </button>
         </div>
 
         {/* Table */}
