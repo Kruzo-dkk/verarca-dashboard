@@ -20,9 +20,8 @@ jobs:
         run: npm ci
       - name: Type check
         run: npx tsc --noEmit
-      - name: Lint (non-blocking until pre-existing issues are cleaned up)
+      - name: Lint
         run: npm run lint
-        continue-on-error: true
       - name: Unit tests
         run: npm test
       - name: Build

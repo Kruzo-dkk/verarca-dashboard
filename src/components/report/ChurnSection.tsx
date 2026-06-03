@@ -41,7 +41,7 @@ export function ChurnSection({ data, formatValue }: ChurnSectionProps) {
         En kunde tæller som churnet i den måned deres abonnement udløber (lukke-måned), og kun
         én gang pr. reel kunde. <span className="text-[var(--text-secondary)]">Logo Churn</span> = antal
         kunder mistet. <span className="text-[var(--text-secondary)]">Revenue Churn</span> = deres MRR.
-        De er samme kunder som i "Recently Closed", så tal og liste stemmer.
+        De er samme kunder som i {"“Recently Closed”"}, så tal og liste stemmer.
       </p>
 
       {/* Summary cards */}

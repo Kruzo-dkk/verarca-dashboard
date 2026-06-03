@@ -5,6 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const { client, fromImpl } = vi.hoisted(() => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fromImpl = { current: (_table: string) => ({} as any) };
   const client = { from: (table: string) => fromImpl.current(table) };
   return { client, fromImpl };

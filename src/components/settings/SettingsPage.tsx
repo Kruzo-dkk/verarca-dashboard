@@ -114,6 +114,9 @@ export function SettingsPage() {
   }, [month]);
 
   useEffect(() => {
+    // Fetch-on-mount/month-change. fetchSettings sets a loading flag
+    // synchronously, which the rule flags — benign for a data fetch.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchSettings(month);
     fetchHistory();
   }, [month, fetchSettings, fetchHistory]);
