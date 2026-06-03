@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatPlanName, inferScopeFromPlan, inferTierFromPlan } from "@/lib/format-plan-name";
 import { buildLinkedGroup } from "@/lib/customer-links";
+import { writeAudit, diffToAuditEntries } from "@/lib/audit";
 import type { LinkedMember } from "@/lib/types/report";
 
 const VALID_SCOPES = ["Scope 1-2", "Scope 1-2-3"];
@@ -225,6 +226,13 @@ export async function PATCH(
     }
 
     const admin = createAdminClient();
+    // Snapshot current values for the audit trail before updating.
+    const { data: before } = await admin
+      .from("customers")
+      .select("scope_override, tier_override, segment")
+      .eq("id", customerId)
+      .single();
+
     const { error } = await admin
       .from("customers")
       .update(updateData)
@@ -234,6 +242,10 @@ export async function PATCH(
       console.error("Failed to update customer:", error);
       return NextResponse.json({ error: "Failed to update customer" }, { status: 500 });
     }
+
+    await writeAudit(
+      diffToAuditEntries("customer", String(customerId), user.email ?? "unknown", before ?? {}, updateData)
+    );
 
     return NextResponse.json({ ok: true, updated: updateData });
   } catch (error) {
