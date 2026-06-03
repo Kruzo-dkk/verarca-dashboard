@@ -10,6 +10,8 @@ import {
   calculateARR,
   calculateARPC,
   countActiveCustomers,
+  collapseLinkedSnapshots,
+  buildActiveCountByCanonical,
   eventChurnedCanonicalIds,
   buildIdToCanonicalId,
   decomposeMRR,
@@ -225,13 +227,18 @@ export async function syncMonthlySnapshot(month: string): Promise<void> {
     return churnedCanonicalIds.has(cid) ? sum + s.mrr : sum;
   }, 0);
 
+  // K = real active-subscription count per group, so re-signups (same sub under
+  // several handles) don't inflate MRR. See collapseLinkedSnapshots.
+  const activeCount = buildActiveCountByCanonical(customerChurnStates, confirmedLinks);
+
   // Derive all aggregate metrics from customer snapshots (single source of truth)
   // This ensures monthly_snapshots always matches SUM(customer_snapshots)
-  const mrr = currentSnapshots
-    .filter((s) => s.status === "active")
-    .reduce((sum, s) => sum + s.mrr, 0);
+  const mrr = collapseLinkedSnapshots(currentSnapshots, customerLinks, activeCount).reduce(
+    (sum, c) => sum + c.mrr,
+    0
+  );
   const arr = calculateARR(mrr);
-  const customerCount = countActiveCustomers(currentSnapshots, customerLinks);
+  const customerCount = countActiveCustomers(currentSnapshots, customerLinks, activeCount);
   const arpa = Math.round(calculateARPC(mrr, customerCount));
 
   if (frisbiiMRR !== mrr) {
@@ -240,7 +247,7 @@ export async function syncMonthlySnapshot(month: string): Promise<void> {
     );
   }
 
-  const decomposition = decomposeMRR(currentSnapshots, prevSnapshots, customerLinks);
+  const decomposition = decomposeMRR(currentSnapshots, prevSnapshots, customerLinks, activeCount);
 
   syncLog.info(
     `[sync-frisbii] Decomposition: new=${decomposition.newMRR}, expansion=${decomposition.expansionMRR}, ` +

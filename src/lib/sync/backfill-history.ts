@@ -17,6 +17,8 @@ import {
   calculateLogoRetention,
   calculateMRRGrowth,
   countActiveCustomers,
+  collapseLinkedSnapshots,
+  buildActiveCountByCanonical,
   eventChurnedCanonicalIds,
   buildIdToCanonicalId,
   type CustomerMRRSnapshot,
@@ -206,6 +208,8 @@ export async function backfillHistory(
 
   // customer_id → canonical id, for event-based churn MRR summation.
   const idToCanonicalId = buildIdToCanonicalId(customers, confirmedLinks);
+  // K per group = current active-subscription count, so re-signups don't inflate MRR.
+  const activeCount = buildActiveCountByCanonical(customers, confirmedLinks);
 
   // ── 3. Determine date range ───────────────────────────────────
   const activationDates = allSubscriptions
@@ -325,15 +329,16 @@ export async function backfillHistory(
       }));
 
       // Core metrics
-      const mrr = currentSnapshots
-        .filter((s) => s.status === "active")
-        .reduce((sum, s) => sum + s.mrr, 0);
+      const mrr = collapseLinkedSnapshots(currentSnapshots, customerLinks, activeCount).reduce(
+        (sum, c) => sum + c.mrr,
+        0
+      );
       const arr = calculateARR(mrr);
-      const customerCount = countActiveCustomers(currentSnapshots, customerLinks);
+      const customerCount = countActiveCustomers(currentSnapshots, customerLinks, activeCount);
       const arpa = Math.round(calculateARPC(mrr, customerCount));
 
       // MRR decomposition (links treat re-signups as continuity, not churn+new)
-      const decomposition = decomposeMRR(currentSnapshots, prevSnapshots, customerLinks);
+      const decomposition = decomposeMRR(currentSnapshots, prevSnapshots, customerLinks, activeCount);
 
       // Retention
       const prevMRR = prevSnapshots.reduce((sum, s) => sum + s.mrr, 0);
@@ -382,7 +387,7 @@ export async function backfillHistory(
       }, 0);
       const newLogos = newThisMonth.length;
       const churnedLogos = churnedCanonicalIds.size;
-      const prevCustomerCount = countActiveCustomers(prevSnapshots, customerLinks);
+      const prevCustomerCount = countActiveCustomers(prevSnapshots, customerLinks, activeCount);
       const logoRetention = calculateLogoRetention(
         prevCustomerCount,
         churnedLogos

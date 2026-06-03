@@ -8,6 +8,7 @@ import {
   getNewCustomers,
   eventChurnedCanonicalIds,
   buildIdToCanonicalId,
+  buildActiveCountByCanonical,
   decomposeMRRByCustomer,
   type CustomerMRRSnapshot,
 } from "@/lib/metrics";
@@ -426,10 +427,12 @@ export async function getReportData(
       churnDate: c?.churn_date ?? null,
     };
   };
+  const movementActiveCount = buildActiveCountByCanonical(customers, confirmedLinksHandleMap);
   const movement = decomposeMRRByCustomer(
     toMRRSnap(customerSnapshots),
     toMRRSnap(churnPrevSnapsRes.data ?? []),
-    churnLinkIdMap.size > 0 ? churnLinkIdMap : undefined
+    churnLinkIdMap.size > 0 ? churnLinkIdMap : undefined,
+    movementActiveCount
   );
   const byAmountDesc = (a: CustomerSummary, b: CustomerSummary) => b.mrr - a.mrr;
   const mrrMovement = {

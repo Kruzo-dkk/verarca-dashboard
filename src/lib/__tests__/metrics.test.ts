@@ -12,6 +12,7 @@ import {
   calculateMRRGrowth,
   countActiveCustomers,
   collapseLinkedSnapshots,
+  buildActiveCountByCanonical,
   suppressLinkedChurn,
   decomposeMRR,
   decomposeMRRByCustomer,
@@ -724,5 +725,54 @@ describe("decomposeMRRByCustomer", () => {
     const bd = decomposeMRRByCustomer(curr, prev, new Map([["2", "1"]]));
     expect(bd.churned).toEqual([]);
     expect(bd.contraction).toEqual([{ canonicalId: "1", amount: 2_000, fromMrr: 4_000, toMrr: 2_000 }]);
+  });
+});
+
+describe("collapseLinkedSnapshots top-K (re-signup de-duplication)", () => {
+  const a = (id: string, mrr: number): CustomerMRRSnapshot => ({ customerId: id, mrr, status: "active", planHandle: "p" });
+
+  it("re-signup group (K=1) takes the single highest member MRR, not the sum", () => {
+    // Christina: 3 handles all 'active' at 2000 in one month, one real sub.
+    const snaps = [a("169", 2000), a("170", 2000), a("171", 2000)];
+    const links = new Map([["169", "171"], ["170", "171"]]); // → canonical 171
+    const k = new Map([["171", 1]]);
+    const [g] = collapseLinkedSnapshots(snaps, links, k);
+    expect(g.mrr).toBe(2000);
+    expect(g.active).toBe(true);
+  });
+
+  it("genuine concurrent group (K=2) sums the top-2", () => {
+    const snaps = [a("16", 1199), a("79", 2199)];
+    const links = new Map([["79", "16"]]);
+    const k = new Map([["16", 2]]);
+    const [g] = collapseLinkedSnapshots(snaps, links, k);
+    expect(g.mrr).toBe(3398);
+  });
+
+  it("without activeCount, sums all members (legacy)", () => {
+    const snaps = [a("169", 2000), a("170", 2000), a("171", 2000)];
+    const links = new Map([["169", "171"], ["170", "171"]]);
+    const [g] = collapseLinkedSnapshots(snaps, links);
+    expect(g.mrr).toBe(6000);
+  });
+});
+
+describe("buildActiveCountByCanonical", () => {
+  it("counts currently-active members per canonical", () => {
+    const customers = [
+      { id: 171, frisbii_handle: "cust-0171", status: "active" },
+      { id: 169, frisbii_handle: "cust-0169", status: "churned" },
+      { id: 170, frisbii_handle: "cust-0170", status: "churned" },
+      { id: 16, frisbii_handle: "cust-0016", status: "active" },
+      { id: 79, frisbii_handle: "cust-0079", status: "active" },
+    ];
+    const links = new Map([
+      ["cust-0169", "cust-0171"],
+      ["cust-0170", "cust-0171"],
+      ["cust-0079", "cust-0016"],
+    ]);
+    const counts = buildActiveCountByCanonical(customers, links);
+    expect(counts.get("171")).toBe(1); // re-signup: only 0171 active
+    expect(counts.get("16")).toBe(2);  // concurrent: 0016 + 0079
   });
 });
