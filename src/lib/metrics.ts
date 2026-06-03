@@ -113,12 +113,13 @@ export function calculateARPC(mrr: number, customerCount: number): number {
  */
 export function countActiveCustomers(
   snapshots: CustomerMRRSnapshot[],
-  customerLinks?: Map<string, string>
+  customerLinks?: Map<string, string>,
+  activeCountByCanonical?: Map<string, number>
 ): number {
   if (!customerLinks || customerLinks.size === 0) {
     return snapshots.filter((s) => s.status === "active" && s.mrr > 0).length;
   }
-  return collapseLinkedSnapshots(snapshots, customerLinks).filter(
+  return collapseLinkedSnapshots(snapshots, customerLinks, activeCountByCanonical).filter(
     (c) => c.active && c.mrr > 0
   ).length;
 }
@@ -148,29 +149,69 @@ function resolveCanonical(
 }
 
 /**
- * Collapse snapshots into one logical customer per linked group, summing MRR
- * across all members. A group is "active" if ANY member is active with mrr > 0.
+ * Collapse snapshots into one logical customer per linked group. A group is
+ * "active" if ANY member is active with mrr > 0.
  *
- * @param customerLinks - secondaryCustomerId → canonicalCustomerId (stringified
- *   DB ids). Omit for identity (one CollapsedCustomer per snapshot row).
+ * MRR is the sum of the group's **top-K member MRRs** that month, where K is the
+ * group's real active-subscription count (from activeCountByCanonical). This
+ * prevents re-signups (the same subscription registered under several handles
+ * that briefly overlap as "active") from inflating the group's MRR: Christina
+ * Krog registered one 2.000 sub three times → K=1 → 2.000, not 6.000. Genuine
+ * concurrent subs (e.g. Consensus, K=2) still sum. When activeCountByCanonical
+ * is omitted, all members are summed (legacy behaviour).
+ *
+ * @param customerLinks - secondaryCustomerId → canonicalCustomerId (stringified DB ids)
+ * @param activeCountByCanonical - canonicalId → current active-subscription count
  */
 export function collapseLinkedSnapshots(
   snapshots: CustomerMRRSnapshot[],
-  customerLinks?: Map<string, string>
+  customerLinks?: Map<string, string>,
+  activeCountByCanonical?: Map<string, number>
 ): CollapsedCustomer[] {
-  const buckets = new Map<string, CollapsedCustomer>();
+  const buckets = new Map<string, { mrrs: number[]; active: boolean }>();
   for (const s of snapshots) {
     const canonicalId = resolveCanonical(s.customerId, customerLinks);
     const isActive = s.status === "active" && s.mrr > 0;
-    const existing = buckets.get(canonicalId);
-    if (existing) {
-      existing.mrr += s.mrr;
-      existing.active = existing.active || isActive;
+    const b = buckets.get(canonicalId);
+    if (b) {
+      b.mrrs.push(s.mrr);
+      b.active = b.active || isActive;
     } else {
-      buckets.set(canonicalId, { canonicalId, mrr: s.mrr, active: isActive });
+      buckets.set(canonicalId, { mrrs: [s.mrr], active: isActive });
     }
   }
-  return [...buckets.values()];
+
+  const result: CollapsedCustomer[] = [];
+  for (const [canonicalId, b] of buckets) {
+    const k = activeCountByCanonical?.get(canonicalId);
+    let mrr: number;
+    if (k != null && k >= 1 && b.mrrs.length > k) {
+      mrr = [...b.mrrs].sort((x, y) => y - x).slice(0, k).reduce((s, x) => s + x, 0);
+    } else {
+      mrr = b.mrrs.reduce((s, x) => s + x, 0);
+    }
+    result.push({ canonicalId, mrr, active: b.active });
+  }
+  return result;
+}
+
+/**
+ * Map each canonical customer id (stringified) to the number of currently-active
+ * subscriptions in its linked group. Used as K for collapseLinkedSnapshots.
+ */
+export function buildActiveCountByCanonical(
+  customers: { id: number; frisbii_handle: string; status: string }[],
+  confirmedLinks: Map<string, string>
+): Map<string, number> {
+  const idToCanonical = buildIdToCanonicalId(customers, confirmedLinks);
+  const count = new Map<string, number>();
+  for (const c of customers) {
+    if (c.status === "active") {
+      const canon = String(idToCanonical.get(c.id) ?? c.id);
+      count.set(canon, (count.get(canon) ?? 0) + 1);
+    }
+  }
+  return count;
 }
 
 /**
@@ -411,15 +452,16 @@ export interface CustomerMRRSnapshot {
 export function decomposeMRR(
   currentSnapshots: CustomerMRRSnapshot[],
   prevSnapshots: CustomerMRRSnapshot[],
-  customerLinks?: Map<string, string>
+  customerLinks?: Map<string, string>,
+  activeCountByCanonical?: Map<string, number>
 ): MRRDecomposition {
   // Collapse linked groups first so a real-world customer with multiple handles
   // is one logical customer (summed MRR, present if any member active). This is
   // the SAME collapse used by countActiveCustomers — keeping count, churn, and
   // decomposition consistent. A linked sibling that churns while the canonical
   // stays active reads as contraction, never churn+new.
-  const prev = collapseLinkedSnapshots(prevSnapshots, customerLinks);
-  const curr = collapseLinkedSnapshots(currentSnapshots, customerLinks);
+  const prev = collapseLinkedSnapshots(prevSnapshots, customerLinks, activeCountByCanonical);
+  const curr = collapseLinkedSnapshots(currentSnapshots, customerLinks, activeCountByCanonical);
 
   const prevMap = new Map(
     prev.filter((c) => c.active).map((c) => [c.canonicalId, c.mrr])
@@ -487,10 +529,11 @@ export interface MRRMovementBreakdown {
 export function decomposeMRRByCustomer(
   currentSnapshots: CustomerMRRSnapshot[],
   prevSnapshots: CustomerMRRSnapshot[],
-  customerLinks?: Map<string, string>
+  customerLinks?: Map<string, string>,
+  activeCountByCanonical?: Map<string, number>
 ): MRRMovementBreakdown {
-  const prev = collapseLinkedSnapshots(prevSnapshots, customerLinks);
-  const curr = collapseLinkedSnapshots(currentSnapshots, customerLinks);
+  const prev = collapseLinkedSnapshots(prevSnapshots, customerLinks, activeCountByCanonical);
+  const curr = collapseLinkedSnapshots(currentSnapshots, customerLinks, activeCountByCanonical);
   const prevMap = new Map(prev.filter((c) => c.active).map((c) => [c.canonicalId, c.mrr]));
   const currMap = new Map(curr.map((c) => [c.canonicalId, { mrr: c.mrr, present: c.active }]));
 
