@@ -15,6 +15,7 @@ import {
 } from "@/lib/metrics";
 import { runMonthlySyncAll } from "@/lib/sync/sync-monthly";
 import { syncMonthlySnapshot } from "@/lib/sync/sync-frisbii";
+import { runAlertChecks } from "@/lib/sync/run-alerts";
 
 function getCurrentMonth(): string {
   const now = new Date();
@@ -101,9 +102,9 @@ export async function GET(request: Request) {
     if (dbError) throw dbError;
 
     // --- Monthly M&A report sync (FX, pipeline, customers, snapshots) ---
-    console.log(`[cron] Starting monthly sync for ${month}...`);
+    console.info(`[cron] Starting monthly sync for ${month}...`);
     const syncSummary = await runMonthlySyncAll(month);
-    console.log(`[cron] Monthly sync complete:`, JSON.stringify(syncSummary, null, 2));
+    console.info(`[cron] Monthly sync complete:`, JSON.stringify(syncSummary, null, 2));
 
     // Recompute the prior 2 months' aggregates so churn/MRR logic or
     // customer-link changes don't leave history stale (the monthly sync above
@@ -120,11 +121,16 @@ export async function GET(request: Request) {
       }
     }
 
+    // Threshold alerts: detect breaches for the current month, persist new ones
+    // (deduped on month+rule) and email them. Best-effort — never fails the cron.
+    const alerts = await runAlertChecks(month);
+
     return NextResponse.json({
       message: "Snapshot saved + monthly sync complete",
       date: today,
       month,
       recomputed,
+      alerts,
       snapshot,
       sync: syncSummary,
     });

@@ -14,6 +14,69 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_snapshots: {
+        Row: {
+          calls_made: number | null
+          created_at: string | null
+          date: string
+          emails_sent: number | null
+          id: number
+          meetings_booked: number | null
+          owner_id: string
+          owner_name: string | null
+        }
+        Insert: {
+          calls_made?: number | null
+          created_at?: string | null
+          date: string
+          emails_sent?: number | null
+          id?: number
+          meetings_booked?: number | null
+          owner_id: string
+          owner_name?: string | null
+        }
+        Update: {
+          calls_made?: number | null
+          created_at?: string | null
+          date?: string
+          emails_sent?: number | null
+          id?: number
+          meetings_booked?: number | null
+          owner_id?: string
+          owner_name?: string | null
+        }
+        Relationships: []
+      }
+      alert_events: {
+        Row: {
+          created_at: string
+          emailed_at: string | null
+          id: number
+          message: string
+          month: string
+          rule: string
+          severity: string
+        }
+        Insert: {
+          created_at?: string
+          emailed_at?: string | null
+          id?: never
+          message: string
+          month: string
+          rule: string
+          severity: string
+        }
+        Update: {
+          created_at?: string
+          emailed_at?: string | null
+          id?: never
+          message?: string
+          month?: string
+          rule?: string
+          severity?: string
+        }
+        Relationships: []
+      }
       audit_log: {
         Row: {
           changed_at: string
@@ -44,39 +107,6 @@ export type Database = {
           id?: never
           new_value?: string | null
           old_value?: string | null
-        }
-        Relationships: []
-      }
-      activity_snapshots: {
-        Row: {
-          id: number
-          date: string
-          owner_id: string
-          owner_name: string | null
-          calls_made: number
-          meetings_booked: number
-          emails_sent: number
-          created_at: string
-        }
-        Insert: {
-          id?: never
-          date: string
-          owner_id: string
-          owner_name?: string | null
-          calls_made?: number
-          meetings_booked?: number
-          emails_sent?: number
-          created_at?: string
-        }
-        Update: {
-          id?: never
-          date?: string
-          owner_id?: string
-          owner_name?: string | null
-          calls_made?: number
-          meetings_booked?: number
-          emails_sent?: number
-          created_at?: string
         }
         Relationships: []
       }
@@ -215,13 +245,13 @@ export type Database = {
         Row: {
           churn_date: string | null
           clickup_folder_id: string | null
+          company_name: string | null
           created_at: string
           cvr: string | null
           email: string | null
+          excluded: boolean
           frisbii_handle: string
           hubspot_company_id: string | null
-          company_name: string | null
-          excluded: boolean
           id: number
           lead_source: string | null
           match_confidence: string
@@ -239,13 +269,13 @@ export type Database = {
         Insert: {
           churn_date?: string | null
           clickup_folder_id?: string | null
+          company_name?: string | null
           created_at?: string
           cvr?: string | null
           email?: string | null
+          excluded?: boolean
           frisbii_handle: string
           hubspot_company_id?: string | null
-          company_name?: string | null
-          excluded?: boolean
           id?: never
           lead_source?: string | null
           match_confidence?: string
@@ -263,13 +293,13 @@ export type Database = {
         Update: {
           churn_date?: string | null
           clickup_folder_id?: string | null
+          company_name?: string | null
           created_at?: string
           cvr?: string | null
           email?: string | null
+          excluded?: boolean
           frisbii_handle?: string
           hubspot_company_id?: string | null
-          company_name?: string | null
-          excluded?: boolean
           id?: never
           lead_source?: string | null
           match_confidence?: string
@@ -573,117 +603,6 @@ export type Database = {
         }
         Relationships: []
       }
-      subscription_exclusions: {
-        Row: {
-          id: number
-          subscription_handle: string
-          customer_handle: string
-          reason: string
-          replacement_subscription_handle: string | null
-          excluded_by: string
-          created_at: string
-        }
-        Insert: {
-          id?: never
-          subscription_handle: string
-          customer_handle: string
-          reason: string
-          replacement_subscription_handle?: string | null
-          excluded_by: string
-          created_at?: string
-        }
-        Update: {
-          id?: never
-          subscription_handle?: string
-          customer_handle?: string
-          reason?: string
-          replacement_subscription_handle?: string | null
-          excluded_by?: string
-          created_at?: string
-        }
-        Relationships: []
-      }
-      sync_audit_log: {
-        Row: {
-          id: number
-          month: string
-          sync_run_at: string
-          check_name: string
-          status: string
-          expected_value: string | null
-          actual_value: string | null
-          delta: number | null
-          details: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: never
-          month: string
-          sync_run_at: string
-          check_name: string
-          status: string
-          expected_value?: string | null
-          actual_value?: string | null
-          delta?: number | null
-          details?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: never
-          month?: string
-          sync_run_at?: string
-          check_name?: string
-          status?: string
-          expected_value?: string | null
-          actual_value?: string | null
-          delta?: number | null
-          details?: string | null
-          created_at?: string
-        }
-        Relationships: []
-      }
-      sync_runs: {
-        Row: {
-          id: number
-          module: string
-          month: string | null
-          started_at: string
-          finished_at: string | null
-          status: string
-          records_fetched: number | null
-          records_upserted: number | null
-          duration_ms: number | null
-          error_message: string | null
-          metadata: Json | null
-        }
-        Insert: {
-          id?: number
-          module: string
-          month?: string | null
-          started_at?: string
-          finished_at?: string | null
-          status: string
-          records_fetched?: number | null
-          records_upserted?: number | null
-          duration_ms?: number | null
-          error_message?: string | null
-          metadata?: Json | null
-        }
-        Update: {
-          id?: number
-          module?: string
-          month?: string | null
-          started_at?: string
-          finished_at?: string | null
-          status?: string
-          records_fetched?: number | null
-          records_upserted?: number | null
-          duration_ms?: number | null
-          error_message?: string | null
-          metadata?: Json | null
-        }
-        Relationships: []
-      }
       pipeline_snapshots: {
         Row: {
           avg_deal_size: number
@@ -732,98 +651,42 @@ export type Database = {
         }
         Relationships: []
       }
-      ticket_snapshots: {
-        Row: {
-          id: number
-          month: string
-          customer_id: number | null
-          hubspot_ticket_id: string
-          subject: string | null
-          status: string | null
-          priority: string | null
-          category: string | null
-          created_date: string | null
-          closed_date: string | null
-          resolution_time_hours: number | null
-          owner_id: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: never
-          month: string
-          customer_id?: number | null
-          hubspot_ticket_id: string
-          subject?: string | null
-          status?: string | null
-          priority?: string | null
-          category?: string | null
-          created_date?: string | null
-          closed_date?: string | null
-          resolution_time_hours?: number | null
-          owner_id?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: never
-          month?: string
-          customer_id?: number | null
-          hubspot_ticket_id?: string
-          subject?: string | null
-          status?: string | null
-          priority?: string | null
-          category?: string | null
-          created_date?: string | null
-          closed_date?: string | null
-          resolution_time_hours?: number | null
-          owner_id?: string | null
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ticket_snapshots_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "customers"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
       sales_targets: {
         Row: {
+          created_at: string | null
           id: number
           month: string
-          target_new_mrr: number
-          target_new_logos: number
-          target_pipeline: number
-          target_meetings: number
-          target_calls: number
-          use_hubspot_defaults: boolean
-          created_at: string
-          updated_at: string
+          target_calls: number | null
+          target_meetings: number | null
+          target_new_logos: number | null
+          target_new_mrr: number | null
+          target_pipeline: number | null
+          updated_at: string | null
+          use_hubspot_defaults: boolean | null
         }
         Insert: {
-          id?: never
+          created_at?: string | null
+          id?: number
           month: string
-          target_new_mrr?: number
-          target_new_logos?: number
-          target_pipeline?: number
-          target_meetings?: number
-          target_calls?: number
-          use_hubspot_defaults?: boolean
-          created_at?: string
-          updated_at?: string
+          target_calls?: number | null
+          target_meetings?: number | null
+          target_new_logos?: number | null
+          target_new_mrr?: number | null
+          target_pipeline?: number | null
+          updated_at?: string | null
+          use_hubspot_defaults?: boolean | null
         }
         Update: {
-          id?: never
+          created_at?: string | null
+          id?: number
           month?: string
-          target_new_mrr?: number
-          target_new_logos?: number
-          target_pipeline?: number
-          target_meetings?: number
-          target_calls?: number
-          use_hubspot_defaults?: boolean
-          created_at?: string
-          updated_at?: string
+          target_calls?: number | null
+          target_meetings?: number | null
+          target_new_logos?: number | null
+          target_new_mrr?: number | null
+          target_pipeline?: number | null
+          updated_at?: string | null
+          use_hubspot_defaults?: boolean | null
         }
         Relationships: []
       }
@@ -868,6 +731,173 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      subscription_exclusions: {
+        Row: {
+          created_at: string
+          customer_handle: string
+          excluded_by: string
+          id: number
+          reason: string
+          replacement_subscription_handle: string | null
+          subscription_handle: string
+        }
+        Insert: {
+          created_at?: string
+          customer_handle: string
+          excluded_by: string
+          id?: never
+          reason: string
+          replacement_subscription_handle?: string | null
+          subscription_handle: string
+        }
+        Update: {
+          created_at?: string
+          customer_handle?: string
+          excluded_by?: string
+          id?: never
+          reason?: string
+          replacement_subscription_handle?: string | null
+          subscription_handle?: string
+        }
+        Relationships: []
+      }
+      sync_audit_log: {
+        Row: {
+          actual_value: string | null
+          check_name: string
+          created_at: string
+          delta: number | null
+          details: string | null
+          expected_value: string | null
+          id: number
+          month: string
+          status: string
+          sync_run_at: string
+        }
+        Insert: {
+          actual_value?: string | null
+          check_name: string
+          created_at?: string
+          delta?: number | null
+          details?: string | null
+          expected_value?: string | null
+          id?: never
+          month: string
+          status: string
+          sync_run_at: string
+        }
+        Update: {
+          actual_value?: string | null
+          check_name?: string
+          created_at?: string
+          delta?: number | null
+          details?: string | null
+          expected_value?: string | null
+          id?: never
+          month?: string
+          status?: string
+          sync_run_at?: string
+        }
+        Relationships: []
+      }
+      sync_runs: {
+        Row: {
+          duration_ms: number | null
+          error_message: string | null
+          finished_at: string | null
+          id: number
+          metadata: Json | null
+          module: string
+          month: string | null
+          records_fetched: number | null
+          records_upserted: number | null
+          started_at: string
+          status: string
+        }
+        Insert: {
+          duration_ms?: number | null
+          error_message?: string | null
+          finished_at?: string | null
+          id?: number
+          metadata?: Json | null
+          module: string
+          month?: string | null
+          records_fetched?: number | null
+          records_upserted?: number | null
+          started_at?: string
+          status: string
+        }
+        Update: {
+          duration_ms?: number | null
+          error_message?: string | null
+          finished_at?: string | null
+          id?: number
+          metadata?: Json | null
+          module?: string
+          month?: string | null
+          records_fetched?: number | null
+          records_upserted?: number | null
+          started_at?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      ticket_snapshots: {
+        Row: {
+          category: string | null
+          closed_date: string | null
+          created_at: string | null
+          created_date: string | null
+          customer_id: number | null
+          hubspot_ticket_id: string
+          id: number
+          month: string
+          owner_id: string | null
+          priority: string | null
+          resolution_time_hours: number | null
+          status: string | null
+          subject: string | null
+        }
+        Insert: {
+          category?: string | null
+          closed_date?: string | null
+          created_at?: string | null
+          created_date?: string | null
+          customer_id?: number | null
+          hubspot_ticket_id: string
+          id?: never
+          month: string
+          owner_id?: string | null
+          priority?: string | null
+          resolution_time_hours?: number | null
+          status?: string | null
+          subject?: string | null
+        }
+        Update: {
+          category?: string | null
+          closed_date?: string | null
+          created_at?: string | null
+          created_date?: string | null
+          customer_id?: number | null
+          hubspot_ticket_id?: string
+          id?: never
+          month?: string
+          owner_id?: string | null
+          priority?: string | null
+          resolution_time_hours?: number | null
+          status?: string | null
+          subject?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_snapshots_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_profiles: {
         Row: {
