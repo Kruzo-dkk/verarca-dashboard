@@ -23,7 +23,6 @@ export function MetricTooltip({ metric, children }: MetricTooltipProps) {
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const content = tooltipRegistry[metric];
-  if (!content) return <>{children}</>;
 
   // Position the tooltip within the viewport
   useEffect(() => {
@@ -78,6 +77,10 @@ export function MetricTooltip({ metric, children }: MetricTooltipProps) {
   const handleTap = () => {
     setVisible((v) => !v);
   };
+
+  // No registered tooltip for this metric → render children unwrapped.
+  // (After all hooks so hook order stays stable across renders.)
+  if (!content) return <>{children}</>;
 
   return (
     <div

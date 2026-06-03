@@ -64,7 +64,10 @@ describe("getBenchmarksForStage", () => {
   });
 
   it("returns null for an invalid source", () => {
-    const result = getBenchmarksForStage("nonexistent" as any, "1-5M");
+    const result = getBenchmarksForStage(
+      "nonexistent" as Parameters<typeof getBenchmarksForStage>[0],
+      "1-5M"
+    );
     expect(result).toBeNull();
   });
 

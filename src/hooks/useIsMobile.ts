@@ -1,22 +1,21 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useSyncExternalStore } from "react";
+
+const QUERY = "(max-width: 639px)";
+
+function subscribe(callback: () => void): () => void {
+  const mql = window.matchMedia(QUERY);
+  mql.addEventListener("change", callback);
+  return () => mql.removeEventListener("change", callback);
+}
+
+function getSnapshot(): boolean {
+  return window.matchMedia(QUERY).matches;
+}
 
 /** Returns true when viewport is below the Tailwind `sm` breakpoint (640px). */
 export function useIsMobile(): boolean {
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const mql = window.matchMedia("(max-width: 639px)");
-    setIsMobile(mql.matches);
-
-    function onChange(e: MediaQueryListEvent) {
-      setIsMobile(e.matches);
-    }
-
-    mql.addEventListener("change", onChange);
-    return () => mql.removeEventListener("change", onChange);
-  }, []);
-
-  return isMobile;
+  // Server snapshot is `false` — desktop-first, matching the previous default.
+  return useSyncExternalStore(subscribe, getSnapshot, () => false);
 }
