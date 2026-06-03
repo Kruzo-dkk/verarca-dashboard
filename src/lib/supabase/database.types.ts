@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_log: {
+        Row: {
+          changed_at: string
+          changed_by: string
+          entity_id: string
+          entity_type: string
+          field: string
+          id: number
+          new_value: string | null
+          old_value: string | null
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string
+          entity_id: string
+          entity_type: string
+          field: string
+          id?: never
+          new_value?: string | null
+          old_value?: string | null
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string
+          entity_id?: string
+          entity_type?: string
+          field?: string
+          id?: never
+          new_value?: string | null
+          old_value?: string | null
+        }
+        Relationships: []
+      }
       activity_snapshots: {
         Row: {
           id: number

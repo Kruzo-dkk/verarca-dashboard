@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isValidLinkDecision } from "@/lib/customer-links";
+import { writeAudit } from "@/lib/audit";
 
 /**
  * PATCH /api/customer-links/[id]
@@ -38,6 +39,12 @@ export async function PATCH(
     }
 
     const admin = createAdminClient();
+    const { data: before } = await admin
+      .from("customer_links")
+      .select("status")
+      .eq("id", linkId)
+      .single();
+
     const { error } = await admin
       .from("customer_links")
       .update({
@@ -51,6 +58,17 @@ export async function PATCH(
       console.error("Failed to update customer link:", error);
       return NextResponse.json({ error: "Failed to update link" }, { status: 500 });
     }
+
+    await writeAudit([
+      {
+        entityType: "customer_link",
+        entityId: String(linkId),
+        field: "status",
+        oldValue: before?.status ?? null,
+        newValue: body.status,
+        changedBy: user.email ?? "unknown",
+      },
+    ]);
 
     return NextResponse.json({ ok: true, status: body.status });
   } catch (error) {
