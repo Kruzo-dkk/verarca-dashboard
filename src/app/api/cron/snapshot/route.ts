@@ -14,10 +14,17 @@ import {
   calculateARPC,
 } from "@/lib/metrics";
 import { runMonthlySyncAll } from "@/lib/sync/sync-monthly";
+import { syncMonthlySnapshot } from "@/lib/sync/sync-frisbii";
 
 function getCurrentMonth(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthsAgo(month: string, n: number): string {
+  const [y, m] = month.split("-").map(Number);
+  const d = new Date(y, m - 1 - n, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
 export async function GET(request: Request) {
@@ -98,10 +105,26 @@ export async function GET(request: Request) {
     const syncSummary = await runMonthlySyncAll(month);
     console.log(`[cron] Monthly sync complete:`, JSON.stringify(syncSummary, null, 2));
 
+    // Recompute the prior 2 months' aggregates so churn/MRR logic or
+    // customer-link changes don't leave history stale (the monthly sync above
+    // only touches the current month). Cheap: re-aggregates existing
+    // customer_snapshots; respects locked_at.
+    const recomputed: string[] = [];
+    for (let i = 1; i <= 2; i++) {
+      const m = monthsAgo(month, i);
+      try {
+        await syncMonthlySnapshot(m);
+        recomputed.push(m);
+      } catch (err) {
+        console.error(`[cron] recompute ${m} failed:`, err);
+      }
+    }
+
     return NextResponse.json({
       message: "Snapshot saved + monthly sync complete",
       date: today,
       month,
+      recomputed,
       snapshot,
       sync: syncSummary,
     });
