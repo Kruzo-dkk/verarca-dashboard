@@ -10,6 +10,7 @@ import {
   type SubscriptionDiscount,
 } from "@/lib/frisbii";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { wasActiveDuringMonth } from "@/lib/sync/snapshot-helpers";
 
 /**
  * Compute the monthly discount impact for a subscription.
@@ -42,24 +43,6 @@ function computeMonthlyImpact(
   }
 
   return 0;
-}
-
-/**
- * Check whether a subscription was active during a given month.
- */
-function wasActiveDuringMonth(sub: Subscription, month: string): boolean {
-  const monthStart = `${month}-01`;
-  const [y, m] = month.split("-").map(Number);
-  const lastDay = new Date(y, m, 0).getDate();
-  const monthEnd = `${month}-${String(lastDay).padStart(2, "0")}`;
-
-  const activatedDate = (sub.activated || sub.created)?.slice(0, 10);
-  if (!activatedDate || activatedDate > monthEnd) return false;
-
-  const endDate = (sub.expired_date || sub.cancelled_date)?.slice(0, 10) ?? null;
-  if (endDate && endDate < monthStart) return false;
-
-  return true;
 }
 
 /**
