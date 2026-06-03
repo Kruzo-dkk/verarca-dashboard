@@ -140,6 +140,20 @@ beforeEach(() => {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe("syncCustomers()", () => {
+
+  it("degrades gracefully when ClickUp is down (does not fail the whole sync)", async () => {
+    const customers = [buildCustomer({ handle: "cust-a" })];
+    mockListCustomers.mockResolvedValue(customers);
+    mockListSubscriptions.mockResolvedValue([
+      buildSubscription({ customer: "cust-a", state: "active" }),
+    ]);
+    mockGetAllCompanies.mockResolvedValue([]);
+    // ClickUp throws (e.g. CLICKUP_API_TOKEN not set)
+    mockGetAllCustomerData.mockRejectedValue(new Error("CLICKUP_API_TOKEN is not set"));
+
+    const result = await syncCustomers();
+    expect(result.recordsUpserted).toBe(1); // sync still completed
+  });
   it("returns SyncModuleResult with matchRate=1 when all customers match HubSpot", async () => {
     const customers = [
       buildCustomer({ handle: "cust-a" }),

@@ -55,12 +55,28 @@ export async function syncCustomers(): Promise<SyncModuleResult> {
   console.log("[sync-customers] Starting customer sync");
 
   // ── Fetch sources in parallel ──────────────────────────────
-  const [frisbiiCustomers, subscriptions, clickupFolders, plans] = await Promise.all([
+  // Frisbii is required (no customer data without it). ClickUp is enrichment —
+  // degrade gracefully if it's down/unconfigured so the rest of the customer
+  // sync (Frisbii + HubSpot) still runs instead of failing entirely.
+  const [frisbiiCustomers, subscriptions, plans, clickupResult] = await Promise.all([
     listCustomers(),
     listSubscriptions({ state: ["active", "expired", "cancelled", "on_hold"] }),
-    getAllCustomerData(),
     listPlans(),
+    getAllCustomerData().then(
+      (data) => ({ ok: true as const, data }),
+      (err) => ({ ok: false as const, err })
+    ),
   ]);
+
+  let clickupFolders: CustomerFolderData[] = [];
+  if (clickupResult.ok) {
+    clickupFolders = clickupResult.data;
+  } else {
+    console.warn(
+      "[sync-customers] ClickUp unavailable, continuing without folder data:",
+      clickupResult.err instanceof Error ? clickupResult.err.message : clickupResult.err
+    );
+  }
 
   let hubspotCompanies: Awaited<ReturnType<typeof getAllCompanies>> = [];
   let hubspotFetchError: string | null = null;
