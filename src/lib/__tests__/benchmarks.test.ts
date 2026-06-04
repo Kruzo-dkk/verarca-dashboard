@@ -41,9 +41,9 @@ describe("detectARRStage", () => {
     expect(detectARRStage(20_000_000_000)).toBe("25-50M");
   });
 
-  it("returns '50M+' for ARR above $50M USD equivalent", () => {
+  it("clamps ARR above $50M to '25-50M' (highest stage with benchmark data)", () => {
     // $60M = 60_000_000 / 0.15 = 400_000_000 DKK = 40_000_000_000 øre
-    expect(detectARRStage(40_000_000_000)).toBe("50M+");
+    expect(detectARRStage(40_000_000_000)).toBe("25-50M");
   });
 });
 
