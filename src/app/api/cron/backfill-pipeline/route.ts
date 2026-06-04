@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { Json } from "@/lib/supabase/database.types";
 import {
   listDeals,
   getPipelineStages,
   calculatePipelineMetrics,
+  buildStoredDeals,
 } from "@/lib/hubspot";
 import { syncFXRates } from "@/lib/sync/sync-fx";
 import { syncCustomers } from "@/lib/sync/sync-customers";
@@ -85,15 +87,7 @@ export async function GET(request: Request) {
 
         // 3a. Pipeline snapshot (computed locally from pre-fetched deals)
         const metrics = calculatePipelineMetrics(deals, stages, month);
-        const dealsJson = metrics.deals.map((d) => ({
-          id: d.id,
-          name: d.properties.dealname,
-          amount: d.properties.amount_in_home_currency ?? d.properties.amount,
-          stage: d.properties.dealstage,
-          stage_label: stageMap.get(d.properties.dealstage) ?? d.properties.dealstage,
-          closedate: d.properties.closedate,
-          days_to_close: d.properties.days_to_close,
-        }));
+        const dealsJson = buildStoredDeals(metrics.deals, stageMap);
 
         const { error: pipelineErr } = await supabase
           .from("pipeline_snapshots")
@@ -108,7 +102,7 @@ export async function GET(request: Request) {
               avg_deal_size: metrics.avgDealSize,
               avg_sales_cycle_days: metrics.avgSalesCycleDays,
               win_rate: metrics.winRate,
-              deals_json: dealsJson,
+              deals_json: dealsJson as unknown as Json,
             },
             { onConflict: "month" }
           );

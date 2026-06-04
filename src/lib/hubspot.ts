@@ -19,7 +19,44 @@ export interface HubSpotDeal {
     dealstage: string;
     hs_deal_stage_probability: string | null;
     hs_forecast_amount: string | null;
+    hubspot_owner_id: string | null;
   };
+}
+
+/**
+ * Flat, JSON-serialisable deal shape stored in `pipeline_snapshots.deals_json`
+ * and read back by the Sales dashboard. Kept in one place so the sync writers
+ * and the API reader can never drift (they did — the reader expected a
+ * `properties` wrapper the writers never produced, blanking the pipeline board).
+ */
+export interface StoredDeal {
+  id: string;
+  name: string;
+  amount: string | null;
+  stage: string;
+  stage_label: string;
+  closedate: string | null;
+  days_to_close: string | null;
+  owner_id: string | null;
+  probability: string | null;
+}
+
+/** Build the stored deals_json array from raw HubSpot deals + a stageId→label map. */
+export function buildStoredDeals(
+  deals: HubSpotDeal[],
+  stageLabels: Map<string, string>
+): StoredDeal[] {
+  return deals.map((d) => ({
+    id: d.id,
+    name: d.properties.dealname,
+    amount: d.properties.amount_in_home_currency ?? d.properties.amount,
+    stage: d.properties.dealstage,
+    stage_label: stageLabels.get(d.properties.dealstage) ?? d.properties.dealstage,
+    closedate: d.properties.closedate,
+    days_to_close: d.properties.days_to_close,
+    owner_id: d.properties.hubspot_owner_id ?? null,
+    probability: d.properties.hs_deal_stage_probability ?? null,
+  }));
 }
 
 export interface PipelineStage {
@@ -80,7 +117,7 @@ export async function listDeals(): Promise<HubSpotDeal[]> {
   const properties = [
     "dealname", "amount", "amount_in_home_currency", "createdate",
     "closedate", "days_to_close", "dealstage", "hs_deal_stage_probability",
-    "hs_forecast_amount"
+    "hs_forecast_amount", "hubspot_owner_id"
   ].join(",");
 
   const all: HubSpotDeal[] = [];

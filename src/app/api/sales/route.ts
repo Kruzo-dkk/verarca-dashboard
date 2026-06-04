@@ -33,8 +33,14 @@ export async function GET(request: NextRequest) {
 
   const admin = createAdminClient();
 
+  // Last calendar day of the month — `activity_snapshots.date` is a real `date`
+  // column, so a hardcoded `-31` is an invalid date in 30-day months (and Feb)
+  // and makes Postgres reject the query outright.
+  const [yy, mm] = month.split("-").map(Number);
+  const monthEnd = `${month}-${String(new Date(yy, mm, 0).getDate()).padStart(2, "0")}`;
+
   // ── Fetch all data in parallel ────────────────────────────────
-  const [pipelineRes, targetsRes, activityRes, monthlyRes, customerSnapsRes, stagesResult] =
+  const [pipelineRes, targetsRes, activityRes, monthlyRes, stagesResult] =
     await Promise.all([
       admin
         .from("pipeline_snapshots")
@@ -47,17 +53,12 @@ export async function GET(request: NextRequest) {
         .from("activity_snapshots")
         .select("*")
         .gte("date", `${month}-01`)
-        .lte("date", `${month}-31`),
+        .lte("date", monthEnd),
       admin
         .from("monthly_snapshots")
         .select("new_mrr, new_logos")
         .eq("month", month)
         .maybeSingle(),
-      admin
-        .from("customer_snapshots")
-        .select("mrr, status")
-        .eq("month", month)
-        .eq("status", "active"),
       getPipelineStages().catch(() => [] as Awaited<ReturnType<typeof getPipelineStages>>),
     ]);
 
@@ -65,6 +66,15 @@ export async function GET(request: NextRequest) {
   const targetsRow = targetsRes.data;
   const activities = activityRes.data ?? [];
   const monthlySnap = monthlyRes.data;
+
+  // Resolve HubSpot owner IDs → names from activity rows (the only source of
+  // owner names we have), so deals/outcomes can show who owns them.
+  const ownerNameById = new Map<string, string>();
+  for (const a of activities) {
+    if (a.owner_id && a.owner_name) ownerNameById.set(a.owner_id, a.owner_name);
+  }
+  const ownerName = (id: string | undefined): string | null =>
+    id ? ownerNameById.get(id) ?? null : null;
 
   // ── Pipeline detail ────────────────────────────────────────────
   const stageMap = new Map(stagesResult.map((s) => [s.stageId, s]));
@@ -84,21 +94,27 @@ export async function GET(request: NextRequest) {
       ? pipeline.deals_json
       : [];
     for (const d of dealsArr) {
-      const deal = d as { id?: string; properties?: Record<string, string | null> };
-      if (!deal.properties) continue;
-      const p = deal.properties;
-      const stage = stageMap.get(p.dealstage ?? "");
+      // Flat StoredDeal shape written by buildStoredDeals (sync-pipeline).
+      const deal = d as {
+        id?: string;
+        name?: string;
+        amount?: string | number | null;
+        stage?: string;
+        closedate?: string | null;
+        days_to_close?: string | null;
+        owner_id?: string | null;
+      };
+      const stage = stageMap.get(deal.stage ?? "");
+      const closedate = deal.closedate ? deal.closedate.slice(0, 10) : null;
       rawDeals.push({
         id: deal.id ?? "",
-        dealname: p.dealname ?? "Unnamed",
-        amount: Math.round(
-          parseFloat(p.amount_in_home_currency ?? p.amount ?? "0") * 100
-        ),
-        dealstage: p.dealstage ?? "",
-        closedate: p.closedate?.slice(0, 10) ?? null,
-        days_to_close: p.days_to_close ?? null,
+        dealname: deal.name ?? "Unnamed",
+        amount: Math.round(parseFloat(String(deal.amount ?? "0")) * 100),
+        dealstage: deal.stage ?? "",
+        closedate: closedate || null,
+        days_to_close: deal.days_to_close ?? null,
         probability: stage?.probability ?? 0,
-        hubspot_owner_id: p.hubspot_owner_id ?? undefined,
+        hubspot_owner_id: deal.owner_id ?? undefined,
       });
     }
   }
@@ -118,7 +134,7 @@ export async function GET(request: NextRequest) {
       probability: d.probability,
       closeDate: d.closedate,
       daysToClose: d.days_to_close ? parseInt(d.days_to_close) : null,
-      ownerName: null,
+      ownerName: ownerName(d.hubspot_owner_id),
     });
     stageGroups.set(d.dealstage, list);
   }
@@ -249,7 +265,7 @@ export async function GET(request: NextRequest) {
     name: d.dealname,
     amount: d.amount,
     closeDate: d.closedate ?? "",
-    ownerName: null,
+    ownerName: ownerName(d.hubspot_owner_id),
   });
 
   const recentWins: DealOutcome[] = closedDeals
