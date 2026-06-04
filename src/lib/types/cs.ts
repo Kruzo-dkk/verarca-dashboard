@@ -6,6 +6,8 @@ export interface CSDashboardData {
   supportMetrics: SupportMetrics;
   atRiskCustomers: CSCustomer[];
   managedPerformance: ManagedPerformance;
+  /** Non-fatal data-availability warnings, e.g. when ticket data is unsynced. */
+  dataWarnings?: string[];
 }
 
 export interface TierBreakdown {
@@ -47,7 +49,8 @@ export interface SupportMetrics {
   avgResolutionHours: number | null;
   ticketsThisMonth: number;
   ticketsLastMonth: number;
-  ticketTrend: number; // percentage change
+  /** Percentage change vs last month, or null when there's no basis to compare. */
+  ticketTrend: number | null;
 }
 
 export interface CSCustomer {

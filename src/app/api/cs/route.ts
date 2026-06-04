@@ -53,7 +53,10 @@ export async function GET(request: NextRequest) {
   const admin = createAdminClient();
 
   // ── Fetch all data in parallel ────────────────────────────────
-  const [customersRes, snapshotsRes, ticketsCurrentRes, ticketsPrevRes, activityRes] =
+  // (activity_snapshots is intentionally NOT fetched here: it's per-owner, not
+  // per-customer, so it can't drive per-customer health — the previous query
+  // was discarded AND crashed on 30-day months via a `${month}-31` date bound.)
+  const [customersRes, snapshotsRes, ticketsCurrentRes, ticketsPrevRes] =
     await Promise.all([
       admin
         .from("customers")
@@ -68,11 +71,6 @@ export async function GET(request: NextRequest) {
         .lte("month", month),
       admin.from("ticket_snapshots").select("*").eq("month", month),
       admin.from("ticket_snapshots").select("*").eq("month", prevMonth),
-      admin
-        .from("activity_snapshots")
-        .select("date")
-        .gte("date", `${month}-01`)
-        .lte("date", `${month}-31`),
     ]);
 
   const customers = customersRes.data ?? [];
@@ -234,12 +232,15 @@ export async function GET(request: NextRequest) {
 
   const ticketsThisMonth = ticketsCurrent.length;
   const ticketsLastMonth = ticketsPrev.length;
+  // null when there's no basis to compare (no tickets last month) so the UI can
+  // show "N/A" instead of a misleading 0% — important while ticket data is
+  // scope-blocked and both months are empty.
   const ticketTrend =
     ticketsLastMonth > 0
       ? Math.round(
           ((ticketsThisMonth - ticketsLastMonth) / ticketsLastMonth) * 100
         )
-      : 0;
+      : null;
 
   const supportMetrics: SupportMetrics = {
     openTickets: allOpenTickets,
@@ -248,6 +249,14 @@ export async function GET(request: NextRequest) {
     ticketsLastMonth,
     ticketTrend,
   };
+
+  // Surface known data gaps so the dashboard doesn't present empty/partial data
+  // as real. Tickets require a HubSpot scope not granted in production, so
+  // `ticket_snapshots` is empty — health scores then omit the support signal.
+  const dataWarnings: string[] = [];
+  if (ticketsCurrent.length === 0 && ticketsPrev.length === 0) {
+    dataWarnings.push("tickets_unavailable");
+  }
 
   // ── At-risk customers (sorted by score ascending) ─────────────
   const atRiskCustomers = csCustomers
@@ -287,6 +296,7 @@ export async function GET(request: NextRequest) {
     supportMetrics,
     atRiskCustomers,
     managedPerformance,
+    dataWarnings,
   };
 
   return NextResponse.json(data);

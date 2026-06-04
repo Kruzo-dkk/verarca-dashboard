@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { useCSContext } from "./CSProvider";
 
@@ -13,6 +14,14 @@ function formatPct(value: number | null): string {
   return `${value > 0 ? "+" : ""}${value.toFixed(1)}%`;
 }
 
+type Winner = "managed" | "standard" | null;
+
+/** Winner only when both sides are comparable numbers and differ. */
+function winnerOf(managed: number | null, standard: number | null): Winner {
+  if (managed === null || standard === null || managed === standard) return null;
+  return managed > standard ? "managed" : "standard";
+}
+
 export function ManagedPerformance() {
   const { data } = useCSContext();
   if (!data) return null;
@@ -24,25 +33,19 @@ export function ManagedPerformance() {
       label: "Avg MRR",
       managed: formatDKK(p.managedAvgMRR),
       standard: formatDKK(p.standardAvgMRR),
-      managedWins: p.managedAvgMRR > p.standardAvgMRR,
+      winner: winnerOf(p.managedAvgMRR, p.standardAvgMRR),
     },
     {
       label: "Growth Rate",
       managed: formatPct(p.managedGrowthRate),
       standard: formatPct(p.standardGrowthRate),
-      managedWins:
-        p.managedGrowthRate !== null &&
-        p.standardGrowthRate !== null &&
-        p.managedGrowthRate > p.standardGrowthRate,
+      winner: winnerOf(p.managedGrowthRate, p.standardGrowthRate),
     },
     {
       label: "Retention Rate",
       managed: formatPct(p.managedRetentionRate),
       standard: formatPct(p.standardRetentionRate),
-      managedWins:
-        p.managedRetentionRate !== null &&
-        p.standardRetentionRate !== null &&
-        p.managedRetentionRate > p.standardRetentionRate,
+      winner: winnerOf(p.managedRetentionRate, p.standardRetentionRate),
     },
   ];
 
@@ -64,11 +67,10 @@ export function ManagedPerformance() {
 
         {/* Metric rows */}
         {metrics.map((m) => (
-          <>
+          <Fragment key={m.label}>
             <div
-              key={`managed-${m.label}`}
               className={`rounded-lg p-3 text-center ${
-                m.managedWins
+                m.winner === "managed"
                   ? "bg-emerald-500/10 border border-emerald-500/20"
                   : "bg-[var(--bg-secondary)]"
               }`}
@@ -77,9 +79,8 @@ export function ManagedPerformance() {
               <p className="metric-value text-lg mt-1">{m.managed}</p>
             </div>
             <div
-              key={`standard-${m.label}`}
               className={`rounded-lg p-3 text-center ${
-                !m.managedWins
+                m.winner === "standard"
                   ? "bg-emerald-500/10 border border-emerald-500/20"
                   : "bg-[var(--bg-secondary)]"
               }`}
@@ -87,7 +88,7 @@ export function ManagedPerformance() {
               <p className="text-xs text-[var(--text-muted)]">{m.label}</p>
               <p className="metric-value text-lg mt-1">{m.standard}</p>
             </div>
-          </>
+          </Fragment>
         ))}
       </div>
     </GlassCard>

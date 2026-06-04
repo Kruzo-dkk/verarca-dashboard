@@ -10,7 +10,7 @@ export function SupportMetrics() {
   const { supportMetrics } = data;
 
   const trend = supportMetrics.ticketTrend;
-  const trendPositive = trend <= 0; // decreasing tickets is good
+  const trendPositive = trend !== null && trend <= 0; // decreasing tickets is good
 
   const cards = [
     {
@@ -33,8 +33,8 @@ export function SupportMetrics() {
     },
     {
       label: "Trend vs Last Month",
-      value: `${trend > 0 ? "+" : ""}${trend.toFixed(1)}%`,
-      alert: !trendPositive,
+      value: trend === null ? "N/A" : `${trend > 0 ? "+" : ""}${trend.toFixed(1)}%`,
+      alert: trend !== null && !trendPositive,
       positive: trendPositive,
     },
   ];
