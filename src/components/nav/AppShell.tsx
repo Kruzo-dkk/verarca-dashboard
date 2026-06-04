@@ -65,7 +65,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen">
       {/* ── Header ──────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-40 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]/80 backdrop-blur-md">
+      <header className="print:hidden sticky top-0 z-40 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]/80 backdrop-blur-md">
         <div className="mx-auto max-w-[1400px] px-4 sm:px-6">
           <div className="flex h-14 items-center justify-between gap-4">
             {/* Left: Brand */}
