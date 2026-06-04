@@ -56,7 +56,7 @@ function DashboardWithTabs() {
   return (
     <div>
       {/* Tab toggle */}
-      <div className="mb-6 flex gap-1 rounded-lg bg-[var(--bg-surface)] p-1 w-fit">
+      <div className="print:hidden mb-6 flex gap-1 rounded-lg bg-[var(--bg-surface)] p-1 w-fit">
         {TABS.map((t) => (
           <button
             key={t.key}

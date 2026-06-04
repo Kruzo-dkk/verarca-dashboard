@@ -66,7 +66,7 @@ export function BottomNav({
 
   return (
     <>
-      <nav className="fixed bottom-0 inset-x-0 z-50 border-t border-[var(--border-subtle)] bg-[var(--bg-card)]/95 backdrop-blur-sm lg:hidden pb-[env(safe-area-inset-bottom)]">
+      <nav className="print:hidden fixed bottom-0 inset-x-0 z-50 border-t border-[var(--border-subtle)] bg-[var(--bg-card)]/95 backdrop-blur-sm lg:hidden pb-[env(safe-area-inset-bottom)]">
         <div className="flex items-center justify-around h-16">
           {items.map(({ href, label, icon: Icon }) => {
             const active =

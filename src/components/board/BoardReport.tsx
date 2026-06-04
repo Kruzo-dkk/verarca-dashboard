@@ -27,6 +27,32 @@ export function BoardReport() {
   const [data, setData] = useState<BoardReportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  const exportPdf = useCallback(async () => {
+    setExporting(true);
+    try {
+      const params = new URLSearchParams({ month });
+      if (currency !== "DKK") params.set("currency", currency);
+      const res = await fetch(`/api/report/pdf?${params.toString()}`);
+      if (!res.ok) throw new Error("Failed to generate PDF");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `verarca-board-${month}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("PDF export failed:", err);
+      // Fall back to the browser print dialog if server rendering fails.
+      window.print();
+    } finally {
+      setExporting(false);
+    }
+  }, [month, currency]);
 
   const fetchBoard = useCallback(async () => {
     setLoading(true);
@@ -92,10 +118,11 @@ export function BoardReport() {
           </p>
         </div>
         <button
-          onClick={() => window.print()}
-          className="print:hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)] transition-colors"
+          onClick={exportPdf}
+          disabled={exporting}
+          className="print:hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Export PDF
+          {exporting ? "Generating…" : "Export PDF"}
         </button>
       </div>
 
