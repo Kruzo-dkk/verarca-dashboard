@@ -1,9 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { DeltaPill } from "@/components/ui/DeltaPill";
 import { SparkLine } from "@/components/charts/SparkLine";
 import { MetricTooltip } from "@/components/ui/MetricTooltip";
+import { KPIDrilldown, hasDrilldown } from "./KPIDrilldown";
 import type { MetricKey } from "@/lib/tooltip-registry";
 import type { ReportData } from "@/lib/types/report";
 
@@ -13,6 +15,8 @@ interface HeroKPIsProps {
 }
 
 export function HeroKPIs({ data, formatValue }: HeroKPIsProps) {
+  const [expanded, setExpanded] = useState<MetricKey | null>(null);
+
   const kpis: {
     label: string;
     metric: MetricKey;
@@ -81,30 +85,76 @@ export function HeroKPIs({ data, formatValue }: HeroKPIsProps) {
     },
   ];
 
+  const expandedKpi = kpis.find((k) => k.metric === expanded) ?? null;
+
   return (
-    <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-3 xl:grid-cols-6">
-      {kpis.map((kpi) => (
-        <GlassCard key={kpi.label} className="flex flex-col gap-1.5 sm:gap-2">
-          <MetricTooltip metric={kpi.metric}>
-            <span className="text-[10px] sm:text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide sm:tracking-wider">
-              {kpi.label}
-            </span>
-          </MetricTooltip>
-          <span className="metric-value text-xl sm:text-2xl text-[var(--text-primary)]">
-            {kpi.value}
-          </span>
-          <div className="flex items-center gap-2">
-            {kpi.previous !== null && (
-              <DeltaPill current={kpi.current} previous={kpi.previous} />
-            )}
+    <div>
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-3 xl:grid-cols-6">
+        {kpis.map((kpi) => {
+          const drillable = hasDrilldown(kpi.metric);
+          const isOpen = expanded === kpi.metric;
+          return (
+            <GlassCard
+              key={kpi.label}
+              onClick={drillable ? () => setExpanded(isOpen ? null : kpi.metric) : undefined}
+              className={`flex flex-col gap-1.5 sm:gap-2 ${
+                drillable ? "transition-colors hover:bg-[var(--bg-card-hover)]" : ""
+              } ${isOpen ? "ring-1 ring-[var(--accent-teal)]" : ""}`}
+            >
+              <div className="flex items-center justify-between">
+                <MetricTooltip metric={kpi.metric}>
+                  <span className="text-[10px] sm:text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide sm:tracking-wider">
+                    {kpi.label}
+                  </span>
+                </MetricTooltip>
+                {drillable && (
+                  <svg
+                    className={`w-3.5 h-3.5 text-[var(--text-muted)] transition-transform ${isOpen ? "rotate-180" : ""}`}
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    aria-hidden="true"
+                  >
+                    <path d="M4 6l4 4 4-4" />
+                  </svg>
+                )}
+              </div>
+              <span className="metric-value text-xl sm:text-2xl text-[var(--text-primary)]">
+                {kpi.value}
+              </span>
+              <div className="flex items-center gap-2">
+                {kpi.previous !== null && (
+                  <DeltaPill current={kpi.current} previous={kpi.previous} />
+                )}
+              </div>
+              {kpi.sparkData.length > 1 && (
+                <div className="mt-1">
+                  <SparkLine data={kpi.sparkData} />
+                </div>
+              )}
+            </GlassCard>
+          );
+        })}
+      </div>
+
+      {expandedKpi && (
+        <GlassCard className="mt-3">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="section-heading text-sm text-[var(--text-primary)]">
+              {expandedKpi.label} — breakdown
+            </h3>
+            <button
+              onClick={() => setExpanded(null)}
+              className="text-xs text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+              aria-label="Close breakdown"
+            >
+              ✕
+            </button>
           </div>
-          {kpi.sparkData.length > 1 && (
-            <div className="mt-1">
-              <SparkLine data={kpi.sparkData} />
-            </div>
-          )}
+          <KPIDrilldown metric={expandedKpi.metric} data={data} formatValue={formatValue} />
         </GlassCard>
-      ))}
+      )}
     </div>
   );
 }
