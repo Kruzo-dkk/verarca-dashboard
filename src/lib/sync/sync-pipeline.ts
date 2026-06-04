@@ -1,6 +1,7 @@
-import { listDeals, getPipelineStages, calculatePipelineMetrics } from "@/lib/hubspot";
+import { listDeals, getPipelineStages, calculatePipelineMetrics, buildStoredDeals } from "@/lib/hubspot";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { SyncModuleResult } from "@/lib/sync/types";
+import type { Json } from "@/lib/supabase/database.types";
 
 /**
  * Sync HubSpot pipeline data for a given month into `pipeline_snapshots`.
@@ -23,17 +24,10 @@ export async function syncPipeline(month: string): Promise<SyncModuleResult> {
     `[sync-pipeline] Metrics: won=${metrics.dealsWon}, lost=${metrics.dealsLost}, open=${metrics.dealsOpen}, winRate=${metrics.winRate}%`
   );
 
-  // Build a JSON-serializable deals array for storage
+  // Build a JSON-serializable deals array for storage (shared shape — the
+  // Sales dashboard reads exactly this).
   const stageMap = new Map(stages.map(s => [s.stageId, s.label]));
-  const dealsJson = metrics.deals.map((d) => ({
-    id: d.id,
-    name: d.properties.dealname,
-    amount: d.properties.amount_in_home_currency ?? d.properties.amount,
-    stage: d.properties.dealstage,
-    stage_label: stageMap.get(d.properties.dealstage) ?? d.properties.dealstage,
-    closedate: d.properties.closedate,
-    days_to_close: d.properties.days_to_close,
-  }));
+  const dealsJson = buildStoredDeals(metrics.deals, stageMap);
 
   const supabase = createAdminClient();
 
@@ -50,7 +44,7 @@ export async function syncPipeline(month: string): Promise<SyncModuleResult> {
         avg_deal_size: metrics.avgDealSize,
         avg_sales_cycle_days: metrics.avgSalesCycleDays,
         win_rate: metrics.winRate,
-        deals_json: dealsJson,
+        deals_json: dealsJson as unknown as Json,
       },
       { onConflict: "month" }
     );

@@ -62,6 +62,7 @@ vi.mock("@/lib/hubspot", async (importOriginal) => {
     listDeals: vi.fn(),
     getPipelineStages: vi.fn(),
     calculatePipelineMetrics: actual.calculatePipelineMetrics,
+    buildStoredDeals: actual.buildStoredDeals,
   };
 });
 
