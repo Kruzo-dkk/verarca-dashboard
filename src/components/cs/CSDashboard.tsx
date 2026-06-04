@@ -20,11 +20,20 @@ export function CSDashboard() {
     );
   if (!data) return null;
 
+  const warnings = data.dataWarnings ?? [];
+
   return (
     <div className="space-y-4">
       <h1 className="section-heading text-2xl text-[var(--text-primary)]">
         Customer Success
       </h1>
+      {warnings.includes("tickets_unavailable") && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-600 dark:text-amber-400">
+          Support-ticketdata er ikke tilgængelig (HubSpot-scope ikke aktiveret),
+          så ticket-tal og support-bidraget til health score vises ikke. Øvrige
+          tal er upåvirkede.
+        </div>
+      )}
       <TierBreakdown />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <HealthDistribution />
