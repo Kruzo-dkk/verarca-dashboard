@@ -385,8 +385,10 @@ export function detectARRStage(arrDKKOre: number): ARRStage {
   if (arrUSD < 5_000_000) return "1-5M";
   if (arrUSD < 10_000_000) return "5-10M";
   if (arrUSD < 25_000_000) return "10-25M";
-  if (arrUSD < 50_000_000) return "25-50M";
-  return "50M+";
+  // "25-50M" is the highest stage we hold benchmark data for, so anything above
+  // is clamped to it rather than auto-selecting "50M+" (which has no dataset and
+  // would strand the benchmark table on a "no data" fallback).
+  return "25-50M";
 }
 
 /**

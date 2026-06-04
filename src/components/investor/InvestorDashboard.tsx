@@ -232,6 +232,7 @@ export function InvestorDashboard() {
             benchmark="<18 mo healthy"
             threshold={18}
             invertThreshold
+            subtext="Assumes 100% gross margin"
           />
           <EfficiencyCard
             label="LTV"
