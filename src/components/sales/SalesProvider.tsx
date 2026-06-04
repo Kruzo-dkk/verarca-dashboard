@@ -5,11 +5,11 @@ import {
   useContext,
   useState,
   useEffect,
-  useCallback,
   type ReactNode,
 } from "react";
 import { useSearchParams } from "next/navigation";
 import { useReportContext } from "@/components/providers/ReportProvider";
+import { useDashboardData } from "@/hooks/useDashboardData";
 import type { SalesDashboardData } from "@/lib/types/sales";
 
 interface SalesContextType {
@@ -33,30 +33,12 @@ export function SalesProvider({ children }: { children: ReactNode }) {
   const rotateMode = searchParams.get("rotate") === "true";
   const rotateInterval = parseInt(searchParams.get("interval") ?? "20", 10);
 
-  const [data, setData] = useState<SalesDashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, loading, error } = useDashboardData<SalesDashboardData>(
+    `/api/sales?month=${month}`,
+    { intervalMs: 60_000 }
+  );
+
   const [currentScreen, setCurrentScreen] = useState(0);
-
-  const fetchData = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/sales?month=${month}`);
-      if (!res.ok) throw new Error("Failed to load sales data");
-      const json = await res.json();
-      setData(json);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
-    } finally {
-      setLoading(false);
-    }
-  }, [month]);
-
-  useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 60_000);
-    return () => clearInterval(interval);
-  }, [fetchData]);
 
   // Auto-rotate screens in TV mode
   useEffect(() => {
