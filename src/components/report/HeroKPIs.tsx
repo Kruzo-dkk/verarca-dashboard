@@ -125,7 +125,11 @@ export function HeroKPIs({ data, formatValue }: HeroKPIsProps) {
               </span>
               <div className="flex items-center gap-2">
                 {kpi.previous !== null && (
-                  <DeltaPill current={kpi.current} previous={kpi.previous} />
+                  <DeltaPill
+                    current={kpi.current}
+                    previous={kpi.previous}
+                    format={kpi.metric === "nrr" ? "points" : "percent"}
+                  />
                 )}
               </div>
               {kpi.sparkData.length > 1 && (

@@ -299,13 +299,19 @@ export function BoardReport() {
               <MetricTooltip metric="avgDealSize">
                 <span className="text-[var(--text-muted)] text-xs">Avg Deal Size</span>
               </MetricTooltip>
-              <div className="metric-value">{formatValue(data.pipeline.avgDealSize)}</div>
+              <div className="metric-value">
+                {data.pipeline.avgDealSize > 0 ? formatValue(data.pipeline.avgDealSize) : "—"}
+              </div>
             </div>
             <div>
               <MetricTooltip metric="avgSalesCycle">
                 <span className="text-[var(--text-muted)] text-xs">Avg Sales Cycle</span>
               </MetricTooltip>
-              <div className="metric-value">{data.pipeline.avgSalesCycleDays} days</div>
+              <div className="metric-value">
+                {data.pipeline.avgSalesCycleDays > 0
+                  ? `${data.pipeline.avgSalesCycleDays} days`
+                  : "—"}
+              </div>
             </div>
           </div>
         </GlassCard>
@@ -429,7 +435,11 @@ function BoardHeroKPIs({
           </span>
           <div className="flex items-center gap-2">
             {kpi.previous !== null && (
-              <DeltaPill current={kpi.current} previous={kpi.previous} />
+              <DeltaPill
+                current={kpi.current}
+                previous={kpi.previous}
+                format={kpi.metric === "nrr" ? "points" : "percent"}
+              />
             )}
           </div>
           {kpi.sparkData.length > 1 && (
@@ -464,7 +474,7 @@ function DecompositionCard({
         <span className="text-xs text-[var(--text-muted)]">{label}</span>
       </MetricTooltip>
       <div className={`metric-value text-xl mt-1 ${color}`}>
-        {negative && value > 0 ? "−" : ""}
+        {negative && value !== 0 ? "−" : ""}
         {formatValue(Math.abs(value))}
       </div>
     </GlassCard>
