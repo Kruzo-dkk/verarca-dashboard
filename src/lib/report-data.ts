@@ -464,8 +464,10 @@ export async function getReportData(
 
   const deals: PipelineDeal[] = parsePipelineDeals(pipeline?.deals_json);
   const weightedPipeline = pipeline?.weighted_pipeline ?? 0;
+  // Coverage is only meaningful against positive net-new MRR — a negative base
+  // yields a nonsensical negative ratio.
   const pipelineCoverage =
-    totalNetNewMRR !== 0
+    totalNetNewMRR > 0
       ? Math.round((weightedPipeline / totalNetNewMRR) * 100) / 100
       : null;
 
