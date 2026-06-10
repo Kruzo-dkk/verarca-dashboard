@@ -284,7 +284,7 @@ export function InvestorDashboard() {
             benchmark="<1.5x efficient"
             threshold={1.5}
             invertThreshold
-            notConfiguredText="Requires burn data"
+            notConfiguredText="Add net burn (last 3 mo) in Monthly Input"
           />
           <EfficiencyCard
             label="Magic Number"
@@ -293,7 +293,7 @@ export function InvestorDashboard() {
             format={(v) => v.toFixed(2)}
             benchmark=">0.75 efficient"
             threshold={0.75}
-            notConfiguredText="Requires S&M spend"
+            notConfiguredText="Add S&M spend (last 3 mo) in Monthly Input"
           />
         </div>
       </section>

@@ -775,24 +775,25 @@ describe("resolveGrossMargin", () => {
 });
 
 describe("computeBurnMultiple", () => {
-  it("net burn ÷ net-new ARR", () => {
-    // burn 600,000 / (net-new MRR 1,000,000 × 12 = 12,000,000) = 0.05
-    expect(computeBurnMultiple(600_000, 1_000_000)).toBe(0.05);
+  it("period net burn ÷ net-new ARR (both absolute øre)", () => {
+    // quarter burn 600,000 / net-new ARR 12,000,000 = 0.05
+    expect(computeBurnMultiple(600_000, 12_000_000)).toBe(0.05);
   });
-  it("null without burn or with non-positive net-new", () => {
-    expect(computeBurnMultiple(null, 1_000_000)).toBeNull();
+  it("null without burn or with non-positive net-new ARR", () => {
+    expect(computeBurnMultiple(null, 12_000_000)).toBeNull();
     expect(computeBurnMultiple(600_000, 0)).toBeNull();
     expect(computeBurnMultiple(600_000, -5_000)).toBeNull();
   });
 });
 
 describe("computeMagicNumber", () => {
-  it("net-new ARR ÷ S&M spend", () => {
-    // (net-new MRR 500,000 × 12 = 6,000,000) / S&M 8,000,000 = 0.75
-    expect(computeMagicNumber(500_000, 8_000_000)).toBe(0.75);
+  it("net-new ARR ÷ S&M spend (both absolute øre)", () => {
+    // net-new ARR 6,000,000 / S&M 8,000,000 = 0.75
+    expect(computeMagicNumber(6_000_000, 8_000_000)).toBe(0.75);
   });
   it("null without spend or net growth", () => {
-    expect(computeMagicNumber(500_000, 0)).toBeNull();
+    expect(computeMagicNumber(6_000_000, 0)).toBeNull();
+    expect(computeMagicNumber(6_000_000, null)).toBeNull();
     expect(computeMagicNumber(0, 8_000_000)).toBeNull();
   });
 });
