@@ -769,28 +769,31 @@ export function resolveGrossMargin(
 }
 
 /**
- * Burn Multiple = net burn ÷ net-new ARR (this month's net-new MRR × 12).
- * Lower is better (<1.5 is efficient). Null without a burn figure or net growth.
+ * Burn Multiple = net cash burned over a period ÷ net-new ARR added over the
+ * same period. Lower is better (<1.5 is efficient). Measured over a trailing
+ * quarter (see report-data) so a single contraction month doesn't blank it.
+ * Both arguments are absolute amounts in øre. Null without a burn figure, or
+ * when net-new ARR ≤ 0 (the ratio is undefined when no ARR was added).
  */
 export function computeBurnMultiple(
-  monthlyBurnOre: number | null,
-  netNewMrrOre: number
+  periodBurnOre: number | null,
+  netNewArrOre: number
 ): number | null {
-  if (monthlyBurnOre == null || netNewMrrOre <= 0) return null;
-  return Math.round((monthlyBurnOre / (netNewMrrOre * 12)) * 100) / 100;
+  if (periodBurnOre == null || netNewArrOre <= 0) return null;
+  return Math.round((periodBurnOre / netNewArrOre) * 100) / 100;
 }
 
 /**
- * Magic Number = net-new ARR (net-new MRR × 12) ÷ S&M spend for the month.
- * Monthly form of the classic ratio (>0.75 is efficient). Null without spend or
- * net growth.
+ * Magic Number = net-new ARR ÷ S&M spend, measured over the same period.
+ * (>0.75 is efficient.) Both arguments are absolute amounts in øre. Null
+ * without spend, or when net-new ARR ≤ 0.
  */
 export function computeMagicNumber(
-  netNewMrrOre: number,
-  smSpendOre: number
+  netNewArrOre: number,
+  smSpendOre: number | null
 ): number | null {
-  if (smSpendOre <= 0 || netNewMrrOre <= 0) return null;
-  return Math.round(((netNewMrrOre * 12) / smSpendOre) * 100) / 100;
+  if (smSpendOre == null || smSpendOre <= 0 || netNewArrOre <= 0) return null;
+  return Math.round((netNewArrOre / smSpendOre) * 100) / 100;
 }
 
 /**

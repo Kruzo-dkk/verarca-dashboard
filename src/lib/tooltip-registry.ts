@@ -308,15 +308,17 @@ export const tooltipRegistry: Record<MetricKey, TooltipContent> = {
   },
   burnMultiple: {
     name: "Burn Multiple",
-    formula: "Net burn / Net-new ARR (net-new MRR × 12)",
+    formula: "Net burn (last 3 mo) ÷ Net-new ARR (last 3 mo)",
     source: "Monthly Input — monthly net burn",
-    benchmark: "<1.5× efficient (lower is better)",
+    benchmark:
+      "Measured over a trailing 3-month quarter so a single contraction month doesn't blank it. Net-new ARR = (MRR now − MRR 3 months ago) × 12. <1.5× efficient (lower is better).",
   },
   magicNumber: {
     name: "Magic Number",
-    formula: "Net-new ARR (net-new MRR × 12) / S&M spend this month",
+    formula: "Net-new ARR (last 3 mo) ÷ S&M spend (last 3 mo)",
     source: "Frisbii MRR + Monthly Input S&M spend",
-    benchmark: ">0.75 efficient",
+    benchmark:
+      "Trailing-quarter form of the classic ratio. Net-new ARR = (MRR now − MRR 3 months ago) × 12. >0.75 efficient.",
   },
   growthRate: {
     name: "ARR Growth Rate",

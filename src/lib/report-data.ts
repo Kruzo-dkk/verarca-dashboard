@@ -83,6 +83,7 @@ export async function getReportData(
     settingsRes,
     discountSnapshotsRes,
     channelMetricsRes,
+    quarterSettingsRes,
   ] = await Promise.all([
     // 1. End-month snapshot (point-in-time metrics)
     supabase
@@ -150,6 +151,14 @@ export async function getReportData(
       .from("channel_metrics")
       .select("*")
       .eq("month", endMonth),
+
+    // 11. Settings across the trailing quarter (Burn Multiple / Magic Number,
+    //     which are measured over a 3-month window, not a single month).
+    supabase
+      .from("settings")
+      .select("month, monthly_burn, total_cac")
+      .gte("month", monthsAgo(endMonth, 2))
+      .lte("month", endMonth),
   ]);
 
   // ------ Unpack & default values ----------------------------------------
@@ -164,6 +173,7 @@ export async function getReportData(
   const settingsRow = settingsRes.data;
   const discountSnapshots = discountSnapshotsRes.data ?? [];
   const channelMetricsRows = channelMetricsRes.data ?? [];
+  const quarterSettings = quarterSettingsRes.data ?? [];
 
   const fxRates: FXRates = {
     EUR: fxRow?.eur_rate ?? 0,
@@ -544,13 +554,42 @@ export async function getReportData(
     currentMrr
   );
 
-  // Burn Multiple (net burn ÷ net-new ARR) and Magic Number (net-new ARR ÷ S&M).
-  const netNewMrr = snap?.net_new_mrr ?? 0;
-  const burnMultiple = computeBurnMultiple(
-    settingsRow?.monthly_burn ?? null,
-    netNewMrr
-  );
-  const magicNumber = computeMagicNumber(netNewMrr, settingsRow?.total_cac ?? 0);
+  // Burn Multiple & Magic Number — measured over a trailing 3-month (quarter)
+  // window so a single contraction month doesn't blank them. Net-new ARR for the
+  // quarter = (MRR[m] − MRR[m−3]) × 12. Spend (net burn / S&M) is the average of
+  // the months actually entered in the window, scaled to the full quarter — so a
+  // partially-filled window still yields a number instead of "—".
+  const QUARTER_MONTHS = 3;
+  const quarterBaseMonth = monthsAgo(endMonth, QUARTER_MONTHS);
+  const quarterBaseSnap = trailing.find((s) => s.month === quarterBaseMonth);
+  const netNewArrQuarter =
+    quarterBaseSnap != null ? (currentMrr - quarterBaseSnap.mrr) * 12 : null;
+
+  const quarterWindow = [
+    monthsAgo(endMonth, 2),
+    monthsAgo(endMonth, 1),
+    endMonth,
+  ];
+  const scaledQuarterSpend = (
+    pick: (row: { monthly_burn: number | null; total_cac: number | null }) => number | null
+  ): number | null => {
+    const vals = quarterWindow
+      .map((mth) => quarterSettings.find((s) => s.month === mth))
+      .map((row) => (row ? pick(row) : null))
+      .filter((v): v is number => v != null && v > 0);
+    if (vals.length === 0) return null;
+    const avg = vals.reduce((sum, v) => sum + v, 0) / vals.length;
+    return Math.round(avg * QUARTER_MONTHS);
+  };
+
+  const burnMultiple =
+    netNewArrQuarter != null
+      ? computeBurnMultiple(scaledQuarterSpend((r) => r.monthly_burn), netNewArrQuarter)
+      : null;
+  const magicNumber =
+    netNewArrQuarter != null
+      ? computeMagicNumber(netNewArrQuarter, scaledQuarterSpend((r) => r.total_cac))
+      : null;
 
   // Rule of 40: MRR Growth % (MoM annualised) + Gross Margin %
   let ruleOf40: number | null = null;
