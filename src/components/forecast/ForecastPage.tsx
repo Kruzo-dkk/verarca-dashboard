@@ -6,7 +6,12 @@ import { ForecastChart } from "@/components/charts/ForecastChart";
 import { ForecastSummary } from "@/components/forecast/ForecastSummary";
 import { ForecastAssumptions } from "@/components/forecast/ForecastAssumptions";
 import { useReportContext } from "@/components/providers/ReportProvider";
-import type { ForecastResult, ForecastAssumptions as AssumptionsType } from "@/lib/forecast";
+import type { ForecastResult, ScenarioAssumptionMeta } from "@/lib/forecast";
+import {
+  DEFAULT_PREDICTED_WINDOW,
+  PREDICTED_WINDOW_OPTIONS,
+  type ScenarioId,
+} from "@/lib/forecast-scenarios";
 
 export function ForecastPage() {
   const { month, formatValue } = useReportContext();
@@ -15,12 +20,15 @@ export function ForecastPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [horizon, setHorizon] = useState(12);
+  const [predictedWindow, setPredictedWindow] = useState<number>(DEFAULT_PREDICTED_WINDOW);
 
   const fetchForecast = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/forecast?horizon=${horizon}&month=${month}`);
+      const res = await fetch(
+        `/api/forecast?horizon=${horizon}&month=${month}&window=${predictedWindow}`
+      );
       if (!res.ok) throw new Error("Failed to load forecast");
       const data: ForecastResult = await res.json();
       setForecast(data);
@@ -28,14 +36,14 @@ export function ForecastPage() {
       setError(err instanceof Error ? err.message : "Unknown error");
     }
     setLoading(false);
-  }, [horizon, month]);
+  }, [horizon, month, predictedWindow]);
 
   useEffect(() => {
     fetchForecast();
   }, [fetchForecast]);
 
   const handleSaveAssumption = useCallback(
-    async (updated: AssumptionsType) => {
+    async (updated: ScenarioAssumptionMeta) => {
       const res = await fetch("/api/forecast", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -52,6 +60,21 @@ export function ForecastPage() {
       if (!res.ok) throw new Error("Failed to save");
 
       // Re-fetch forecast with updated assumptions
+      await fetchForecast();
+    },
+    [fetchForecast]
+  );
+
+  const handleResetAssumption = useCallback(
+    async (scenario: ScenarioId) => {
+      const res = await fetch(
+        `/api/forecast?scenario=${encodeURIComponent(scenario)}`,
+        { method: "DELETE" }
+      );
+
+      if (!res.ok) throw new Error("Failed to reset");
+
+      // Re-fetch so the band reverts to its live suggested values
       await fetchForecast();
     },
     [fetchForecast]
@@ -101,23 +124,60 @@ export function ForecastPage() {
           </p>
         </div>
 
-        {/* Horizon toggle */}
-        <div className="flex items-center gap-1 p-0.5 bg-[var(--bg-secondary)] rounded-lg border border-[var(--border-subtle)]">
-          {[6, 12, 24].map((h) => (
-            <button
-              key={h}
-              onClick={() => setHorizon(h)}
-              className={`px-4 py-2 sm:px-3 sm:py-1.5 text-xs font-medium rounded-md transition-all ${
-                horizon === h
-                  ? "bg-white text-[var(--text-primary)] shadow-sm"
-                  : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
-              }`}
-            >
-              {h}M
-            </button>
-          ))}
+        <div className="flex items-end gap-4">
+          {/* Predicted basis (trailing window) */}
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-1">
+              Predicted basis
+            </p>
+            <div className="flex items-center gap-1 p-0.5 bg-[var(--bg-secondary)] rounded-lg border border-[var(--border-subtle)]">
+              {PREDICTED_WINDOW_OPTIONS.map((w) => (
+                <button
+                  key={w}
+                  onClick={() => setPredictedWindow(w)}
+                  className={`px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs font-medium rounded-md transition-all ${
+                    predictedWindow === w
+                      ? "bg-white text-[var(--text-primary)] shadow-sm"
+                      : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+                  }`}
+                >
+                  {w}mo
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Horizon toggle */}
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-1">
+              Horizon
+            </p>
+            <div className="flex items-center gap-1 p-0.5 bg-[var(--bg-secondary)] rounded-lg border border-[var(--border-subtle)]">
+              {[6, 12, 24].map((h) => (
+                <button
+                  key={h}
+                  onClick={() => setHorizon(h)}
+                  className={`px-4 py-2 sm:px-3 sm:py-1.5 text-xs font-medium rounded-md transition-all ${
+                    horizon === h
+                      ? "bg-white text-[var(--text-primary)] shadow-sm"
+                      : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+                  }`}
+                >
+                  {h}M
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* Limited-history note */}
+      {!forecast.sufficientHistory && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-xs text-amber-800">
+          Limited history — Predicted falls back to baseline defaults until at least 3 months of
+          snapshots are available.
+        </div>
+      )}
 
       {/* Summary cards */}
       <ForecastSummary data={forecast} formatValue={formatValue} />
@@ -138,15 +198,20 @@ export function ForecastPage() {
         assumptions={forecast.assumptions}
         formatValue={formatValue}
         onSave={handleSaveAssumption}
+        onReset={handleResetAssumption}
       />
 
       {/* Methodology note */}
       <div className="text-xs text-[var(--text-muted)] px-1">
         <p>
           <strong>Methodology:</strong> Each month projects forward from the previous month&apos;s MRR.
-          Churn and expansion are applied as percentages of existing MRR. New logos are multiplied by
-          the average deal size. Pipeline deals with close dates in the projected month contribute
-          their weighted amount (deal size &times; conversion %).
+          Churn and expansion are applied as percentages of existing MRR; new logos are multiplied by
+          the average deal size.{" "}
+          <strong>Predicted</strong> derives these from your trailing {predictedWindow}-month actuals —
+          gross revenue churn (cancellations + downgrades), gross expansion, the new-logo run-rate, and
+          the live pipeline win-rate — and projects that run-rate forward (named pipeline deals are
+          excluded here to avoid double-counting). The worst / better / best bands layer named pipeline
+          deals (deal size &times; conversion %) on top of suggested or custom assumptions.
         </p>
       </div>
     </div>

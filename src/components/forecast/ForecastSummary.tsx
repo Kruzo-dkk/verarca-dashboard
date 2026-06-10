@@ -2,24 +2,17 @@
 
 import { GlassCard } from "@/components/ui/GlassCard";
 import type { ForecastResult } from "@/lib/forecast";
+import { SCENARIO_ORDER, SCENARIO_META } from "@/lib/forecast-scenarios";
 
 interface ForecastSummaryProps {
   data: ForecastResult;
   formatValue: (v: number) => string;
 }
 
-const SCENARIO_META: Record<string, { label: string; color: string; desc: string }> = {
-  best: { label: "Best Case", color: "#10b981", desc: "Low churn, strong expansion" },
-  base: { label: "Base Case", color: "#1A5C5A", desc: "Current trends continue" },
-  worst: { label: "Worst Case", color: "#ef4444", desc: "Elevated churn, no growth" },
-};
-
 export function ForecastSummary({ data, formatValue }: ForecastSummaryProps) {
-  const scenarioOrder = ["best", "base", "worst"];
-
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-      {scenarioOrder.map((s) => {
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {SCENARIO_ORDER.map((s) => {
         const projection = data.projections.find((p) => p.scenario === s);
         const meta = SCENARIO_META[s];
         if (!projection || !meta) return null;
@@ -50,6 +43,11 @@ export function ForecastSummary({ data, formatValue }: ForecastSummaryProps) {
                 <span className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">
                   {meta.label}
                 </span>
+                {meta.readOnly && (
+                  <span className="text-[9px] font-semibold uppercase tracking-wide text-[var(--accent-teal)] bg-[var(--accent-teal)]/10 px-1.5 py-0.5 rounded">
+                    Auto
+                  </span>
+                )}
               </div>
               <p className="text-[10px] text-[var(--text-muted)] mb-3">{meta.desc}</p>
 
