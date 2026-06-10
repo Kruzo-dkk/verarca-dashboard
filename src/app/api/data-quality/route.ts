@@ -279,10 +279,31 @@ export async function GET(request: NextRequest) {
     }));
 
   // ── HubSpot match rate (from sync-customers metadata) ─────────
+  // The latest sync-customers run may have FAILED (metadata null) — don't let
+  // that make the whole Kundematch section disappear. Prefer the latest run's
+  // metadata, but fall back to the last SUCCESSFUL run that carries it.
   let hubspotMatchRate: HubSpotMatchRate | null = null;
-  const customersRow = syncRunResults[3]?.data;
-  if (customersRow?.metadata != null) {
-    const meta = customersRow.metadata as Record<string, unknown>;
+  const latestCustomers = syncRunResults
+    .map((r) => r.data)
+    .find((d) => d?.module === "sync-customers");
+  let matchMeta: Record<string, unknown> | null =
+    latestCustomers?.metadata != null
+      ? (latestCustomers.metadata as Record<string, unknown>)
+      : null;
+  if (matchMeta == null) {
+    const { data: lastGood } = await admin
+      .from("sync_runs")
+      .select("metadata")
+      .eq("module", "sync-customers")
+      .eq("status", "success")
+      .not("metadata", "is", null)
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    matchMeta = (lastGood?.metadata as Record<string, unknown> | null) ?? null;
+  }
+  if (matchMeta != null) {
+    const meta = matchMeta;
     if (typeof meta.matchedHubSpot === "number") {
       const matched = meta.matchedHubSpot;
       const unmatched = typeof meta.unmatchedHubSpot === "number" ? meta.unmatchedHubSpot : 0;
