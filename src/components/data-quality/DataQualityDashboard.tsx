@@ -437,6 +437,74 @@ function HubSpotSyncSection() {
   );
 }
 
+// Headline-figure reconciliation checks, in display order. Keys must match the
+// check_name written by validate-sync.ts.
+const INTEGRITY_CHECKS: Record<string, string> = {
+  mrr_reconciliation: "MRR = Σ customer snapshots",
+  mrr_waterfall_identity: "MRR waterfall closes",
+  nrr_grr_consistency: "NRR ≥ GRR ⟺ expansion",
+  arr_arpa_identity: "ARR = MRR×12, ARPA = MRR/customers",
+};
+
+function MetricIntegrityCard() {
+  const { data } = useDataQuality();
+  if (!data) return null;
+
+  const anomalies = data.anomalies ?? [];
+  // Only the most recent validation run.
+  const latestAt = anomalies[0]?.syncRunAt;
+  const checks = anomalies.filter(
+    (a) => a.syncRunAt === latestAt && a.checkName in INTEGRITY_CHECKS
+  );
+  if (checks.length === 0) return null;
+
+  const failing = checks.filter((c) => c.status === "fail");
+  const warning = checks.filter((c) => c.status === "warn");
+  const overall = failing.length ? "fail" : warning.length ? "warn" : "pass";
+
+  return (
+    <GlassCard>
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+            Metric Integrity
+          </h2>
+          <p className="text-xs text-[var(--text-muted)]">
+            Headline figures reconcile with their own components
+          </p>
+        </div>
+        <StatusBadge status={overall} />
+      </div>
+      <div className="space-y-1.5">
+        {Object.entries(INTEGRITY_CHECKS).map(([key, label]) => {
+          const c = checks.find((x) => x.checkName === key);
+          return (
+            <div
+              key={key}
+              className="flex items-center justify-between text-sm"
+            >
+              <span className="text-[var(--text-secondary)]">{label}</span>
+              <StatusBadge status={c?.status ?? "no_data"} />
+            </div>
+          );
+        })}
+      </div>
+      {(failing.length > 0 || warning.length > 0) && (
+        <div className="mt-3 space-y-1 border-t border-[var(--border-subtle)] pt-2">
+          {[...failing, ...warning].map((c) => (
+            <p
+              key={c.checkName}
+              className={`text-xs ${c.status === "fail" ? "text-red-400" : "text-amber-400"}`}
+            >
+              {c.details ?? `${c.checkName}: ${c.status}`}
+            </p>
+          ))}
+        </div>
+      )}
+    </GlassCard>
+  );
+}
+
 export function DataQualityDashboard() {
   const { loading, error } = useDataQuality();
 
@@ -456,6 +524,8 @@ export function DataQualityDashboard() {
         Data Quality
       </h1>
       <SyncStatusBar />
+
+      <MetricIntegrityCard />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <ReconciliationCard />

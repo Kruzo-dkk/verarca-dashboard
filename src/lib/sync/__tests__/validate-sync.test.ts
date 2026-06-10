@@ -86,10 +86,10 @@ describe("validateSync", () => {
 
     await validateSync("2026-03");
 
-    // Should insert 5 checks
+    // Should insert all checks (5 original + 3 metric-integrity invariants)
     expect(mockInsert).toHaveBeenCalledTimes(1);
     const insertedRows = mockInsert.mock.calls[0][0];
-    expect(insertedRows).toHaveLength(5);
+    expect(insertedRows).toHaveLength(8);
     expect(
       insertedRows.map((r: { check_name: string }) => r.check_name)
     ).toEqual(
@@ -99,6 +99,9 @@ describe("validateSync", () => {
         "delete_recreate",
         "hubspot_pipeline_health",
         "hubspot_match_rate",
+        "nrr_grr_consistency",
+        "mrr_waterfall_identity",
+        "arr_arpa_identity",
       ])
     );
   });

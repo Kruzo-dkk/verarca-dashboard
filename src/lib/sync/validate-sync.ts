@@ -375,6 +375,175 @@ async function checkHubSpotMatchRate(): Promise<ValidationCheck> {
   };
 }
 
+// ─── Metric-integrity invariants ─────────────────────────────
+// These assert that the headline figures reconcile with each other. A failure
+// means a stored number contradicts its own components (the class of bug that
+// let NRR read 106% with zero expansion).
+
+function priorMonth(month: string): string {
+  const [y, m] = month.split("-").map(Number);
+  const d = new Date(y, m - 2, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+// Pure invariant predicates (exported for unit tests).
+
+/** Problems with the NRR/GRR/expansion relationship; empty array = consistent. */
+export function nrrGrrProblems(
+  nrr: number,
+  grr: number,
+  expansionMrr: number
+): string[] {
+  const problems: string[] = [];
+  if (nrr < grr - 0.01) problems.push(`NRR ${nrr} < GRR ${grr} (impossible)`);
+  if (nrr > grr + 0.01 && expansionMrr <= 0)
+    problems.push(`NRR ${nrr} > GRR ${grr} but expansion_mrr=0`);
+  if (Math.abs(nrr - grr) <= 0.01 && expansionMrr > 0)
+    problems.push(`NRR == GRR but expansion_mrr=${expansionMrr} > 0`);
+  return problems;
+}
+
+/** Expected MRR from the prior month + this month's waterfall. */
+export function mrrWaterfallExpected(
+  prevMrr: number,
+  newMrr: number,
+  expansionMrr: number,
+  contractionMrr: number,
+  churnedMrr: number
+): number {
+  return prevMrr + newMrr + expansionMrr - contractionMrr - churnedMrr;
+}
+
+/** Problems with the ARR=MRR×12 and ARPA=MRR/count identities. */
+export function arrArpaProblems(
+  mrr: number,
+  arr: number,
+  arpa: number,
+  customerCount: number
+): string[] {
+  const problems: string[] = [];
+  if (arr !== mrr * 12) problems.push(`arr ${arr} ≠ mrr×12 (${mrr * 12})`);
+  if (customerCount > 0) {
+    const expectedArpa = Math.round(mrr / customerCount);
+    if (Math.abs(arpa - expectedArpa) > 1)
+      problems.push(`arpa ${arpa} ≠ mrr/count (${expectedArpa})`);
+  }
+  return problems;
+}
+
+/**
+ * NRR/GRR consistency: NRR ≥ GRR always, and NRR > GRR ⟺ expansion_mrr > 0.
+ * Self-contained from the snapshot's own fields — would have caught the
+ * "106% NRR with zero expansion" bug immediately.
+ */
+async function checkNrrGrrConsistency(month: string): Promise<ValidationCheck> {
+  const supabase = createAdminClient();
+  const { data: s } = await supabase
+    .from("monthly_snapshots")
+    .select("nrr, grr, expansion_mrr")
+    .eq("month", month)
+    .maybeSingle();
+  if (!s || s.nrr == null || s.grr == null) {
+    return {
+      checkName: "nrr_grr_consistency",
+      status: "pass",
+      expectedValue: null,
+      actualValue: null,
+      delta: null,
+      details: s ? "NRR/GRR not computed" : "No monthly snapshot yet",
+    };
+  }
+  const nrr = Number(s.nrr);
+  const grr = Number(s.grr);
+  const exp = s.expansion_mrr ?? 0;
+  const problems = nrrGrrProblems(nrr, grr, exp);
+  return {
+    checkName: "nrr_grr_consistency",
+    status: problems.length ? "fail" : "pass",
+    expectedValue: "nrr ≥ grr; nrr > grr ⟺ expansion > 0",
+    actualValue: `nrr=${nrr}, grr=${grr}, expansion=${exp}`,
+    delta: Math.round((nrr - grr) * 100) / 100,
+    details: problems.length ? problems.join("; ") : null,
+  };
+}
+
+/**
+ * MRR waterfall closes: mrr[m] == mrr[m-1] + new + expansion − contraction − churned.
+ */
+async function checkMrrWaterfall(month: string): Promise<ValidationCheck> {
+  const supabase = createAdminClient();
+  const prev = priorMonth(month);
+  const { data: rows } = await supabase
+    .from("monthly_snapshots")
+    .select("month, mrr, new_mrr, expansion_mrr, contraction_mrr, churned_mrr")
+    .in("month", [month, prev]);
+  const cur = (rows ?? []).find((r) => r.month === month);
+  const pre = (rows ?? []).find((r) => r.month === prev);
+  if (!cur || !pre) {
+    return {
+      checkName: "mrr_waterfall_identity",
+      status: "pass",
+      expectedValue: null,
+      actualValue: null,
+      delta: null,
+      details: "No prior month to compare",
+    };
+  }
+  const expected = mrrWaterfallExpected(
+    pre.mrr,
+    cur.new_mrr ?? 0,
+    cur.expansion_mrr ?? 0,
+    cur.contraction_mrr ?? 0,
+    cur.churned_mrr ?? 0
+  );
+  const delta = Math.abs(cur.mrr - expected);
+  let status: "pass" | "warn" | "fail" = "pass";
+  if (delta > 1000) status = "fail";
+  else if (delta > 100) status = "warn";
+  return {
+    checkName: "mrr_waterfall_identity",
+    status,
+    expectedValue: String(expected),
+    actualValue: String(cur.mrr),
+    delta,
+    details:
+      status !== "pass"
+        ? `MRR ${cur.mrr} ≠ prev ${pre.mrr} + new ${cur.new_mrr ?? 0} + exp ${cur.expansion_mrr ?? 0} − contr ${cur.contraction_mrr ?? 0} − churn ${cur.churned_mrr ?? 0} = ${expected} (Δ${delta} øre)`
+        : null,
+  };
+}
+
+/**
+ * ARR == MRR × 12 (exact) and ARPA == round(MRR / customer_count) (±1 rounding).
+ */
+async function checkArrArpaIdentity(month: string): Promise<ValidationCheck> {
+  const supabase = createAdminClient();
+  const { data: s } = await supabase
+    .from("monthly_snapshots")
+    .select("mrr, arr, arpa, customer_count")
+    .eq("month", month)
+    .maybeSingle();
+  if (!s) {
+    return {
+      checkName: "arr_arpa_identity",
+      status: "pass",
+      expectedValue: null,
+      actualValue: null,
+      delta: null,
+      details: "No monthly snapshot yet",
+    };
+  }
+  const problems = arrArpaProblems(s.mrr, s.arr, s.arpa ?? 0, s.customer_count);
+  return {
+    checkName: "arr_arpa_identity",
+    status: problems.length ? "fail" : "pass",
+    expectedValue: "arr=mrr×12; arpa=mrr/count",
+    actualValue: `arr=${s.arr}, arpa=${s.arpa}`,
+    delta: null,
+    details: problems.length ? problems.join("; ") : null,
+  };
+}
+
 // ─── Main validation ─────────────────────────────────────────
 
 /**
@@ -389,6 +558,10 @@ export async function validateSync(month: string): Promise<void> {
     checkDeleteRecreate(),
     checkHubSpotPipelineHealth(),
     checkHubSpotMatchRate(),
+    // Metric-integrity invariants — assert the headline figures reconcile.
+    checkNrrGrrConsistency(month),
+    checkMrrWaterfall(month),
+    checkArrArpaIdentity(month),
   ]);
 
   const warnings = checks.filter((c) => c.status === "warn");
