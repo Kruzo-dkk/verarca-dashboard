@@ -650,10 +650,17 @@ export function getNewCustomers(
  */
 export function calculateNRR(
   startMRR: number,
-  endMRRExistingCustomers: number
+  expansionMRR: number,
+  contractionMRR: number,
+  churnedMRR: number
 ): number {
   if (startMRR === 0) return 0;
-  return Math.round((endMRRExistingCustomers / startMRR) * 10000) / 100;
+  // Derived from the SAME prior-month base + decomposition as calculateGRR so the
+  // two always reconcile: existing customers' end MRR = start + expansion −
+  // contraction − churn. NRR ≥ GRR, and NRR > GRR ⟺ expansion > 0, by
+  // construction — which the old endMRR/startMRR ratio did not guarantee.
+  const endMRRExisting = startMRR + expansionMRR - contractionMRR - churnedMRR;
+  return Math.round((endMRRExisting / startMRR) * 10000) / 100;
 }
 
 /**

@@ -26,20 +26,42 @@ import {
 // ─── NRR ─────────────────────────────────────────────────────────
 
 describe("calculateNRR", () => {
-  it("returns 100 when no change in MRR", () => {
-    expect(calculateNRR(100_000, 100_000)).toBe(100);
+  // signature: (startMRR, expansion, contraction, churned)
+  it("returns 100 when nothing moves", () => {
+    expect(calculateNRR(100_000, 0, 0, 0)).toBe(100);
   });
 
-  it("returns > 100 when expansion exceeds churn", () => {
-    expect(calculateNRR(100_000, 115_000)).toBe(115);
+  it("returns > 100 when expansion exceeds contraction+churn", () => {
+    expect(calculateNRR(100_000, 15_000, 0, 0)).toBe(115);
   });
 
-  it("returns < 100 when churn exceeds expansion", () => {
-    expect(calculateNRR(100_000, 90_000)).toBe(90);
+  it("returns < 100 when contraction/churn exceed expansion", () => {
+    expect(calculateNRR(100_000, 0, 4_000, 6_000)).toBe(90);
   });
 
   it("returns 0 when start MRR is 0", () => {
-    expect(calculateNRR(0, 50_000)).toBe(0);
+    expect(calculateNRR(0, 0, 0, 50_000)).toBe(0);
+  });
+
+  it("equals GRR exactly when there is no expansion (reconciles)", () => {
+    // The exact bug we fixed: 106% NRR with 0 expansion is impossible.
+    const start = 29_740_477;
+    const contraction = 380_100;
+    const churned = 119_900;
+    const nrr = calculateNRR(start, 0, contraction, churned);
+    const grr = calculateGRR(start, contraction, churned);
+    expect(nrr).toBe(grr);
+    expect(nrr).toBe(98.32);
+  });
+
+  it("exceeds GRR only when expansion > 0", () => {
+    const start = 1_000_000;
+    const grr = calculateGRR(start, 50_000, 0); // 95
+    const nrrNoExp = calculateNRR(start, 0, 50_000, 0);
+    const nrrExp = calculateNRR(start, 80_000, 50_000, 0);
+    expect(nrrNoExp).toBe(grr); // no expansion → equal
+    expect(nrrExp).toBeGreaterThan(grr); // expansion → above
+    expect(nrrExp).toBe(103); // (1,000,000 + 80,000 − 50,000)/1,000,000
   });
 });
 
