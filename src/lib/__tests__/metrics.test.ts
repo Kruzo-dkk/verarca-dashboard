@@ -5,6 +5,7 @@ import {
   calculateQuickRatio,
   calculateConcentration,
   calculateLTV,
+  calculateTrailingLogoChurnRate,
   calculateRevenuePerEmployee,
   resolveGrossMargin,
   computeBurnMultiple,
@@ -143,7 +144,7 @@ describe("calculateConcentration", () => {
 // ─── LTV ─────────────────────────────────────────────────────────
 
 describe("calculateLTV", () => {
-  it("calculates LTV from ARPA and churn rate", () => {
+  it("calculates LTV from ARPA and churn rate (revenue-based, no margin)", () => {
     // ARPA = 10,000 øre, churn = 2% → LTV = 10,000 / 0.02 = 500,000
     expect(calculateLTV(10_000, 2)).toBe(500_000);
   });
@@ -155,6 +156,81 @@ describe("calculateLTV", () => {
 
   it("caps at 60 months when churn rate is negative", () => {
     expect(calculateLTV(10_000, -1)).toBe(600_000);
+  });
+
+  it("applies gross margin to the monthly contribution when provided", () => {
+    // contribution = 10,000 × 75% = 7,500; / 0.02 = 375,000
+    expect(calculateLTV(10_000, 2, 75)).toBe(375_000);
+  });
+
+  it("caps margin-adjusted contribution at 60 months when churn is 0", () => {
+    // 10,000 × 75% × 60 = 450,000
+    expect(calculateLTV(10_000, 0, 75)).toBe(450_000);
+  });
+
+  it("treats gross margin of 100 the same as revenue-based", () => {
+    expect(calculateLTV(10_000, 2, 100)).toBe(calculateLTV(10_000, 2));
+  });
+
+  it("returns 0 when margin-adjusted contribution is non-positive", () => {
+    expect(calculateLTV(10_000, 2, 0)).toBe(0);
+  });
+
+  it("returns 0 when ARPA is 0 regardless of margin", () => {
+    expect(calculateLTV(0, 2, 75)).toBe(0);
+  });
+});
+
+describe("calculateTrailingLogoChurnRate", () => {
+  it("returns 0 for an empty window", () => {
+    expect(calculateTrailingLogoChurnRate([])).toBe(0);
+  });
+
+  it("returns 0 when total active-at-start is 0", () => {
+    expect(
+      calculateTrailingLogoChurnRate([{ churnedLogos: 0, startActive: 0 }])
+    ).toBe(0);
+  });
+
+  it("equals the single-month rate for a one-month window", () => {
+    // 2 churned of 100 → 2%
+    expect(
+      calculateTrailingLogoChurnRate([{ churnedLogos: 2, startActive: 100 }])
+    ).toBe(2);
+  });
+
+  it("is customer-weighted across the window (Σchurned / Σstart)", () => {
+    // (1 + 3) / (100 + 100) = 4/200 = 2%
+    expect(
+      calculateTrailingLogoChurnRate([
+        { churnedLogos: 1, startActive: 100 },
+        { churnedLogos: 3, startActive: 100 },
+      ])
+    ).toBe(2);
+  });
+
+  it("a single zero-churn month does not collapse a multi-month window", () => {
+    // 11 months at 1/100 plus one 0/100 month → 11 / 1200 = 0.9166… → 0.92%
+    const window = [
+      ...Array.from({ length: 11 }, () => ({ churnedLogos: 1, startActive: 100 })),
+      { churnedLogos: 0, startActive: 100 },
+    ];
+    const rate = calculateTrailingLogoChurnRate(window);
+    expect(rate).toBeGreaterThan(0);
+    expect(rate).toBe(0.92);
+  });
+
+  it("feeds calculateLTV to produce a stable, non-capped LTV", () => {
+    // trailing churn 0.92% (not 0) → LTV is NOT pegged to the 60-month cap
+    const window = [
+      ...Array.from({ length: 11 }, () => ({ churnedLogos: 1, startActive: 100 })),
+      { churnedLogos: 0, startActive: 100 },
+    ];
+    const churn = calculateTrailingLogoChurnRate(window);
+    const ltv = calculateLTV(10_000, churn, 75);
+    // contribution 7,500 / 0.0092 = 815,217 (rounded) — far below the 450,000 cap path
+    expect(ltv).toBe(Math.round(7_500 / (churn / 100)));
+    expect(ltv).not.toBe(450_000);
   });
 });
 

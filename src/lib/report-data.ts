@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getTeamMemberCount } from "@/lib/clickup";
 import {
   calculateLTV,
+  calculateTrailingLogoChurnRate,
   calculateRevenuePerEmployee,
   resolveGrossMargin,
   computeBurnMultiple,
@@ -104,7 +105,7 @@ export async function getReportData(
     // 3. Trailing 24 months of snapshots (for history arrays)
     supabase
       .from("monthly_snapshots")
-      .select("month, mrr, arr, customer_count, arpa, nrr")
+      .select("month, mrr, arr, customer_count, arpa, nrr, churned_logos")
       .gte("month", trailingStart)
       .lte("month", endMonth)
       .order("month", { ascending: true }),
@@ -512,9 +513,43 @@ export async function getReportData(
     startMRR
   );
 
-  // LTV uses monthly logo churn rate; when 0, calculateLTV caps at 60 months.
+  // Gross Margin: manual gross_margin_pct wins, else derive from monthly COGS.
+  // Computed here (ahead of LTV) because LTV is now gross-margin based.
+  const monthlyCogs = settingsRow?.monthly_cogs ?? 0;
+  const currentMrr = snap?.mrr ?? 0;
+  const grossMargin = resolveGrossMargin(
+    settingsRow?.gross_margin_pct ?? null,
+    monthlyCogs,
+    currentMrr
+  );
+
+  // Customer LTV uses a TRAILING logo-churn rate (default 12 months) so a single
+  // zero-churn month doesn't peg it to the 60-month cap, and it is gross-margin
+  // based (ARPA × GM%). The churn history is also shipped to the client so the
+  // dashboard can recompute LTV for a user-selected window without re-fetching.
+  const LTV_CHURN_BASIS_MONTHS = 12;
+  const ltvChurnHistory: {
+    month: string;
+    churnedLogos: number;
+    startActive: number;
+  }[] = [];
+  for (let i = LTV_CHURN_BASIS_MONTHS - 1; i >= 0; i--) {
+    const m = monthsAgo(endMonth, i);
+    const cur = trailing.find((s) => s.month === m);
+    if (!cur || cur.churned_logos == null) continue;
+    const prev = trailing.find((s) => s.month === monthsAgo(m, 1));
+    const startActive = prev?.customer_count ?? null;
+    if (startActive == null || startActive <= 0) continue;
+    ltvChurnHistory.push({
+      month: m,
+      churnedLogos: cur.churned_logos,
+      startActive,
+    });
+  }
+  const trailingLogoChurnRate = calculateTrailingLogoChurnRate(ltvChurnHistory);
+
   if (customerCount > 0) {
-    ltv = calculateLTV(arpa, logoChurnRate);
+    ltv = calculateLTV(arpa, trailingLogoChurnRate, grossMargin);
   }
 
   if (employeeCount != null && employeeCount > 0) {
@@ -534,15 +569,6 @@ export async function getReportData(
   if (ltv !== null && cac !== null && cac > 0) {
     ltvCacRatio = Math.round((ltv / cac) * 100) / 100;
   }
-
-  // Gross Margin: manual gross_margin_pct wins, else derive from monthly COGS.
-  const monthlyCogs = settingsRow?.monthly_cogs ?? 0;
-  const currentMrr = snap?.mrr ?? 0;
-  const grossMargin = resolveGrossMargin(
-    settingsRow?.gross_margin_pct ?? null,
-    monthlyCogs,
-    currentMrr
-  );
 
   // Burn Multiple (net burn ÷ net-new ARR) and Magic Number (net-new ARR ÷ S&M).
   const netNewMrr = snap?.net_new_mrr ?? 0;
@@ -711,6 +737,9 @@ export async function getReportData(
       ruleOf40,
       burnMultiple,
       magicNumber,
+      ltvArpaOre: arpa,
+      ltvChurnBasisMonths: LTV_CHURN_BASIS_MONTHS,
+      ltvChurnHistory,
     },
 
     commentary: {
