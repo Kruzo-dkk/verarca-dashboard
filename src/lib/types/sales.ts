@@ -43,6 +43,7 @@ export interface SalesDeal {
   amount: number; // DKK øre
   stage: string;
   stageLabel: string;
+  /** Stage win-probability as a 0–1 decimal (multiply by 100 for display). */
   probability: number;
   closeDate: string | null;
   daysToClose: number | null;

@@ -66,7 +66,7 @@ export function PipelineBoard() {
                         {formatDate(deal.closeDate)}
                       </td>
                       <td className="py-1.5 pl-2 text-right tabular-nums text-[var(--text-muted)]">
-                        {deal.probability}%
+                        {Math.round(deal.probability * 100)}%
                       </td>
                     </tr>
                   ))}

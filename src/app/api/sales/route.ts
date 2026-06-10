@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  try {
   const { searchParams } = new URL(request.url);
   const now = new Date();
   const month =
@@ -77,15 +78,23 @@ export async function GET(request: NextRequest) {
     id ? ownerNameById.get(id) ?? null : null;
 
   // ── Pipeline detail ────────────────────────────────────────────
+  // Win/loss/open, stage labels and probability come from the STORED deal
+  // fields (stamped at sync time). The live stage map is only a fallback for
+  // rows written before those fields existed — so the board never depends on a
+  // live HubSpot call succeeding at request time.
   const stageMap = new Map(stagesResult.map((s) => [s.stageId, s]));
   const rawDeals: Array<{
     id: string;
     dealname: string;
     amount: number;
     dealstage: string;
+    stageLabel: string;
     closedate: string | null;
     days_to_close: string | null;
-    probability: number;
+    probability: number; // 0–1 decimal
+    isClosed: boolean;
+    isWon: boolean;
+    displayOrder: number;
     hubspot_owner_id?: string;
   }> = [];
 
@@ -100,37 +109,50 @@ export async function GET(request: NextRequest) {
         name?: string;
         amount?: string | number | null;
         stage?: string;
+        stage_label?: string | null;
         closedate?: string | null;
         days_to_close?: string | null;
         owner_id?: string | null;
+        probability?: number | string | null;
+        is_closed?: boolean;
+        is_won?: boolean;
       };
       const stage = stageMap.get(deal.stage ?? "");
+      const probability =
+        deal.probability != null
+          ? Number(deal.probability)
+          : stage?.probability ?? 0;
+      const isClosed = deal.is_closed ?? stage?.isClosed ?? false;
+      const isWon = deal.is_won ?? (isClosed && probability >= 1);
       const closedate = deal.closedate ? deal.closedate.slice(0, 10) : null;
       rawDeals.push({
         id: deal.id ?? "",
         dealname: deal.name ?? "Unnamed",
         amount: Math.round(parseFloat(String(deal.amount ?? "0")) * 100),
         dealstage: deal.stage ?? "",
+        stageLabel: deal.stage_label || stage?.label || deal.stage || "",
         closedate: closedate || null,
         days_to_close: deal.days_to_close ?? null,
-        probability: stage?.probability ?? 0,
+        probability,
+        isClosed,
+        isWon,
+        displayOrder: stage?.displayOrder ?? 999,
         hubspot_owner_id: deal.owner_id ?? undefined,
       });
     }
   }
 
-  // Group by stage
+  // Group by stage — only OPEN deals belong on the pipeline board.
   const stageGroups = new Map<string, SalesDeal[]>();
   for (const d of rawDeals) {
-    const stage = stageMap.get(d.dealstage);
-    if (stage?.isClosed) continue; // only open deals in pipeline board
+    if (d.isClosed) continue;
     const list = stageGroups.get(d.dealstage) ?? [];
     list.push({
       id: d.id,
       name: d.dealname,
       amount: d.amount,
       stage: d.dealstage,
-      stageLabel: stage?.label ?? d.dealstage,
+      stageLabel: d.stageLabel,
       probability: d.probability,
       closeDate: d.closedate,
       daysToClose: d.days_to_close ? parseInt(d.days_to_close) : null,
@@ -139,17 +161,18 @@ export async function GET(request: NextRequest) {
     stageGroups.set(d.dealstage, list);
   }
 
+  const stageMetaById = new Map(rawDeals.map((d) => [d.dealstage, d]));
   const stages: StageGroup[] = Array.from(stageGroups.entries())
     .map(([stageId, deals]) => {
-      const stage = stageMap.get(stageId);
+      const meta = stageMetaById.get(stageId);
       const totalValue = deals.reduce((s, d) => s + d.amount, 0);
       return {
         stageId,
-        label: stage?.label ?? stageId,
-        displayOrder: stage?.displayOrder ?? 999,
+        label: meta?.stageLabel || stageId,
+        displayOrder: meta?.displayOrder ?? 999,
         deals,
         totalValue,
-        weightedValue: Math.round(totalValue * (stage?.probability ?? 0)),
+        weightedValue: Math.round(totalValue * (meta?.probability ?? 0)),
       };
     })
     .sort((a, b) => a.displayOrder - b.displayOrder);
@@ -233,10 +256,7 @@ export async function GET(request: NextRequest) {
 
   // ── Leaderboard ────────────────────────────────────────────────
   // Combine deal wins with activity data
-  const wonDeals = rawDeals.filter((d) => {
-    const stage = stageMap.get(d.dealstage);
-    return stage?.isClosed && stage.probability >= 1.0;
-  });
+  const wonDeals = rawDeals.filter((d) => d.isWon);
 
   const leaderboard: LeaderboardEntry[] = byOwner
     .map((o) => {
@@ -255,10 +275,7 @@ export async function GET(request: NextRequest) {
     .sort((a, b) => b.mrrClosed - a.mrrClosed);
 
   // ── Recent outcomes ────────────────────────────────────────────
-  const closedDeals = rawDeals.filter((d) => {
-    const stage = stageMap.get(d.dealstage);
-    return stage?.isClosed && d.closedate;
-  });
+  const closedDeals = rawDeals.filter((d) => d.isClosed && d.closedate);
 
   const toDealOutcome = (d: (typeof rawDeals)[0]): DealOutcome => ({
     id: d.id,
@@ -269,19 +286,13 @@ export async function GET(request: NextRequest) {
   });
 
   const recentWins: DealOutcome[] = closedDeals
-    .filter((d) => {
-      const stage = stageMap.get(d.dealstage);
-      return stage?.probability !== undefined && stage.probability >= 1.0;
-    })
+    .filter((d) => d.isWon)
     .sort((a, b) => (b.closedate ?? "").localeCompare(a.closedate ?? ""))
     .slice(0, 5)
     .map(toDealOutcome);
 
   const recentLosses: DealOutcome[] = closedDeals
-    .filter((d) => {
-      const stage = stageMap.get(d.dealstage);
-      return stage?.probability !== undefined && stage.probability < 1.0;
-    })
+    .filter((d) => !d.isWon)
     .sort((a, b) => (b.closedate ?? "").localeCompare(a.closedate ?? ""))
     .slice(0, 5)
     .map(toDealOutcome);
@@ -298,4 +309,11 @@ export async function GET(request: NextRequest) {
   };
 
   return NextResponse.json(data);
+  } catch (error) {
+    console.error("Failed to build sales dashboard:", error);
+    return NextResponse.json(
+      { error: "Failed to load sales data" },
+      { status: 500 }
+    );
+  }
 }

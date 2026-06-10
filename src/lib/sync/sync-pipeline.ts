@@ -25,9 +25,9 @@ export async function syncPipeline(month: string): Promise<SyncModuleResult> {
   );
 
   // Build a JSON-serializable deals array for storage (shared shape — the
-  // Sales dashboard reads exactly this).
-  const stageMap = new Map(stages.map(s => [s.stageId, s.label]));
-  const dealsJson = buildStoredDeals(metrics.deals, stageMap);
+  // Sales dashboard reads exactly this, incl. the won/lost/open classification
+  // stamped here from the live stages).
+  const dealsJson = buildStoredDeals(metrics.deals, stages);
 
   const supabase = createAdminClient();
 

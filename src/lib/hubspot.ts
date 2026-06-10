@@ -38,25 +38,47 @@ export interface StoredDeal {
   closedate: string | null;
   days_to_close: string | null;
   owner_id: string | null;
-  probability: string | null;
+  /** Stage win-probability as a 0–1 decimal (e.g. 0.25). */
+  probability: number | null;
+  /** Won/lost/open classification, stamped at sync time from the live pipeline
+   *  stages so the Sales dashboard never has to call HubSpot at request time. */
+  is_closed: boolean;
+  is_won: boolean;
 }
 
-/** Build the stored deals_json array from raw HubSpot deals + a stageId→label map. */
+/**
+ * Build the stored deals_json array from raw HubSpot deals + the pipeline
+ * stages. The stage metadata (label, probability, isClosed) is resolved here,
+ * at sync time, and frozen into each deal — so reading it back never depends on
+ * a live HubSpot call (which can fail and silently blank the board).
+ */
 export function buildStoredDeals(
   deals: HubSpotDeal[],
-  stageLabels: Map<string, string>
+  stages: PipelineStage[]
 ): StoredDeal[] {
-  return deals.map((d) => ({
-    id: d.id,
-    name: d.properties.dealname,
-    amount: d.properties.amount_in_home_currency ?? d.properties.amount,
-    stage: d.properties.dealstage,
-    stage_label: stageLabels.get(d.properties.dealstage) ?? d.properties.dealstage,
-    closedate: d.properties.closedate,
-    days_to_close: d.properties.days_to_close,
-    owner_id: d.properties.hubspot_owner_id ?? null,
-    probability: d.properties.hs_deal_stage_probability ?? null,
-  }));
+  const stageMap = new Map(stages.map((s) => [s.stageId, s]));
+  return deals.map((d) => {
+    const st = stageMap.get(d.properties.dealstage);
+    const probability =
+      st?.probability ??
+      (d.properties.hs_deal_stage_probability != null
+        ? Number(d.properties.hs_deal_stage_probability)
+        : null);
+    const isClosed = st?.isClosed ?? false;
+    return {
+      id: d.id,
+      name: d.properties.dealname,
+      amount: d.properties.amount_in_home_currency ?? d.properties.amount,
+      stage: d.properties.dealstage,
+      stage_label: st?.label ?? d.properties.dealstage,
+      closedate: d.properties.closedate,
+      days_to_close: d.properties.days_to_close,
+      owner_id: d.properties.hubspot_owner_id ?? null,
+      probability,
+      is_closed: isClosed,
+      is_won: isClosed && (probability ?? 0) >= 1,
+    };
+  });
 }
 
 export interface PipelineStage {
