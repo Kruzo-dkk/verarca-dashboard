@@ -43,7 +43,7 @@ export const ROUTE_ACCESS: RouteRule[] = [
   { prefix: "/users", roles: ["management"] },
   { prefix: "/customers", roles: ["management"] },
   { prefix: "/forecast", roles: ["management"] },
-  { prefix: "/monthly-input", roles: ["management"] },
+  { prefix: "/budget", roles: ["management"] },
   { prefix: "/data-quality", roles: ["management"] },
   { prefix: "/reports", roles: ["management", "board", "investor"] },
 
