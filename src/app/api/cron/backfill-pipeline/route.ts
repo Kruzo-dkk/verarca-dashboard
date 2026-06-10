@@ -70,7 +70,6 @@ export async function GET(request: Request) {
     console.log(`[backfill] Backfilling ${months.length} months: ${months[0]} → ${months[months.length - 1]}`);
 
     const supabase = createAdminClient();
-    const stageMap = new Map(stages.map((s) => [s.stageId, s.label]));
 
     interface MonthResult {
       month: string;
@@ -87,7 +86,7 @@ export async function GET(request: Request) {
 
         // 3a. Pipeline snapshot (computed locally from pre-fetched deals)
         const metrics = calculatePipelineMetrics(deals, stages, month);
-        const dealsJson = buildStoredDeals(metrics.deals, stageMap);
+        const dealsJson = buildStoredDeals(metrics.deals, stages);
 
         const { error: pipelineErr } = await supabase
           .from("pipeline_snapshots")

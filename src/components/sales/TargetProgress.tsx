@@ -12,17 +12,25 @@ function ProgressRing({
   progress,
   size = 80,
   strokeWidth = 6,
+  muted = false,
 }: {
   progress: number;
   size?: number;
   strokeWidth?: number;
+  /** No target set — render a neutral gray ring instead of a failing red one. */
+  muted?: boolean;
 }) {
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset =
     circumference - (Math.min(progress, 100) / 100) * circumference;
-  const color =
-    progress >= 80 ? "#10b981" : progress >= 50 ? "#f59e0b" : "#ef4444";
+  const color = muted
+    ? "#9ca3af"
+    : progress >= 80
+      ? "#10b981"
+      : progress >= 50
+        ? "#f59e0b"
+        : "#ef4444";
 
   return (
     <svg width={size} height={size} className="transform -rotate-90">
@@ -105,10 +113,10 @@ export function TargetProgress() {
       <h2 className="section-heading mb-4">Monthly Targets</h2>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         {items.map((item) => {
-          const progress =
-            item.target > 0
-              ? Math.round((item.actual / item.target) * 100)
-              : 0;
+          const hasTarget = item.target > 0;
+          const progress = hasTarget
+            ? Math.round((item.actual / item.target) * 100)
+            : 0;
           const actualStr =
             item.format === "dkk"
               ? formatDKK(item.actual)
@@ -128,20 +136,23 @@ export function TargetProgress() {
                   progress={progress}
                   size={ringSize}
                   strokeWidth={ringStroke}
+                  muted={!hasTarget}
                 />
                 <div className="absolute inset-0 flex items-center justify-center">
                   <span
                     className={`font-semibold tabular-nums ${
                       tvMode ? "text-lg" : "text-sm"
                     } ${
-                      progress >= 80
-                        ? "text-emerald-500"
-                        : progress >= 50
-                          ? "text-amber-500"
-                          : "text-red-500"
+                      !hasTarget
+                        ? "text-[var(--text-muted)]"
+                        : progress >= 80
+                          ? "text-emerald-500"
+                          : progress >= 50
+                            ? "text-amber-500"
+                            : "text-red-500"
                     }`}
                   >
-                    {progress}%
+                    {hasTarget ? `${progress}%` : "—"}
                   </span>
                 </div>
               </div>
@@ -157,7 +168,7 @@ export function TargetProgress() {
                   tvMode ? "text-sm" : "text-[11px]"
                 }`}
               >
-                {actualStr} / {targetStr}
+                {actualStr} / {hasTarget ? targetStr : "ingen mål"}
               </span>
             </div>
           );
