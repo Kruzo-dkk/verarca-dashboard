@@ -149,8 +149,12 @@ export function BudgetGrid() {
     const { months, currentMonth } = data;
 
     if (view === "monthly") {
+      // Window the month columns (12 months back → +24 ahead) to keep the grid
+      // light; older history stays visible in the Quarterly / Yearly views.
+      const visStart = addMonths(currentMonth, -12);
       const cols: Period[] = [];
       for (const m of months) {
+        if (m < visStart) continue;
         cols.push({
           key: m,
           label: monthLabel(m),
@@ -388,7 +392,7 @@ function MetricRows({
           return (
             <td key={p.key} className={`${numCell} ${colClasses(p.kind, p.isCurrent)}`}>
               {p.kind === "month" ? (
-                <NumberCell value={val} metric={metric} onSave={(v) => onSave(p.months[0], metric.key, "budget", v)} />
+                <EditableCell value={val} metric={metric} onSave={(v) => onSave(p.months[0], metric.key, "budget", v)} />
               ) : (
                 <span className="text-[var(--text-primary)]">{formatValue(val, metric)}</span>
               )}
@@ -411,7 +415,7 @@ function MetricRows({
           return (
             <td key={p.key} className={`${numCell} text-[var(--text-muted)] ${colClasses(p.kind, p.isCurrent)}`}>
               {editableActual ? (
-                <NumberCell value={val} metric={metric} muted onSave={(v) => onSave(p.months[0], metric.key, "actual", v)} />
+                <EditableCell value={val} metric={metric} muted onSave={(v) => onSave(p.months[0], metric.key, "actual", v)} />
               ) : p.kind === "month" && p.isFuture ? (
                 <span className="text-gray-300">·</span>
               ) : (
@@ -446,7 +450,12 @@ function MetricRows({
   );
 }
 
-function NumberCell({
+/**
+ * Click-to-edit cell: renders plain text and only mounts an <input> for the
+ * cell being edited. Keeps the grid responsive — hundreds of always-mounted
+ * inputs would block the main thread.
+ */
+function EditableCell({
   value,
   metric,
   onSave,
@@ -457,25 +466,60 @@ function NumberCell({
   onSave: (v: number | null) => void;
   muted?: boolean;
 }) {
-  const display = toDisplayNumber(value, metric);
-  const [v, setV] = useState(display);
-  useEffect(() => setV(display), [display]);
+  const [editing, setEditing] = useState(false);
 
+  if (editing) {
+    return (
+      <CellInput
+        value={value}
+        metric={metric}
+        muted={muted}
+        onSave={onSave}
+        onDone={() => setEditing(false)}
+      />
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => setEditing(true)}
+      className={`w-[72px] text-right tabular-nums rounded px-1 hover:bg-gray-100 ${
+        muted ? "text-[var(--text-muted)]" : "text-[var(--text-primary)]"
+      }`}
+    >
+      {value == null ? <span className="text-gray-300">—</span> : formatValue(value, metric)}
+    </button>
+  );
+}
+
+function CellInput({
+  value,
+  metric,
+  onSave,
+  onDone,
+  muted,
+}: {
+  value: number | null;
+  metric: BudgetMetric;
+  onSave: (v: number | null) => void;
+  onDone: () => void;
+  muted?: boolean;
+}) {
+  const [v, setV] = useState(toDisplayNumber(value, metric));
   return (
     <input
+      autoFocus
       inputMode="decimal"
       value={v}
       onChange={(e) => setV(e.target.value)}
       onBlur={() => {
         const native = fromDisplayNumber(v, metric);
-        if (v.trim() !== "" && native == null) {
-          setV(display);
-          return;
-        }
-        if (native !== value) onSave(native);
+        if (!(v.trim() !== "" && native == null) && native !== value) onSave(native);
+        onDone();
       }}
       onKeyDown={(e) => {
         if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        else if (e.key === "Escape") onDone();
       }}
       placeholder="—"
       className={`w-[72px] bg-transparent text-right tabular-nums outline-none focus:ring-1 focus:ring-[var(--text-primary)]/30 rounded px-1 ${
