@@ -675,6 +675,33 @@ export type Database = {
         }
         Relationships: []
       }
+      budget_entries: {
+        Row: {
+          budget: number | null
+          created_at: string
+          id: number
+          metric_key: string
+          month: string
+          updated_at: string
+        }
+        Insert: {
+          budget?: number | null
+          created_at?: string
+          id?: number
+          metric_key: string
+          month: string
+          updated_at?: string
+        }
+        Update: {
+          budget?: number | null
+          created_at?: string
+          id?: number
+          metric_key?: string
+          month?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       sales_targets: {
         Row: {
           created_at: string | null
