@@ -114,7 +114,7 @@ export function PipelineSection({ data, formatValue }: PipelineSectionProps) {
                       <div className="truncate">{deal.name}</div>
                       <div className="text-[10px] text-[var(--text-muted)] sm:hidden truncate">{deal.stage}</div>
                     </td>
-                    <td className="py-1.5 text-right metric-value pr-3 tabular-nums">{formatValue(deal.amount)}</td>
+                    <td className="py-1.5 text-right metric-value pr-3 tabular-nums">{deal.amount != null ? formatValue(deal.amount) : "—"}</td>
                     <td className="py-1.5 text-[var(--text-secondary)] hidden sm:table-cell pl-3 truncate">{deal.stage}</td>
                     <td className="py-1.5 text-[var(--text-secondary)] text-xs">{formatCloseDate(deal.closeDate)}</td>
                     <td className="py-1.5 text-right metric-value tabular-nums">{(deal.probability * 100).toFixed(0)}%</td>

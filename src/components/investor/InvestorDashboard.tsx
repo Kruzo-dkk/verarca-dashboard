@@ -70,6 +70,16 @@ export function InvestorDashboard() {
   const rq = data.revenueQuality;
   const ge = data.growthEfficiency;
 
+  // ARR growth label: true YoY once a full year of history exists, otherwise
+  // inception-to-date growth so the high-growth signal isn't shown as blank.
+  const arrInception = inceptionGrowthPct(rq.arrHistory);
+  const arrGrowth: { pct: number; label: string } | null =
+    rq.growthYoY !== null
+      ? { pct: rq.growthYoY, label: "YoY" }
+      : arrInception !== null
+        ? { pct: arrInception, label: "siden start" }
+        : null;
+
   return (
     <div className="space-y-10">
       {role && role !== "management" && (
@@ -105,8 +115,8 @@ export function InvestorDashboard() {
             label="ARR"
             metric="arr"
             value={formatValue(rq.arr)}
-            subtext={rq.growthYoY !== null ? `${rq.growthYoY >= 0 ? "+" : ""}${rq.growthYoY.toFixed(1)}% YoY` : undefined}
-            subtextColor={rq.growthYoY !== null && rq.growthYoY >= 0 ? "text-emerald-600" : "text-red-600"}
+            subtext={arrGrowth ? `${arrGrowth.pct >= 0 ? "+" : ""}${arrGrowth.pct.toFixed(arrGrowth.label === "YoY" ? 1 : 0)}% ${arrGrowth.label}` : undefined}
+            subtextColor={arrGrowth && arrGrowth.pct >= 0 ? "text-emerald-600" : "text-red-600"}
           />
           <MetricCard
             label="MRR"
@@ -445,6 +455,21 @@ function EfficiencyCard({
  * Map investor report data to the BenchmarkMetricKey format
  * expected by BenchmarkSection.
  */
+/**
+ * Inception-to-date ARR growth (%) — a fallback for the YoY growth rate while
+ * the company has under 12 months of history (so `growthYoY` is structurally
+ * null). Uses the oldest month with positive ARR as the base.
+ */
+function inceptionGrowthPct(
+  arrHistory: { month: string; arr: number }[]
+): number | null {
+  if (arrHistory.length < 2) return null;
+  const sorted = [...arrHistory].sort((a, b) => a.month.localeCompare(b.month));
+  const base = sorted.find((h) => h.arr > 0)?.arr ?? 0;
+  const latest = sorted[sorted.length - 1]?.arr ?? 0;
+  return base > 0 ? ((latest - base) / base) * 100 : null;
+}
+
 function buildBenchmarkMetrics(
   rq: InvestorReportData["revenueQuality"],
   ge: InvestorReportData["growthEfficiency"]
@@ -453,7 +478,9 @@ function buildBenchmarkMetrics(
     nrr: rq.nrr,
     grr: rq.grr,
     logoRetention: rq.logoRetentionRate,
-    growthRate: rq.growthYoY, // YoY growth rate in %
+    // YoY when a full year of history exists; otherwise inception-to-date growth
+    // (the company is < 12 months old, so YoY is structurally null).
+    growthRate: rq.growthYoY ?? inceptionGrowthPct(rq.arrHistory),
     ltvCac: ge.ltvCacRatio,
     cacPayback: ge.cacPaybackMonths,
     ruleOf40: ge.ruleOf40,

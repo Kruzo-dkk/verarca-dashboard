@@ -10,7 +10,6 @@ import type {
   HealthDistribution,
   SupportMetrics,
   ManagedPerformance,
-  OnboardingData,
 } from "@/lib/types/cs";
 
 function monthsDiff(startDate: string | null): number {
@@ -114,6 +113,16 @@ export async function GET(request: NextRequest) {
   const managedMrrs: number[] = [];
   const standardMrrs: number[] = [];
 
+  // Per-tier aggregates over the snapshot window (current vs 3 months ago) for
+  // the Managed-vs-Standard Growth Rate and Retention Rate rows.
+  const tierAgg: Record<
+    "Managed" | "Standard",
+    { nowMrr: number; thenMrr: number; payingThen: number; retained: number }
+  > = {
+    Managed: { nowMrr: 0, thenMrr: 0, payingThen: 0, retained: 0 },
+    Standard: { nowMrr: 0, thenMrr: 0, payingThen: 0, retained: 0 },
+  };
+
   for (const customer of customers) {
     const tier =
       customer.tier_override ?? inferTierFromPlan(customer.plan_handle);
@@ -172,6 +181,18 @@ export async function GET(request: NextRequest) {
     // Accumulate per-tier MRR for managed performance
     if (tier === "Managed") managedMrrs.push(currentMrr);
     else if (tier === "Standard") standardMrrs.push(currentMrr);
+
+    // Per-tier growth/retention vs 3 months ago (data exists in the window).
+    if (tier === "Managed" || tier === "Standard") {
+      const agg = tierAgg[tier];
+      const thenMrr = oldSnap?.mrr ?? 0;
+      agg.nowMrr += currentMrr;
+      agg.thenMrr += thenMrr;
+      if (thenMrr > 0) {
+        agg.payingThen += 1;
+        if (currentMrr > 0) agg.retained += 1;
+      }
+    }
 
     csCustomers.push({
       id: customer.id,
@@ -269,29 +290,29 @@ export async function GET(request: NextRequest) {
       ? Math.round(arr.reduce((s, v) => s + v, 0) / arr.length)
       : 0;
 
+  const round1 = (n: number) => Math.round(n * 10) / 10;
+  const growthOf = (t: "Managed" | "Standard") =>
+    tierAgg[t].thenMrr > 0
+      ? round1(((tierAgg[t].nowMrr - tierAgg[t].thenMrr) / tierAgg[t].thenMrr) * 100)
+      : null;
+  const retentionOf = (t: "Managed" | "Standard") =>
+    tierAgg[t].payingThen > 0
+      ? round1((tierAgg[t].retained / tierAgg[t].payingThen) * 100)
+      : null;
+
   const managedPerformance: ManagedPerformance = {
-    managedRetentionRate: null, // requires churn data over time
-    standardRetentionRate: null,
+    managedRetentionRate: retentionOf("Managed"),
+    standardRetentionRate: retentionOf("Standard"),
     managedAvgMRR: avg(managedMrrs),
     standardAvgMRR: avg(standardMrrs),
-    managedGrowthRate: null, // requires multi-month comparison
-    standardGrowthRate: null,
-  };
-
-  // ── Onboarding (placeholder) ──────────────────────────────────
-  const onboarding: OnboardingData = {
-    notStarted: 0,
-    inProgress: 0,
-    completed: 0,
-    avgDaysToOnboard: null,
-    customers: [],
+    managedGrowthRate: growthOf("Managed"),
+    standardGrowthRate: growthOf("Standard"),
   };
 
   // ── Response ──────────────────────────────────────────────────
   const data: CSDashboardData = {
     month,
     tierBreakdown,
-    onboarding,
     healthDistribution: healthCounts,
     supportMetrics,
     atRiskCustomers,
