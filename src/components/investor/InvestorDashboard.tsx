@@ -237,12 +237,13 @@ export function InvestorDashboard() {
           />
           <EfficiencyCard
             label="CAC Payback"
+            metric="cacPayback"
             value={ge.cacPaybackMonths}
             format={(v) => `${v.toFixed(0)} mo`}
             benchmark="<18 mo healthy"
             threshold={18}
             invertThreshold
-            subtext="Assumes 100% gross margin"
+            subtext={ge.grossMargin === null ? "Assumes 100% gross margin" : undefined}
           />
           <EfficiencyCard
             label="LTV"
@@ -277,6 +278,7 @@ export function InvestorDashboard() {
           />
           <EfficiencyCard
             label="Burn Multiple"
+            metric="burnMultiple"
             value={ge.burnMultiple}
             format={(v) => `${v.toFixed(1)}x`}
             benchmark="<1.5x efficient"
@@ -286,6 +288,7 @@ export function InvestorDashboard() {
           />
           <EfficiencyCard
             label="Magic Number"
+            metric="magicNumber"
             value={ge.magicNumber}
             format={(v) => v.toFixed(2)}
             benchmark=">0.75 efficient"
@@ -486,7 +489,7 @@ function buildBenchmarkMetrics(
     ruleOf40: ge.ruleOf40,
     burnMultiple: ge.burnMultiple,
     magicNumber: ge.magicNumber,
-    // grossMargin: not yet available — requires accounting integration
+    grossMargin: ge.grossMargin,
   };
 }
 

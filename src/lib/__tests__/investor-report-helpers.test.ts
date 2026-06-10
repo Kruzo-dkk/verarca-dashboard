@@ -62,6 +62,7 @@ const mockGrowthEfficiency: InvestorReportData["growthEfficiency"] = {
   ruleOf40: 55,
   burnMultiple: 1.2,
   magicNumber: 0.85,
+  grossMargin: 80,
 };
 
 describe("buildBenchmarkMetrics mapping", () => {

@@ -721,8 +721,10 @@ export type Database = {
           cac_partner: number | null
           created_at: string | null
           employee_count: number | null
+          gross_margin_pct: number | null
           id: number
           month: string
+          monthly_burn: number | null
           monthly_cogs: number | null
           notes: string | null
           total_cac: number | null
@@ -734,8 +736,10 @@ export type Database = {
           cac_partner?: number | null
           created_at?: string | null
           employee_count?: number | null
+          gross_margin_pct?: number | null
           id?: never
           month: string
+          monthly_burn?: number | null
           monthly_cogs?: number | null
           notes?: string | null
           total_cac?: number | null
@@ -747,8 +751,10 @@ export type Database = {
           cac_partner?: number | null
           created_at?: string | null
           employee_count?: number | null
+          gross_margin_pct?: number | null
           id?: never
           month?: string
+          monthly_burn?: number | null
           monthly_cogs?: number | null
           notes?: string | null
           total_cac?: number | null

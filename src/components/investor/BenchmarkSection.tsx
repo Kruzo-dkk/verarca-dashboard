@@ -2,6 +2,8 @@
 
 import { useState, useMemo } from "react";
 import { GlassCard } from "@/components/ui/GlassCard";
+import { MetricTooltip } from "@/components/ui/MetricTooltip";
+import type { MetricKey } from "@/lib/tooltip-registry";
 import {
   type BenchmarkSource,
   type ARRStage,
@@ -161,6 +163,7 @@ export function BenchmarkSection({
                     <BenchmarkRow
                       key={metricKey}
                       label={meta.label}
+                      metric={BENCHMARK_TO_METRIC[metricKey]}
                       format={meta.format}
                       higherIsBetter={meta.higherIsBetter}
                       companyValue={companyVal}
@@ -191,14 +194,30 @@ export function BenchmarkSection({
 
 // ─── Sub-components ─────────────────────────────────────────────
 
+// Benchmark metric keys → tooltip-registry MetricKeys.
+const BENCHMARK_TO_METRIC: Record<BenchmarkMetricKey, MetricKey> = {
+  nrr: "nrr",
+  grr: "grr",
+  logoRetention: "logoRetentionRate",
+  growthRate: "growthRate",
+  ltvCac: "ltvCacRatio",
+  cacPayback: "cacPayback",
+  ruleOf40: "ruleOf40",
+  burnMultiple: "burnMultiple",
+  magicNumber: "magicNumber",
+  grossMargin: "grossMargin",
+};
+
 function BenchmarkRow({
   label,
+  metric,
   format,
   higherIsBetter,
   companyValue,
   benchmark,
 }: {
   label: string;
+  metric: MetricKey;
   format: (v: number) => string;
   higherIsBetter: boolean;
   companyValue: number | null;
@@ -225,7 +244,9 @@ function BenchmarkRow({
   return (
     <tr className="border-b border-[var(--border-subtle)] last:border-b-0">
       <td className="py-2.5 text-[var(--text-primary)] font-medium">
-        {label}
+        <MetricTooltip metric={metric}>
+          <span>{label}</span>
+        </MetricTooltip>
       </td>
       <td className={`py-2.5 text-right metric-value ${colorClass}`}>
         {companyValue !== null ? format(companyValue) : "—"}

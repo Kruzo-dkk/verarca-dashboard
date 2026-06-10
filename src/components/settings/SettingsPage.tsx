@@ -12,6 +12,8 @@ interface SettingsRow {
   cac_inbound: number | null; // DKK øre
   employee_count: number | null;
   monthly_cogs: number; // DKK øre
+  gross_margin_pct: number | null; // 0-100
+  monthly_burn: number | null; // DKK øre
   notes: string | null;
 }
 
@@ -40,6 +42,8 @@ export function SettingsPage() {
   const [cacInbound, setCacInbound] = useState("");
   const [employeeCount, setEmployeeCount] = useState("");
   const [cogsKroner, setCogsKroner] = useState("");
+  const [grossMarginPct, setGrossMarginPct] = useState("");
+  const [burnKroner, setBurnKroner] = useState("");
   const [notes, setNotes] = useState("");
 
   // Sales targets state
@@ -68,6 +72,8 @@ export function SettingsPage() {
         setCacInbound(data.cac_inbound != null && data.cac_inbound > 0 ? (data.cac_inbound / 100).toString() : "");
         setEmployeeCount(data.employee_count !== null ? data.employee_count.toString() : "");
         setCogsKroner(data.monthly_cogs > 0 ? (data.monthly_cogs / 100).toString() : "");
+        setGrossMarginPct(data.gross_margin_pct != null ? String(data.gross_margin_pct) : "");
+        setBurnKroner(data.monthly_burn != null && data.monthly_burn > 0 ? (data.monthly_burn / 100).toString() : "");
         setNotes(data.notes ?? "");
       }
       // Also fetch sales targets
@@ -132,6 +138,8 @@ export function SettingsPage() {
       const cacInboundOre = cacInbound ? Math.round(parseFloat(cacInbound) * 100) : null;
       const empCount = employeeCount ? parseInt(employeeCount) : null;
       const cogsOre = cogsKroner ? Math.round(parseFloat(cogsKroner) * 100) : 0;
+      const gmPct = grossMarginPct !== "" ? parseFloat(grossMarginPct) : null;
+      const burnOre = burnKroner ? Math.round(parseFloat(burnKroner) * 100) : null;
 
       const res = await fetch("/api/settings", {
         method: "PUT",
@@ -144,6 +152,8 @@ export function SettingsPage() {
           cac_inbound: cacInboundOre,
           employee_count: empCount,
           monthly_cogs: cogsOre,
+          gross_margin_pct: gmPct,
+          monthly_burn: burnOre,
           notes: notes || null,
         }),
       });
@@ -312,6 +322,52 @@ export function SettingsPage() {
                 type="number"
                 value={cogsKroner}
                 onChange={(e) => setCogsKroner(e.target.value)}
+                placeholder="0"
+                className="w-full pl-8 pr-3 py-2.5 sm:py-2 text-sm bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-teal)] focus:border-transparent"
+              />
+            </div>
+          </div>
+
+          {/* Gross margin % */}
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-muted)] mb-1.5">
+              Gross margin %
+            </label>
+            <p className="text-[10px] text-[var(--text-muted)] mb-2">
+              Direct gross margin (0–100). Overrides the COGS-derived value when set. Drives Rule of 40 and CAC Payback.
+            </p>
+            <div className="relative">
+              <input
+                type="number"
+                min="0"
+                max="100"
+                value={grossMarginPct}
+                onChange={(e) => setGrossMarginPct(e.target.value)}
+                placeholder="e.g. 80"
+                className="w-full pl-3 pr-8 py-2.5 sm:py-2 text-sm bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-teal)] focus:border-transparent"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--text-muted)]">
+                %
+              </span>
+            </div>
+          </div>
+
+          {/* Monthly net burn */}
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-muted)] mb-1.5">
+              Monthly net burn (DKK)
+            </label>
+            <p className="text-[10px] text-[var(--text-muted)] mb-2">
+              Net cash burned this month (spend − revenue). Drives the Burn Multiple.
+            </p>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--text-muted)]">
+                kr
+              </span>
+              <input
+                type="number"
+                value={burnKroner}
+                onChange={(e) => setBurnKroner(e.target.value)}
                 placeholder="0"
                 className="w-full pl-8 pr-3 py-2.5 sm:py-2 text-sm bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-teal)] focus:border-transparent"
               />

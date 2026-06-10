@@ -6,6 +6,10 @@ import {
   calculateConcentration,
   calculateLTV,
   calculateRevenuePerEmployee,
+  resolveGrossMargin,
+  computeBurnMultiple,
+  computeMagicNumber,
+  computeCACPayback,
   calculateLogoRetention,
   calculateLogoChurnRate,
   calculateRevenueChurnRate,
@@ -752,5 +756,57 @@ describe("buildActiveCountByCanonical", () => {
     const counts = buildActiveCountByCanonical(customers, links);
     expect(counts.get("171")).toBe(1); // re-signup: only 0171 active
     expect(counts.get("16")).toBe(2);  // concurrent: 0016 + 0079
+  });
+});
+
+// ─── Finance helpers (manual monthly inputs) ─────────────────────
+
+describe("resolveGrossMargin", () => {
+  it("prefers the manual percent", () => {
+    expect(resolveGrossMargin(82, 999, 1_000_000)).toBe(82);
+  });
+  it("derives from COGS when no percent", () => {
+    // (1,000,000 − 200,000)/1,000,000 = 80%
+    expect(resolveGrossMargin(null, 200_000, 1_000_000)).toBe(80);
+  });
+  it("is null when neither available", () => {
+    expect(resolveGrossMargin(null, 0, 1_000_000)).toBeNull();
+  });
+});
+
+describe("computeBurnMultiple", () => {
+  it("net burn ÷ net-new ARR", () => {
+    // burn 600,000 / (net-new MRR 1,000,000 × 12 = 12,000,000) = 0.05
+    expect(computeBurnMultiple(600_000, 1_000_000)).toBe(0.05);
+  });
+  it("null without burn or with non-positive net-new", () => {
+    expect(computeBurnMultiple(null, 1_000_000)).toBeNull();
+    expect(computeBurnMultiple(600_000, 0)).toBeNull();
+    expect(computeBurnMultiple(600_000, -5_000)).toBeNull();
+  });
+});
+
+describe("computeMagicNumber", () => {
+  it("net-new ARR ÷ S&M spend", () => {
+    // (net-new MRR 500,000 × 12 = 6,000,000) / S&M 8,000,000 = 0.75
+    expect(computeMagicNumber(500_000, 8_000_000)).toBe(0.75);
+  });
+  it("null without spend or net growth", () => {
+    expect(computeMagicNumber(500_000, 0)).toBeNull();
+    expect(computeMagicNumber(0, 8_000_000)).toBeNull();
+  });
+});
+
+describe("computeCACPayback", () => {
+  it("uses gross margin", () => {
+    // CAC 1,200,000 / (ARPA 100,000 × 0.8) = 15 months
+    expect(computeCACPayback(1_200_000, 100_000, 80)).toBe(15);
+  });
+  it("assumes 100% margin when unknown", () => {
+    expect(computeCACPayback(1_200_000, 100_000, null)).toBe(12);
+  });
+  it("null when CAC/ARPA missing", () => {
+    expect(computeCACPayback(null, 100_000, 80)).toBeNull();
+    expect(computeCACPayback(1_200_000, 0, 80)).toBeNull();
   });
 });

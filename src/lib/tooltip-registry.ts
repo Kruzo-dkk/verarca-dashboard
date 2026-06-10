@@ -57,7 +57,11 @@ export type MetricKey =
   | "cac"
   | "ltvCacRatio"
   | "grossMargin"
-  | "ruleOf40";
+  | "ruleOf40"
+  | "cacPayback"
+  | "burnMultiple"
+  | "magicNumber"
+  | "growthRate";
 
 export const tooltipRegistry: Record<MetricKey, TooltipContent> = {
   // ---------------------------------------------------------------------------
@@ -286,14 +290,38 @@ export const tooltipRegistry: Record<MetricKey, TooltipContent> = {
   },
   grossMargin: {
     name: "Gross Margin",
-    formula: "(Revenue − COGS) / Revenue × 100",
-    source: "Not yet integrated",
+    formula: "(MRR − COGS) / MRR × 100",
+    source: "Monthly Input — gross margin % (or COGS)",
     benchmark: ">70% SaaS benchmark",
   },
   ruleOf40: {
     name: "Rule of 40",
-    formula: "Revenue growth rate (%) + Profit margin (%)",
-    source: "Not yet integrated",
-    benchmark: ">40% is excellent",
+    formula: "Annualised MoM MRR growth (%) + Gross margin (%)",
+    source: "Frisbii MRR + Monthly Input gross margin",
+    benchmark: ">40% is healthy",
+  },
+  cacPayback: {
+    name: "CAC Payback Period",
+    formula: "CAC / (ARPA × Gross margin %)",
+    source: "Frisbii + Monthly Input (S&M spend, gross margin)",
+    benchmark: "<18 months healthy",
+  },
+  burnMultiple: {
+    name: "Burn Multiple",
+    formula: "Net burn / Net-new ARR (net-new MRR × 12)",
+    source: "Monthly Input — monthly net burn",
+    benchmark: "<1.5× efficient (lower is better)",
+  },
+  magicNumber: {
+    name: "Magic Number",
+    formula: "Net-new ARR (net-new MRR × 12) / S&M spend this month",
+    source: "Frisbii MRR + Monthly Input S&M spend",
+    benchmark: ">0.75 efficient",
+  },
+  growthRate: {
+    name: "ARR Growth Rate",
+    formula: "YoY ARR growth (inception-to-date until 12 months of history)",
+    source: "Monthly snapshots",
+    benchmark: "Stage-dependent; top-quartile early-stage >100%",
   },
 };

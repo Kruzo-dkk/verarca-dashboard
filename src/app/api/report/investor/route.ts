@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth/require-role";
 import { getReportData } from "@/lib/report-data";
+import { computeCACPayback } from "@/lib/metrics";
 import type { InvestorReportData } from "@/lib/types/investor-report";
 
 /**
@@ -55,15 +56,15 @@ export async function GET(request: NextRequest) {
         ltvCacRatio: full.unitEconomics.ltvCacRatio,
         revenuePerEmployee: full.unitEconomics.revenuePerEmployee,
         employeeCount: full.unitEconomics.employeeCount,
-        // These require additional settings not yet configured
         cacPaybackMonths: computeCACPayback(
           full.unitEconomics.cac,
           full.customers.arpa,
-          null // gross margin not yet available
+          full.unitEconomics.grossMargin
         ),
         ruleOf40: full.unitEconomics.ruleOf40,
-        burnMultiple: null, // requires monthly burn from settings
-        magicNumber: null, // requires quarterly S&M spend
+        burnMultiple: full.unitEconomics.burnMultiple,
+        magicNumber: full.unitEconomics.magicNumber,
+        grossMargin: full.unitEconomics.grossMargin,
       },
     };
 
@@ -84,19 +85,3 @@ function getCurrentMonth(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
-/**
- * CAC Payback = CAC / (ARPA × Gross Margin %)
- * Returns months, or null if inputs are missing.
- */
-function computeCACPayback(
-  cac: number | null,
-  arpa: number,
-  grossMarginPct: number | null
-): number | null {
-  if (cac === null || cac === 0 || arpa === 0) return null;
-  // If gross margin not available, use ARPA directly (assumes 100% margin)
-  const effectiveMargin = grossMarginPct !== null ? grossMarginPct / 100 : 1;
-  const monthlyContribution = arpa * effectiveMargin;
-  if (monthlyContribution <= 0) return null;
-  return cac / monthlyContribution;
-}

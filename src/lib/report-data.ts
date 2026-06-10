@@ -3,6 +3,9 @@ import { getTeamMemberCount } from "@/lib/clickup";
 import {
   calculateLTV,
   calculateRevenuePerEmployee,
+  resolveGrossMargin,
+  computeBurnMultiple,
+  computeMagicNumber,
   calculateLogoChurnRate,
   calculateRevenueChurnRate,
   getNewCustomers,
@@ -132,7 +135,7 @@ export async function getReportData(
     // 8. Settings for the end month (CAC spend, employee override)
     supabase
       .from("settings")
-      .select("total_cac, employee_count, monthly_cogs")
+      .select("total_cac, employee_count, monthly_cogs, gross_margin_pct, monthly_burn")
       .eq("month", endMonth)
       .maybeSingle(),
 
@@ -532,13 +535,22 @@ export async function getReportData(
     ltvCacRatio = Math.round((ltv / cac) * 100) / 100;
   }
 
-  // Gross Margin: (MRR - COGS) / MRR as a percentage
-  let grossMargin: number | null = null;
+  // Gross Margin: manual gross_margin_pct wins, else derive from monthly COGS.
   const monthlyCogs = settingsRow?.monthly_cogs ?? 0;
   const currentMrr = snap?.mrr ?? 0;
-  if (monthlyCogs > 0 && currentMrr > 0) {
-    grossMargin = Math.round(((currentMrr - monthlyCogs) / currentMrr) * 10000) / 100;
-  }
+  const grossMargin = resolveGrossMargin(
+    settingsRow?.gross_margin_pct ?? null,
+    monthlyCogs,
+    currentMrr
+  );
+
+  // Burn Multiple (net burn ÷ net-new ARR) and Magic Number (net-new ARR ÷ S&M).
+  const netNewMrr = snap?.net_new_mrr ?? 0;
+  const burnMultiple = computeBurnMultiple(
+    settingsRow?.monthly_burn ?? null,
+    netNewMrr
+  );
+  const magicNumber = computeMagicNumber(netNewMrr, settingsRow?.total_cac ?? 0);
 
   // Rule of 40: MRR Growth % (MoM annualised) + Gross Margin %
   let ruleOf40: number | null = null;
@@ -697,6 +709,8 @@ export async function getReportData(
       ltvCacRatio,
       grossMargin,
       ruleOf40,
+      burnMultiple,
+      magicNumber,
     },
 
     commentary: {

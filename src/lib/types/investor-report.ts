@@ -38,10 +38,11 @@ export interface InvestorReportData {
     ltvCacRatio: number | null;
     revenuePerEmployee: number | null;
     employeeCount: number | null;
-    // Require settings (gross margin, burn, S&M spend)
+    // Driven by manual monthly finance inputs (gross margin, net burn, S&M spend)
     cacPaybackMonths: number | null;
     ruleOf40: number | null;
     burnMultiple: number | null;
     magicNumber: number | null;
+    grossMargin: number | null;
   };
 }
