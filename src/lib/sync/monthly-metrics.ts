@@ -108,13 +108,18 @@ export function computeMonthlyMetrics(input: MonthlyMetricsInput): MonthlyMetric
 
   const decomposition = decomposeMRR(currentSnapshots, prevSnapshots, links, activeCount);
 
-  // Retention.
+  // Retention — NRR and GRR both derive from the same prior-month base
+  // (prevMRR) and the same decomposition, so they reconcile by construction
+  // (NRR ≥ GRR; NRR > GRR ⟺ expansion > 0). The previous NRR used a separate
+  // raw-customerId numerator that over-counted re-signups / linked customers,
+  // producing NRR > GRR with zero expansion.
   const prevMRR = prevSnapshots.reduce((sum, s) => sum + s.mrr, 0);
-  const prevCustomerIds = new Set(prevSnapshots.map((s) => s.customerId));
-  const endMRRExisting = currentSnapshots
-    .filter((s) => prevCustomerIds.has(s.customerId))
-    .reduce((sum, s) => sum + s.mrr, 0);
-  const nrr = calculateNRR(prevMRR, endMRRExisting);
+  const nrr = calculateNRR(
+    prevMRR,
+    decomposition.expansionMRR,
+    decomposition.contractionMRR,
+    decomposition.churnedMRR
+  );
   const grr = calculateGRR(prevMRR, decomposition.contractionMRR, decomposition.churnedMRR);
 
   const quickRatio = calculateQuickRatio(
