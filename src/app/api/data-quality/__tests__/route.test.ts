@@ -127,6 +127,8 @@ function wireChain() {
   // queries don't consume the sync_runs mockResolvedValueOnce queue.
   mockEq.mockReturnValue({
     eq: mockEq,
+    // Fallback match-rate query: .eq().eq().not('metadata','is',null).order()...
+    not: vi.fn().mockReturnValue({ order: mockOrder }),
     order: mockOrder,
     limit: mockLimit,
     maybeSingle: mockEqMaybeSingle,

@@ -269,6 +269,14 @@ export async function syncCustomers(): Promise<SyncModuleResult> {
       const { company_name: _, ...rest } = cleaned;
       cleaned = rest;
     }
+    // excluded: undefined for non-test accounts → omit so manual exclusions are
+    // preserved. Combined with defaultToNull:false below, an INSERT of a new
+    // non-test customer uses the column DEFAULT (false) instead of NULL (which
+    // violated the NOT NULL constraint and broke every sync run).
+    if (cleaned.excluded === undefined) {
+      const { excluded: _, ...rest } = cleaned;
+      cleaned = rest;
+    }
     return cleaned;
   });
 
@@ -279,7 +287,13 @@ export async function syncCustomers(): Promise<SyncModuleResult> {
     const batch = cleanedRows.slice(i, i + BATCH_SIZE);
     const { error } = await supabase
       .from("customers")
-      .upsert(batch as typeof rows, { onConflict: "frisbii_handle" });
+      // defaultToNull:false → columns omitted from a row (e.g. `excluded` for
+      // non-test accounts) fall back to the DB default rather than being
+      // inserted as NULL, which would violate NOT NULL on a new-customer INSERT.
+      .upsert(batch as typeof rows, {
+        onConflict: "frisbii_handle",
+        defaultToNull: false,
+      });
 
     if (error) {
       console.error(
