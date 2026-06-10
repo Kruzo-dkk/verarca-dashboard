@@ -159,7 +159,7 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: { month?: string; metricKey?: string; field?: string; value?: number | null };
+  let body: { month?: string; metricKey?: string; field?: string; value?: number | string | null };
   try {
     body = await request.json();
   } catch {
@@ -174,6 +174,38 @@ export async function PUT(request: NextRequest) {
   if (!month || !MONTH_RE.test(month)) {
     return NextResponse.json({ error: "Invalid month" }, { status: 400 });
   }
+
+  // Notes (free text per month) → settings.notes via read-merge-write.
+  if (field === "notes") {
+    const text = typeof body.value === "string" ? body.value : null;
+    const admin = createAdminClient();
+    const { data: e } = await admin
+      .from("settings")
+      .select("*")
+      .eq("month", month)
+      .maybeSingle();
+    const merged = {
+      month,
+      total_cac: e?.total_cac ?? 0,
+      cac_outbound: e?.cac_outbound ?? null,
+      cac_partner: e?.cac_partner ?? null,
+      cac_inbound: e?.cac_inbound ?? null,
+      employee_count: e?.employee_count ?? null,
+      monthly_cogs: e?.monthly_cogs ?? 0,
+      gross_margin_pct: e?.gross_margin_pct ?? null,
+      monthly_burn: e?.monthly_burn ?? null,
+      notes: text,
+    };
+    const { error } = await admin
+      .from("settings")
+      .upsert(merged, { onConflict: "month" });
+    if (error) {
+      console.error("notes upsert failed:", error);
+      return NextResponse.json({ error: "Failed to save notes" }, { status: 500 });
+    }
+    return NextResponse.json({ ok: true });
+  }
+
   if (!metricKey || !METRIC_KEYS.has(metricKey)) {
     return NextResponse.json({ error: "Unknown metricKey" }, { status: 400 });
   }

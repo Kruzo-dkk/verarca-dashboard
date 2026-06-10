@@ -29,7 +29,7 @@ const allNavItems: NavItem[] = [
   { href: "/", label: "Dashboard", icon: DashboardIcon, roles: ["management", "board", "investor"] },
   { href: "/customers", label: "Customers", icon: CustomersIcon, roles: ["management"] },
   { href: "/forecast", label: "Forecast", icon: ForecastIcon, roles: ["management"] },
-  { href: "/monthly-input", label: "Monthly Input", icon: MonthlyInputIcon, roles: ["management"] },
+  { href: "/budget", label: "Budget", icon: MonthlyInputIcon, roles: ["management"] },
   { href: "/data-quality", label: "Data Quality", icon: DataQualityIcon, roles: ["management"] },
 ];
 

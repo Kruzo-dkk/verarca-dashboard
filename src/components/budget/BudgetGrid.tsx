@@ -5,6 +5,7 @@ import {
   BUDGET_METRICS,
   type BudgetMetric,
   type BudgetSection,
+  addMonths,
   fiscalYearMonths,
   fiscalQuarterMonths,
   fiscalYTDMonths,
@@ -25,6 +26,7 @@ interface BudgetGridData {
 }
 
 type View = "monthly" | "quarterly" | "yearly";
+type PeriodKind = "month" | "quarter" | "year" | "ytd";
 
 const SECTIONS: BudgetSection[] = ["Finance", "Acquisition", "Headcount", "Sales Targets"];
 
@@ -32,16 +34,23 @@ interface Period {
   key: string;
   label: string;
   months: string[];
-  editable: boolean; // single, real month → cells are inputs
+  editable: boolean; // single real month → cells are inputs
   isCurrent: boolean;
   isFuture: boolean;
-  isSummary: boolean; // YTD column
+  kind: PeriodKind;
 }
 
 const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 function monthLabel(m: string): string {
   const [y, mo] = m.split("-").map(Number);
   return `${MONTH_ABBR[mo - 1]} ${String(y).slice(-2)}`;
+}
+function isFiscalQuarterEnd(m: string): boolean {
+  const fqm = fiscalQuarterMonths(m);
+  return fqm[fqm.length - 1] === m;
+}
+function isFiscalYearEnd(m: string): boolean {
+  return m.endsWith("-07"); // July ends the fiscal year
 }
 
 function toDisplayNumber(value: number | null, metric: BudgetMetric): string {
@@ -62,6 +71,13 @@ function formatValue(value: number | null, metric: BudgetMetric): string {
   }
   if (metric.unit === "%") return `${Math.round(value * 100) / 100}%`;
   return `${value}`;
+}
+
+function colClasses(kind: PeriodKind, isCurrent: boolean): string {
+  if (kind === "year") return "border-l-2 border-gray-300 bg-gray-100";
+  if (kind === "quarter") return "border-l border-gray-200 bg-gray-50";
+  if (kind === "ytd") return "border-l border-emerald-200 bg-emerald-50";
+  return isCurrent ? "bg-gray-50" : "";
 }
 
 export function BudgetGrid() {
@@ -96,12 +112,7 @@ export function BudgetGrid() {
     if (data && view === "monthly") currentRef.current?.scrollIntoView({ inline: "center", block: "nearest" });
   }, [data, view]);
 
-  function setLocal(
-    setter: typeof setBudgets,
-    month: string,
-    key: string,
-    value: number | null
-  ) {
+  function setLocal(setter: typeof setBudgets, month: string, key: string, value: number | null) {
     setter((prev) => {
       const next = { ...prev, [month]: { ...(prev[month] ?? {}) } };
       if (value == null) delete next[month][key];
@@ -136,70 +147,80 @@ export function BudgetGrid() {
   const periods = useMemo<Period[]>(() => {
     if (!data) return [];
     const { months, currentMonth } = data;
+
     if (view === "monthly") {
-      const cols: Period[] = months.map((m) => ({
-        key: m,
-        label: monthLabel(m),
-        months: [m],
-        editable: true,
-        isCurrent: m === currentMonth,
-        isFuture: m > currentMonth,
-        isSummary: false,
-      }));
-      cols.push({
-        key: "ytd",
-        label: `YTD ${fiscalYearLabel(currentMonth)}`,
-        months: fiscalYTDMonths(currentMonth),
-        editable: false,
-        isCurrent: false,
-        isFuture: false,
-        isSummary: true,
-      });
-      return cols;
-    }
-    if (view === "quarterly") {
-      const seen = new Map<string, Period>();
+      const cols: Period[] = [];
       for (const m of months) {
-        const k = `${fiscalYearEndYear(m)}-Q${fiscalQuarter(m)}`;
-        if (!seen.has(k)) {
-          seen.set(k, {
-            key: k,
-            label: fiscalQuarterLabel(m),
-            months: fiscalQuarterMonths(m),
+        cols.push({
+          key: m,
+          label: monthLabel(m),
+          months: [m],
+          editable: true,
+          isCurrent: m === currentMonth,
+          isFuture: m > currentMonth,
+          kind: "month",
+        });
+        if (m === currentMonth) {
+          cols.push({
+            key: `ytd-${m}`,
+            label: `YTD ${fiscalYearLabel(currentMonth)}`,
+            months: fiscalYTDMonths(currentMonth),
             editable: false,
-            isCurrent: fiscalQuarterMonths(m).includes(currentMonth),
-            isFuture: fiscalQuarterMonths(m)[0] > currentMonth,
-            isSummary: false,
+            isCurrent: false,
+            isFuture: false,
+            kind: "ytd",
+          });
+        }
+        if (isFiscalQuarterEnd(m)) {
+          const fqm = fiscalQuarterMonths(m);
+          cols.push({
+            key: `q-${m}`,
+            label: `Q${fiscalQuarter(m)} ${fiscalYearLabel(m)}`,
+            months: fqm,
+            editable: false,
+            isCurrent: fqm.includes(currentMonth),
+            isFuture: fqm[0] > currentMonth,
+            kind: "quarter",
+          });
+        }
+        if (isFiscalYearEnd(m)) {
+          const fym = fiscalYearMonths(m);
+          cols.push({
+            key: `y-${m}`,
+            label: fiscalYearLabel(m),
+            months: fym,
+            editable: false,
+            isCurrent: fym.includes(currentMonth),
+            isFuture: fym[0] > currentMonth,
+            kind: "year",
           });
         }
       }
-      return [...seen.values()];
+      return cols;
     }
-    // yearly
+
+    const grouping = view === "quarterly" ? "quarter" : "year";
     const seen = new Map<string, Period>();
     for (const m of months) {
-      const k = String(fiscalYearEndYear(m));
-      if (!seen.has(k)) {
-        seen.set(k, {
-          key: k,
-          label: fiscalYearLabel(m),
-          months: fiscalYearMonths(m),
-          editable: false,
-          isCurrent: fiscalYearMonths(m).includes(currentMonth),
-          isFuture: fiscalYearMonths(m)[0] > currentMonth,
-          isSummary: false,
-        });
-      }
+      const k =
+        grouping === "quarter" ? `${fiscalYearEndYear(m)}-Q${fiscalQuarter(m)}` : String(fiscalYearEndYear(m));
+      if (seen.has(k)) continue;
+      const pm = grouping === "quarter" ? fiscalQuarterMonths(m) : fiscalYearMonths(m);
+      seen.set(k, {
+        key: k,
+        label: grouping === "quarter" ? fiscalQuarterLabel(m) : fiscalYearLabel(m),
+        months: pm,
+        editable: false,
+        isCurrent: pm.includes(currentMonth),
+        isFuture: pm[0] > currentMonth,
+        kind: grouping,
+      });
     }
     return [...seen.values()];
   }, [data, view]);
 
-  if (error) {
-    return <div className="p-6 text-[var(--text-muted)]">{error}</div>;
-  }
-  if (!data) {
-    return <div className="p-6 text-[var(--text-muted)]">Loading budget…</div>;
-  }
+  if (error) return <div className="p-6 text-[var(--text-muted)]">{error}</div>;
+  if (!data) return <div className="p-6 text-[var(--text-muted)]">Loading budget…</div>;
 
   const stickyCol = "sticky left-0 z-10 bg-white";
   const numCell = "px-2 py-1 text-right tabular-nums whitespace-nowrap text-sm";
@@ -208,9 +229,9 @@ export function BudgetGrid() {
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold text-[var(--text-primary)]">Monthly Input — Budget vs Actual</h1>
+          <h1 className="text-2xl font-semibold text-[var(--text-primary)]">Budget</h1>
           <p className="text-xs text-[var(--text-muted)]">
-            Fiscal year 1 Aug – 31 Jul · budget editable up to 24 months ahead · grey = synced actual
+            Budget vs Actual · fiscal year 1 Aug – 31 Jul · budget editable up to 24 months ahead · grey = synced actual
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -224,9 +245,7 @@ export function BudgetGrid() {
                 type="button"
                 onClick={() => setView(v)}
                 className={`px-3 py-1 capitalize ${
-                  view === v
-                    ? "bg-[var(--text-primary)] text-white"
-                    : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                  view === v ? "bg-[var(--text-primary)] text-white" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                 }`}
               >
                 {v}
@@ -246,15 +265,16 @@ export function BudgetGrid() {
               {periods.map((p) => (
                 <th
                   key={p.key}
-                  ref={p.isCurrent && view === "monthly" ? currentRef : undefined}
-                  className={`px-2 py-2 text-right font-medium whitespace-nowrap min-w-[84px] ${
-                    p.isSummary
-                      ? "text-[var(--text-primary)] border-l border-gray-200 bg-[var(--text-primary)]/5"
-                      : p.isCurrent
-                        ? "text-[var(--text-primary)] bg-[var(--text-primary)]/5"
-                        : p.isFuture
-                          ? "text-[var(--text-muted)] italic"
-                          : "text-[var(--text-muted)]"
+                  ref={p.isCurrent && p.kind === "month" ? currentRef : undefined}
+                  className={`px-2 py-2 text-right font-medium whitespace-nowrap min-w-[84px] ${colClasses(
+                    p.kind,
+                    p.isCurrent
+                  )} ${
+                    p.kind === "month"
+                      ? p.isFuture
+                        ? "text-[var(--text-muted)] italic"
+                        : "text-[var(--text-muted)]"
+                      : "text-[var(--text-primary)]"
                   }`}
                 >
                   {p.label}
@@ -263,23 +283,20 @@ export function BudgetGrid() {
             </tr>
           </thead>
           <tbody>
-            {SECTIONS.map((section) => {
-              const metrics = BUDGET_METRICS.filter((m) => m.section === section);
-              return (
-                <SectionRows
-                  key={section}
-                  section={section}
-                  metrics={metrics}
-                  periods={periods}
-                  colCount={periods.length + 1}
-                  budgetOf={budgetOf}
-                  actualOf={actualOf}
-                  onSave={save}
-                  stickyCol={stickyCol}
-                  numCell={numCell}
-                />
-              );
-            })}
+            {SECTIONS.map((section) => (
+              <SectionRows
+                key={section}
+                section={section}
+                metrics={BUDGET_METRICS.filter((m) => m.section === section)}
+                periods={periods}
+                colCount={periods.length + 1}
+                budgetOf={budgetOf}
+                actualOf={actualOf}
+                onSave={save}
+                stickyCol={stickyCol}
+                numCell={numCell}
+              />
+            ))}
           </tbody>
         </table>
       </div>
@@ -352,6 +369,10 @@ function MetricRows({
   numCell: string;
 }) {
   const unit = metric.unit === "kr" ? "kr" : metric.unit === "%" ? "%" : "#";
+
+  const rollup = (p: Period, get: (m: string) => number | null) =>
+    p.kind === "month" ? get(p.months[0]) : rollupValues(p.months.map(get), metric.rollup);
+
   return (
     <>
       {/* Budget row */}
@@ -363,18 +384,11 @@ function MetricRows({
           <div className="text-[10px] text-[var(--text-muted)]">budget</div>
         </td>
         {periods.map((p) => {
-          const val = p.editable
-            ? budgetOf(p.months[0], metric.key)
-            : rollupValues(p.months.map((m) => budgetOf(m, metric.key)), metric.rollup);
-          const cls = `${numCell} ${p.isSummary ? "border-l border-gray-200 bg-[var(--text-primary)]/5" : p.isCurrent ? "bg-[var(--text-primary)]/5" : ""}`;
+          const val = rollup(p, (m) => budgetOf(m, metric.key));
           return (
-            <td key={p.key} className={cls}>
-              {p.editable ? (
-                <NumberCell
-                  value={val}
-                  metric={metric}
-                  onSave={(v) => onSave(p.months[0], metric.key, "budget", v)}
-                />
+            <td key={p.key} className={`${numCell} ${colClasses(p.kind, p.isCurrent)}`}>
+              {p.kind === "month" ? (
+                <NumberCell value={val} metric={metric} onSave={(v) => onSave(p.months[0], metric.key, "budget", v)} />
               ) : (
                 <span className="text-[var(--text-primary)]">{formatValue(val, metric)}</span>
               )}
@@ -384,32 +398,22 @@ function MetricRows({
       </tr>
       {/* Actual row */}
       <tr>
-        <td className={`${stickyCol} px-3 pb-1`}>
+        <td className={`${stickyCol} px-3`}>
           <div className="text-[10px] text-[var(--text-muted)] pl-2">
             actual{metric.actual === "synced" ? " (synced)" : ""}
           </div>
         </td>
         {periods.map((p) => {
-          const editableActual = p.editable && metric.actual === "settings" && !p.isFuture;
-          const val = p.editable
-            ? actualOf(p.months[0], metric)
-            : rollupValues(p.months.map((m) => actualOf(m, metric)), metric.rollup);
-          const budgetVal = p.editable
-            ? budgetOf(p.months[0], metric.key)
-            : rollupValues(p.months.map((m) => budgetOf(m, metric.key)), metric.rollup);
-          const att = p.isSummary || !p.editable ? attainmentPct(val, budgetVal) : null;
-          const cls = `${numCell} text-[var(--text-muted)] ${p.isSummary ? "border-l border-gray-200 bg-[var(--text-primary)]/5" : p.isCurrent ? "bg-[var(--text-primary)]/5" : ""}`;
+          const editableActual = p.kind === "month" && metric.actual === "settings" && !p.isFuture;
+          const val = rollup(p, (m) => actualOf(m, metric));
+          const budgetVal = rollup(p, (m) => budgetOf(m, metric.key));
+          const att = p.kind !== "month" ? attainmentPct(val, budgetVal) : null;
           return (
-            <td key={p.key} className={cls}>
+            <td key={p.key} className={`${numCell} text-[var(--text-muted)] ${colClasses(p.kind, p.isCurrent)}`}>
               {editableActual ? (
-                <NumberCell
-                  value={val}
-                  metric={metric}
-                  muted
-                  onSave={(v) => onSave(p.months[0], metric.key, "actual", v)}
-                />
-              ) : p.editable && p.isFuture ? (
-                <span className="text-[var(--text-muted)]/40">·</span>
+                <NumberCell value={val} metric={metric} muted onSave={(v) => onSave(p.months[0], metric.key, "actual", v)} />
+              ) : p.kind === "month" && p.isFuture ? (
+                <span className="text-gray-300">·</span>
               ) : (
                 <span>
                   {formatValue(val, metric)}
@@ -420,6 +424,20 @@ function MetricRows({
                   )}
                 </span>
               )}
+            </td>
+          );
+        })}
+      </tr>
+      {/* Same month last year row (actual −12 months) */}
+      <tr>
+        <td className={`${stickyCol} px-3 pb-1`}>
+          <div className="text-[10px] text-gray-400 pl-2">same mo. last yr</div>
+        </td>
+        {periods.map((p) => {
+          const val = rollup(p, (m) => actualOf(addMonths(m, -12), metric));
+          return (
+            <td key={p.key} className={`${numCell} text-gray-400 ${colClasses(p.kind, p.isCurrent)}`}>
+              {formatValue(val, metric)}
             </td>
           );
         })}
@@ -451,7 +469,7 @@ function NumberCell({
       onBlur={() => {
         const native = fromDisplayNumber(v, metric);
         if (v.trim() !== "" && native == null) {
-          setV(display); // invalid → revert
+          setV(display);
           return;
         }
         if (native !== value) onSave(native);
@@ -462,7 +480,7 @@ function NumberCell({
       placeholder="—"
       className={`w-[72px] bg-transparent text-right tabular-nums outline-none focus:ring-1 focus:ring-[var(--text-primary)]/30 rounded px-1 ${
         muted ? "text-[var(--text-muted)]" : "text-[var(--text-primary)]"
-      } placeholder:text-[var(--text-muted)]/40`}
+      } placeholder:text-gray-300`}
     />
   );
 }
