@@ -731,11 +731,37 @@ export function calculateConcentration(
  */
 const MAX_LIFETIME_MONTHS = 60;
 
-export function calculateLTV(arpa: number, monthlyChurnRate: number): number {
-  if (arpa <= 0) return 0;
-  if (monthlyChurnRate <= 0) return Math.round(arpa * MAX_LIFETIME_MONTHS);
+export function calculateLTV(
+  arpa: number,
+  monthlyChurnRate: number,
+  grossMarginPct?: number | null
+): number {
+  // Monthly per-customer contribution. When a gross margin is supplied, LTV is
+  // based on gross-margin contribution (ARPA × GM%) — the conventional basis for
+  // comparing customer value against acquisition cost (CAC). Without it, LTV is
+  // revenue-based (back-compatible).
+  const contribution =
+    grossMarginPct != null ? arpa * (grossMarginPct / 100) : arpa;
+  if (contribution <= 0) return 0;
+  if (monthlyChurnRate <= 0) return Math.round(contribution * MAX_LIFETIME_MONTHS);
   // monthlyChurnRate is a percentage (e.g., 2.5 = 2.5%)
-  return Math.round(arpa / (monthlyChurnRate / 100));
+  return Math.round(contribution / (monthlyChurnRate / 100));
+}
+
+/**
+ * Trailing logo churn rate (% per month), customer-weighted across a window of
+ * months: Σ(churned logos) / Σ(active-at-start) × 100. Reduces to the single
+ * month rate for a one-month window. Using a trailing window keeps LTV stable —
+ * a single zero-churn month no longer collapses the rate to 0 (which would peg
+ * LTV to the 60-month cap). Returns 0 for an empty window or no active base.
+ */
+export function calculateTrailingLogoChurnRate(
+  window: { churnedLogos: number; startActive: number }[]
+): number {
+  const totalChurned = window.reduce((sum, w) => sum + w.churnedLogos, 0);
+  const totalStart = window.reduce((sum, w) => sum + w.startActive, 0);
+  if (totalStart <= 0) return 0;
+  return Math.round((totalChurned / totalStart) * 10000) / 100;
 }
 
 /**

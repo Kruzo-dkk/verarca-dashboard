@@ -1,17 +1,71 @@
 "use client";
 
+import { useState, type ReactNode } from "react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { MetricTooltip } from "@/components/ui/MetricTooltip";
 import type { MetricKey } from "@/lib/tooltip-registry";
 import type { ReportData } from "@/lib/types/report";
+import { calculateLTV, calculateTrailingLogoChurnRate } from "@/lib/metrics";
 
 interface UnitEconomicsSectionProps {
   data: ReportData;
   formatValue: (v: number) => string;
 }
 
+const LTV_WINDOW_OPTIONS = [3, 6, 12];
+
 export function UnitEconomicsSection({ data, formatValue }: UnitEconomicsSectionProps) {
   const ue = data.unitEconomics;
+
+  // Customer LTV is recomputed from a user-selectable trailing churn window,
+  // client-side, using the same pure helpers as the server (no re-fetch). The
+  // default matches the server-computed value, so initial render is consistent.
+  const [ltvMonths, setLtvMonths] = useState(ue.ltvChurnBasisMonths || 12);
+
+  const churnWindow = (ue.ltvChurnHistory ?? []).slice(-ltvMonths);
+  const monthsCovered = churnWindow.length;
+  const trailingChurn = calculateTrailingLogoChurnRate(churnWindow);
+  const ltvAvailable = ue.ltvArpaOre > 0 && monthsCovered > 0;
+  const ltv = ltvAvailable
+    ? calculateLTV(ue.ltvArpaOre, trailingChurn, ue.grossMargin)
+    : null;
+  const ltvCac =
+    ltv !== null && ue.cac !== null && ue.cac > 0
+      ? Math.round((ltv / ue.cac) * 100) / 100
+      : null;
+
+  const ltvSubtitle =
+    ltv === null
+      ? undefined
+      : trailingChurn <= 0
+        ? `60-mo cap · no churn in ${monthsCovered}mo`
+        : `${monthsCovered}-mo churn ${trailingChurn.toFixed(2)}%${
+            ue.grossMargin !== null ? ` · GM ${ue.grossMargin.toFixed(0)}%` : ""
+          }`;
+
+  const ltvControl: ReactNode = ltvAvailable ? (
+    <div
+      className="flex items-center justify-center gap-1 mt-2"
+      role="group"
+      aria-label="LTV trailing churn window"
+    >
+      {LTV_WINDOW_OPTIONS.map((m) => (
+        <button
+          key={m}
+          type="button"
+          onClick={() => setLtvMonths(m)}
+          aria-pressed={ltvMonths === m}
+          className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
+            ltvMonths === m
+              ? "border-[var(--text-muted)] text-[var(--text-primary)] bg-[var(--text-primary)]/5"
+              : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+          }`}
+        >
+          {m}mo
+        </button>
+      ))}
+    </div>
+  ) : undefined;
 
   const cards: {
     label: string;
@@ -20,13 +74,15 @@ export function UnitEconomicsSection({ data, formatValue }: UnitEconomicsSection
     available: boolean;
     subtitle?: string;
     stub?: string;
+    control?: ReactNode;
   }[] = [
     {
       label: "Customer LTV",
       metric: "ltv",
-      value: ue.ltv !== null ? formatValue(ue.ltv) : null,
-      available: ue.ltv !== null,
-      subtitle: ue.ltv !== null ? "60-month cap (0% churn)" : undefined,
+      value: ltv !== null ? formatValue(ltv) : null,
+      available: ltv !== null,
+      subtitle: ltvSubtitle,
+      control: ltvControl,
     },
     {
       label: "Revenue / Employee",
@@ -45,12 +101,12 @@ export function UnitEconomicsSection({ data, formatValue }: UnitEconomicsSection
     {
       label: "LTV/CAC Ratio",
       metric: "ltvCacRatio",
-      value: ue.ltvCacRatio !== null ? `${ue.ltvCacRatio.toFixed(1)}x` : null,
-      available: ue.ltvCacRatio !== null,
-      subtitle: ue.ltvCacRatio !== null
-        ? ue.ltvCacRatio >= 3 ? "Healthy" : ue.ltvCacRatio >= 1 ? "Monitor" : "Below target"
+      value: ltvCac !== null ? `${ltvCac.toFixed(1)}x` : null,
+      available: ltvCac !== null,
+      subtitle: ltvCac !== null
+        ? ltvCac >= 3 ? "Healthy" : ltvCac >= 1 ? "Monitor" : "Below target"
         : undefined,
-      stub: ue.ltvCacRatio === null ? "Configure in Settings" : undefined,
+      stub: ltvCac === null ? "Configure in Settings" : undefined,
     },
     {
       label: "Gross Margin",
@@ -89,6 +145,7 @@ export function UnitEconomicsSection({ data, formatValue }: UnitEconomicsSection
             {card.stub && (
               <span className="text-[10px] text-[var(--text-muted)] block mt-1 italic">{card.stub}</span>
             )}
+            {card.control}
           </GlassCard>
         ))}
       </div>

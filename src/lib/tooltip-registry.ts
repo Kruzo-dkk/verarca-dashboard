@@ -268,8 +268,10 @@ export const tooltipRegistry: Record<MetricKey, TooltipContent> = {
   // ---------------------------------------------------------------------------
   ltv: {
     name: "Customer Lifetime Value",
-    formula: "ARPA / Monthly logo churn rate",
-    source: "Calculated from Frisbii data",
+    formula: "(ARPA × Gross margin %) ÷ trailing logo churn rate",
+    source: "Frisbii MRR + churn history + Monthly Input gross margin",
+    benchmark:
+      "Churn uses a trailing window (selectable 3/6/12 months on the dashboard) so a single zero-churn month doesn't peg LTV to the 60-month cap. Gross-margin based, so it's comparable to CAC (LTV/CAC ≥ 3 is healthy).",
   },
   revenuePerEmployee: {
     name: "Revenue per Employee",

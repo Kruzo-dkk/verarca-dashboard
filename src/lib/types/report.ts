@@ -92,6 +92,12 @@ export interface ReportData {
     ruleOf40: number | null;
     burnMultiple: number | null;
     magicNumber: number | null;
+    /** ARPA (øre) used as the LTV contribution base — for client-side recompute. */
+    ltvArpaOre: number;
+    /** Default trailing window (months) used for the server-computed LTV. */
+    ltvChurnBasisMonths: number;
+    /** Per-month logo-churn inputs (oldest→newest) for client-side LTV recompute. */
+    ltvChurnHistory: { month: string; churnedLogos: number; startActive: number }[];
   };
 
   // Channel Attribution (management only)
