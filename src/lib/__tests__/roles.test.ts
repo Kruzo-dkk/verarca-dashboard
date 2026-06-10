@@ -31,7 +31,7 @@ describe("canAccess", () => {
     it("can access everything", () => {
       expect(canAccess("management", "/")).toBe(true);
       expect(canAccess("management", "/customers")).toBe(true);
-      expect(canAccess("management", "/monthly-input")).toBe(true);
+      expect(canAccess("management", "/budget")).toBe(true);
       expect(canAccess("management", "/forecast")).toBe(true);
       expect(canAccess("management", "/reports")).toBe(true);
       expect(canAccess("management", "/users")).toBe(true);
@@ -49,7 +49,7 @@ describe("canAccess", () => {
 
     it("cannot access management-only pages", () => {
       expect(canAccess("board", "/customers")).toBe(false);
-      expect(canAccess("board", "/monthly-input")).toBe(false);
+      expect(canAccess("board", "/budget")).toBe(false);
       expect(canAccess("board", "/forecast")).toBe(false);
       expect(canAccess("board", "/users")).toBe(false);
     });
@@ -66,7 +66,7 @@ describe("canAccess", () => {
 
     it("cannot access management-only pages", () => {
       expect(canAccess("investor", "/customers")).toBe(false);
-      expect(canAccess("investor", "/monthly-input")).toBe(false);
+      expect(canAccess("investor", "/budget")).toBe(false);
     });
   });
 

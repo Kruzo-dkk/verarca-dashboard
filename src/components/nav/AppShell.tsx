@@ -59,7 +59,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     (item) => item.href === "/" || item.href === "/customers"
   );
   const mobileOverflowItems = navItems.filter(
-    (item) => item.href === "/forecast" || item.href === "/monthly-input"
+    (item) => item.href === "/forecast" || item.href === "/budget"
   );
 
   return (
