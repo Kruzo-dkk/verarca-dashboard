@@ -21,8 +21,12 @@ export function computeHealthScore(
   let mrrScore = 50; // default for insufficient data
   if (input.mrrHistory.length >= 2) {
     const current = input.mrrHistory[0]?.mrr ?? 0;
-    const oldest =
-      input.mrrHistory[input.mrrHistory.length - 1]?.mrr ?? 0;
+    // Baseline = the OLDEST month in which the customer actually had MRR.
+    // Anchoring on the literal oldest slot scores every recently-joined customer
+    // as "flat" (their first months are 0), which made the Healthy bucket
+    // structurally impossible. mrrHistory is newest-first, so reverse to scan
+    // oldest→newest.
+    const oldest = [...input.mrrHistory].reverse().find((s) => s.mrr > 0)?.mrr ?? 0;
     if (oldest > 0) {
       const change = (current - oldest) / oldest;
       if (change > 0.05) {

@@ -194,7 +194,7 @@ export interface LinkedGroup {
 export interface PipelineDeal {
   id: string;
   name: string;
-  amount: number; // DKK øre
+  amount: number | null; // DKK øre; null = no amount set on the deal
   stage: string;
   probability: number;
   closeDate: string | null;

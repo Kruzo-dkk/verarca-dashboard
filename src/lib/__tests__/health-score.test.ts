@@ -143,3 +143,26 @@ describe("computeHealthScore", () => {
     expect(result.factors).toContain("No service tier assigned");
   });
 });
+
+// ─── MRR-trend baseline (newly-joined customers) ─────────────────
+
+describe("computeHealthScore — MRR baseline ignores leading zero-MRR months", () => {
+  it("scores a recently-joined, now-growing customer as expanding (not flat)", () => {
+    // newest-first; the oldest months are 0 because the customer joined later.
+    const result = computeHealthScore({
+      mrrHistory: [
+        { month: "2026-06", mrr: 30_000 },
+        { month: "2026-05", mrr: 20_000 },
+        { month: "2026-04", mrr: 10_000 },
+        { month: "2026-03", mrr: 0 },
+        { month: "2026-02", mrr: 0 },
+        { month: "2026-01", mrr: 0 },
+      ],
+      tier: "Managed",
+      monthsAsCustomer: 3,
+      daysSinceLastActivity: null,
+      openTickets: 0,
+    });
+    expect(result.factors).toContain("MRR expanding");
+  });
+});

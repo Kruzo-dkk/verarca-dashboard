@@ -1,7 +1,6 @@
 export interface CSDashboardData {
   month: string;
   tierBreakdown: TierBreakdown;
-  onboarding: OnboardingData;
   healthDistribution: HealthDistribution;
   supportMetrics: SupportMetrics;
   atRiskCustomers: CSCustomer[];
@@ -20,22 +19,6 @@ export interface TierStats {
   count: number;
   mrr: number;
   percentOfTotal: number;
-}
-
-export interface OnboardingData {
-  notStarted: number;
-  inProgress: number;
-  completed: number;
-  avgDaysToOnboard: number | null;
-  customers: OnboardingCustomer[];
-}
-
-export interface OnboardingCustomer {
-  id: number;
-  name: string;
-  status: "not_started" | "in_progress" | "completed";
-  daysSinceStart: number | null;
-  overdueTasks: number;
 }
 
 export interface HealthDistribution {

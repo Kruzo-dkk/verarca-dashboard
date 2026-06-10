@@ -815,8 +815,13 @@ function parsePipelineDeals(dealsJson: unknown): PipelineDeal[] {
   return dealsJson.map((d: Record<string, unknown>) => ({
     id: String(d.id ?? ""),
     name: String(d.name ?? ""),
-    // deals_json stores amount as whole DKK (e.g. "50000"); convert to øre
-    amount: Math.round(Number(d.amount ?? 0) * 100),
+    // deals_json stores amount as whole DKK (e.g. "50000"); convert to øre.
+    // A missing amount stays null (not 0) so the UI can distinguish "no amount
+    // entered" from a real 0 kr deal.
+    amount:
+      d.amount != null && d.amount !== ""
+        ? Math.round(Number(d.amount) * 100)
+        : null,
     stage: String(d.stage_label ?? d.stage ?? ""),
     probability: Number(d.probability ?? 0),
     closeDate: d.closedate != null ? String(d.closedate) : null,
