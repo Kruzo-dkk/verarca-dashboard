@@ -90,6 +90,8 @@ export interface ReportData {
     ltvCacRatio: number | null;
     grossMargin: number | null;
     ruleOf40: number | null;
+    burnMultiple: number | null;
+    magicNumber: number | null;
   };
 
   // Channel Attribution (management only)

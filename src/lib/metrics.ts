@@ -750,6 +750,65 @@ export function calculateRevenuePerEmployee(
   return Math.round(arr / employeeCount);
 }
 
+// ─── Finance metrics (driven by manual monthly inputs) ───────────
+
+/**
+ * Gross margin %. A manually-entered `gross_margin_pct` wins; otherwise derive
+ * it from monthly COGS: (MRR − COGS) / MRR. Null when neither is available.
+ */
+export function resolveGrossMargin(
+  grossMarginPct: number | null,
+  monthlyCogsOre: number,
+  mrrOre: number
+): number | null {
+  if (grossMarginPct != null) return grossMarginPct;
+  if (monthlyCogsOre > 0 && mrrOre > 0) {
+    return Math.round(((mrrOre - monthlyCogsOre) / mrrOre) * 10000) / 100;
+  }
+  return null;
+}
+
+/**
+ * Burn Multiple = net burn ÷ net-new ARR (this month's net-new MRR × 12).
+ * Lower is better (<1.5 is efficient). Null without a burn figure or net growth.
+ */
+export function computeBurnMultiple(
+  monthlyBurnOre: number | null,
+  netNewMrrOre: number
+): number | null {
+  if (monthlyBurnOre == null || netNewMrrOre <= 0) return null;
+  return Math.round((monthlyBurnOre / (netNewMrrOre * 12)) * 100) / 100;
+}
+
+/**
+ * Magic Number = net-new ARR (net-new MRR × 12) ÷ S&M spend for the month.
+ * Monthly form of the classic ratio (>0.75 is efficient). Null without spend or
+ * net growth.
+ */
+export function computeMagicNumber(
+  netNewMrrOre: number,
+  smSpendOre: number
+): number | null {
+  if (smSpendOre <= 0 || netNewMrrOre <= 0) return null;
+  return Math.round(((netNewMrrOre * 12) / smSpendOre) * 100) / 100;
+}
+
+/**
+ * CAC Payback (months) = CAC ÷ (ARPA × gross margin). When gross margin is
+ * unknown it assumes 100% (an optimistic floor). Null when CAC/ARPA missing.
+ */
+export function computeCACPayback(
+  cac: number | null,
+  arpa: number,
+  grossMarginPct: number | null
+): number | null {
+  if (cac === null || cac === 0 || arpa === 0) return null;
+  const effectiveMargin = grossMarginPct !== null ? grossMarginPct / 100 : 1;
+  const monthlyContribution = arpa * effectiveMargin;
+  if (monthlyContribution <= 0) return null;
+  return Math.round((cac / monthlyContribution) * 10) / 10;
+}
+
 /**
  * Logo Churn Rate: % of customers who churned relative to the count at period start.
  * Counts every lost customer equally — including those who churned before any revenue
