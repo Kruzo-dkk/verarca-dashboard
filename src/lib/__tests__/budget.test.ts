@@ -155,4 +155,13 @@ describe("BUDGET_METRICS registry", () => {
       expect(["settings", "synced", "none"]).toContain(m.actual);
     }
   });
+  it("every kr metric is stored in øre (ore=true) so it matches the actuals", () => {
+    // settings + snapshots store all monetary values in øre; the grid divides by
+    // 100 for display and multiplies on save. A kr metric flagged ore=false would
+    // be off by 100×.
+    for (const m of BUDGET_METRICS) {
+      if (m.unit === "kr") expect(m.ore).toBe(true);
+      else expect(m.ore).toBe(false);
+    }
+  });
 });

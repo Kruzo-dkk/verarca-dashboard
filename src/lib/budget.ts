@@ -146,15 +146,15 @@ export const BUDGET_METRICS: BudgetMetric[] = [
   { key: "monthly_burn", label: "Monthly net burn", unit: "kr", ore: true, section: "Finance", rollup: "sum", actual: "settings" },
   // Acquisition (S&M)
   { key: "total_cac", label: "Total S&M spend", unit: "kr", ore: true, section: "Acquisition", rollup: "sum", actual: "settings" },
-  { key: "cac_outbound", label: "· Outbound", unit: "kr", ore: false, section: "Acquisition", rollup: "sum", actual: "settings" },
-  { key: "cac_partner", label: "· Partner", unit: "kr", ore: false, section: "Acquisition", rollup: "sum", actual: "settings" },
-  { key: "cac_inbound", label: "· Inbound", unit: "kr", ore: false, section: "Acquisition", rollup: "sum", actual: "settings" },
+  { key: "cac_outbound", label: "· Outbound", unit: "kr", ore: true, section: "Acquisition", rollup: "sum", actual: "settings" },
+  { key: "cac_partner", label: "· Partner", unit: "kr", ore: true, section: "Acquisition", rollup: "sum", actual: "settings" },
+  { key: "cac_inbound", label: "· Inbound", unit: "kr", ore: true, section: "Acquisition", rollup: "sum", actual: "settings" },
   // Headcount
   { key: "employee_count", label: "Employees", unit: "#", ore: false, section: "Headcount", rollup: "endOfPeriod", actual: "settings" },
   // Sales Targets (actuals synced from snapshots)
-  { key: "target_new_mrr", label: "New MRR", unit: "kr", ore: false, section: "Sales Targets", rollup: "sum", actual: "synced" },
+  { key: "target_new_mrr", label: "New MRR", unit: "kr", ore: true, section: "Sales Targets", rollup: "sum", actual: "synced" },
   { key: "target_new_logos", label: "New logos", unit: "#", ore: false, section: "Sales Targets", rollup: "sum", actual: "synced" },
-  { key: "target_pipeline", label: "Pipeline", unit: "kr", ore: false, section: "Sales Targets", rollup: "sum", actual: "synced" },
+  { key: "target_pipeline", label: "Pipeline", unit: "kr", ore: true, section: "Sales Targets", rollup: "sum", actual: "synced" },
   { key: "target_meetings", label: "Meetings", unit: "#", ore: false, section: "Sales Targets", rollup: "sum", actual: "synced" },
   { key: "target_calls", label: "Calls", unit: "#", ore: false, section: "Sales Targets", rollup: "sum", actual: "synced" },
 ];
