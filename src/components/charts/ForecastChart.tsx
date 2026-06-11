@@ -13,17 +13,18 @@ import {
 import { CHART_GRID_PROPS, CHART_AXIS_PROPS, CHART_AXIS_PROPS_MOBILE, CHART_MARGIN, CHART_MARGIN_MOBILE } from "@/components/charts/ChartTheme";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import type { ForecastResult } from "@/lib/forecast";
+import {
+  SCENARIO_ORDER,
+  SCENARIO_DRAW_ORDER,
+  SCENARIO_META,
+  gradientId,
+  type ScenarioId,
+} from "@/lib/forecast-scenarios";
 
 interface ForecastChartProps {
   data: ForecastResult;
   formatValue: (v: number) => string;
 }
-
-const SCENARIO_COLORS = {
-  best: { stroke: "#10b981", fill: "#10b981" },   // emerald
-  base: { stroke: "#1A5C5A", fill: "#1A5C5A" },   // teal (brand)
-  worst: { stroke: "#ef4444", fill: "#ef4444" },   // red
-};
 
 export function ForecastChart({ data, formatValue }: ForecastChartProps) {
   const mobile = useIsMobile();
@@ -48,9 +49,8 @@ export function ForecastChart({ data, formatValue }: ForecastChartProps) {
     ? formatMonthShort(data.historical[data.historical.length - 1].month)
     : null;
 
-  // Add projection data
-  const scenarioOrder = ["best", "base", "worst"];
-  for (const scenario of scenarioOrder) {
+  // Add projection data — one key per scenario
+  for (const scenario of SCENARIO_ORDER) {
     const projection = data.projections.find((p) => p.scenario === scenario);
     if (!projection) continue;
 
@@ -70,14 +70,15 @@ export function ForecastChart({ data, formatValue }: ForecastChartProps) {
     String(a.rawMonth).localeCompare(String(b.rawMonth))
   );
 
-  // Connect historical to projections: set base scenario = last historical for the transition month
+  // Connect historical to projections: anchor every scenario at the last
+  // historical MRR for the transition month so each line meets the "Now" point.
   if (lastHistoricalMonth && data.historical.length > 0) {
     const lastMRR = data.historical[data.historical.length - 1].mrr;
     const histEntry = chartData.find((d) => d.month === lastHistoricalMonth);
     if (histEntry) {
-      histEntry.best = lastMRR;
-      histEntry.base = lastMRR;
-      histEntry.worst = lastMRR;
+      for (const s of SCENARIO_ORDER) {
+        histEntry[s] = lastMRR;
+      }
     }
   }
 
@@ -85,18 +86,12 @@ export function ForecastChart({ data, formatValue }: ForecastChartProps) {
     <ResponsiveContainer width="100%" height={mobile ? 240 : 320}>
       <AreaChart data={chartData} margin={margin}>
         <defs>
-          <linearGradient id="bestGradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor={SCENARIO_COLORS.best.fill} stopOpacity={0.15} />
-            <stop offset="95%" stopColor={SCENARIO_COLORS.best.fill} stopOpacity={0} />
-          </linearGradient>
-          <linearGradient id="baseGradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor={SCENARIO_COLORS.base.fill} stopOpacity={0.25} />
-            <stop offset="95%" stopColor={SCENARIO_COLORS.base.fill} stopOpacity={0} />
-          </linearGradient>
-          <linearGradient id="worstGradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor={SCENARIO_COLORS.worst.fill} stopOpacity={0.1} />
-            <stop offset="95%" stopColor={SCENARIO_COLORS.worst.fill} stopOpacity={0} />
-          </linearGradient>
+          {SCENARIO_DRAW_ORDER.map((s) => (
+            <linearGradient key={s} id={gradientId(s)} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor={SCENARIO_META[s].color} stopOpacity={s === "predicted" ? 0.22 : 0.12} />
+              <stop offset="95%" stopColor={SCENARIO_META[s].color} stopOpacity={0} />
+            </linearGradient>
+          ))}
           <linearGradient id="historicalGradient" x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%" stopColor="#6366f1" stopOpacity={0.2} />
             <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
@@ -123,11 +118,10 @@ export function ForecastChart({ data, formatValue }: ForecastChartProps) {
           }}
           formatter={(value?: number, name?: string) => {
             const v = value ?? 0;
-            const n = name ?? "";
-            return [
-              formatValue(v),
-              n === "historical" ? "Actual" : n.charAt(0).toUpperCase() + n.slice(1),
-            ];
+            const n = (name ?? "") as string;
+            if (n === "historical") return [formatValue(v), "Actual"];
+            const meta = SCENARIO_META[n as ScenarioId];
+            return [formatValue(v), meta ? meta.label : n.charAt(0).toUpperCase() + n.slice(1)];
           }}
         />
 
@@ -152,37 +146,23 @@ export function ForecastChart({ data, formatValue }: ForecastChartProps) {
           connectNulls={false}
         />
 
-        {/* Scenario projections — render worst first so best overlays on top */}
-        <Area
-          type="monotone"
-          dataKey="worst"
-          stroke={SCENARIO_COLORS.worst.stroke}
-          fill="url(#worstGradient)"
-          strokeWidth={1.5}
-          strokeDasharray="6 3"
-          isAnimationActive={false}
-          connectNulls={false}
-        />
-        <Area
-          type="monotone"
-          dataKey="base"
-          stroke={SCENARIO_COLORS.base.stroke}
-          fill="url(#baseGradient)"
-          strokeWidth={2}
-          strokeDasharray="6 3"
-          isAnimationActive={false}
-          connectNulls={false}
-        />
-        <Area
-          type="monotone"
-          dataKey="best"
-          stroke={SCENARIO_COLORS.best.stroke}
-          fill="url(#bestGradient)"
-          strokeWidth={1.5}
-          strokeDasharray="6 3"
-          isAnimationActive={false}
-          connectNulls={false}
-        />
+        {/* Scenario projections — bands first, predicted last so it sits on top */}
+        {SCENARIO_DRAW_ORDER.map((s) => {
+          const isPredicted = s === "predicted";
+          return (
+            <Area
+              key={s}
+              type="monotone"
+              dataKey={s}
+              stroke={SCENARIO_META[s].color}
+              fill={`url(#${gradientId(s)})`}
+              strokeWidth={isPredicted ? 2.5 : 1.5}
+              strokeDasharray={isPredicted ? undefined : "6 3"}
+              isAnimationActive={false}
+              connectNulls={false}
+            />
+          );
+        })}
       </AreaChart>
     </ResponsiveContainer>
   );

@@ -1,23 +1,21 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { GlassCard } from "@/components/ui/GlassCard";
-import type { ForecastAssumptions as AssumptionsType } from "@/lib/forecast";
+import type { ScenarioAssumptionMeta } from "@/lib/forecast";
+import { SCENARIO_ORDER, SCENARIO_META, type ScenarioId } from "@/lib/forecast-scenarios";
 
 interface ForecastAssumptionsProps {
-  assumptions: AssumptionsType[];
+  assumptions: ScenarioAssumptionMeta[];
   formatValue: (v: number) => string;
-  onSave: (updated: AssumptionsType) => Promise<void>;
+  onSave: (updated: ScenarioAssumptionMeta) => Promise<void>;
+  onReset: (scenario: ScenarioId) => Promise<void>;
 }
 
-const SCENARIO_META: Record<string, { label: string; color: string }> = {
-  best: { label: "Best", color: "#10b981" },
-  base: { label: "Base", color: "#1A5C5A" },
-  worst: { label: "Worst", color: "#ef4444" },
-};
+type FieldKey = "monthlyChurnPct" | "monthlyExpansionPct" | "newLogosPerMonth" | "avgNewDealSize" | "pipelineConversionPct";
 
 const FIELDS: {
-  key: keyof Omit<AssumptionsType, "scenario">;
+  key: FieldKey;
   label: string;
   suffix: string;
   step: string;
@@ -32,22 +30,34 @@ const FIELDS: {
   { key: "pipelineConversionPct", label: "Pipeline Conversion", suffix: "%", step: "1", min: 0, max: 100 },
 ];
 
-export function ForecastAssumptions({ assumptions, formatValue, onSave }: ForecastAssumptionsProps) {
-  const [local, setLocal] = useState<AssumptionsType[]>(assumptions);
+// Display string for a read-only (predicted) cell.
+function readonlyText(key: FieldKey, format: "currency" | undefined, rawValue: number): string {
+  if (format === "currency") return `kr ${Math.round(rawValue / 100).toLocaleString("da-DK")}`;
+  if (key === "newLogosPerMonth") return rawValue.toFixed(1);
+  return `${rawValue.toFixed(1)}%`;
+}
+
+// Editable input string for a band cell (currency shown in kroner).
+function inputValue(format: "currency" | undefined, rawValue: number): string {
+  return format === "currency" ? (rawValue / 100).toString() : rawValue.toString();
+}
+
+export function ForecastAssumptions({ assumptions, formatValue, onSave, onReset }: ForecastAssumptionsProps) {
+  const [local, setLocal] = useState<ScenarioAssumptionMeta[]>(assumptions);
   const [savingScenario, setSavingScenario] = useState<string | null>(null);
+  const [resettingScenario, setResettingScenario] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<Record<string, "saved" | "error" | null>>({});
 
-  // Keep local in sync if parent data changes
-  // (initial load — subsequent edits are local-first)
+  // Re-sync when the parent reloads the forecast (save, reset, window/month change).
+  useEffect(() => {
+    setLocal(assumptions);
+  }, [assumptions]);
 
   const handleChange = useCallback(
-    (scenario: string, key: keyof Omit<AssumptionsType, "scenario">, value: string) => {
+    (scenario: string, key: FieldKey, value: string) => {
       setLocal((prev) =>
-        prev.map((a) =>
-          a.scenario === scenario ? { ...a, [key]: parseFloat(value) || 0 } : a
-        )
+        prev.map((a) => (a.scenario === scenario ? { ...a, [key]: parseFloat(value) || 0 } : a))
       );
-      // Clear any previous save status
       setSaveStatus((prev) => ({ ...prev, [scenario]: null }));
     },
     []
@@ -73,7 +83,18 @@ export function ForecastAssumptions({ assumptions, formatValue, onSave }: Foreca
     [local, onSave]
   );
 
-  const scenarioOrder = ["best", "base", "worst"];
+  const handleReset = useCallback(
+    async (scenario: ScenarioId) => {
+      setResettingScenario(scenario);
+      try {
+        await onReset(scenario);
+      } catch {
+        setSaveStatus((prev) => ({ ...prev, [scenario]: "error" }));
+      }
+      setResettingScenario(null);
+    },
+    [onReset]
+  );
 
   return (
     <GlassCard>
@@ -81,7 +102,9 @@ export function ForecastAssumptions({ assumptions, formatValue, onSave }: Foreca
         Forecast Assumptions
       </h2>
       <p className="text-xs text-[var(--text-muted)] mb-4">
-        Adjust scenario parameters to see how different growth and churn assumptions affect your MRR forecast.
+        <span className="font-medium text-[var(--text-secondary)]">Predicted</span> is computed
+        automatically from your trailing actuals and updates as new months land. Worst, Better, and
+        Best are suggested around it — adjust any of them to model your own bands.
       </p>
 
       {/* Desktop: table layout */}
@@ -90,16 +113,21 @@ export function ForecastAssumptions({ assumptions, formatValue, onSave }: Foreca
           <thead>
             <tr className="text-left text-[var(--text-muted)]">
               <th className="pb-3 font-medium w-40">Metric</th>
-              {scenarioOrder.map((s) => {
+              {SCENARIO_ORDER.map((s) => {
                 const meta = SCENARIO_META[s];
                 return (
                   <th key={s} className="pb-3 font-medium text-center">
                     <div className="flex items-center justify-center gap-1.5">
                       <span
                         className="inline-block w-2 h-2 rounded-full"
-                        style={{ backgroundColor: meta?.color }}
+                        style={{ backgroundColor: meta.color }}
                       />
-                      {meta?.label}
+                      {meta.label}
+                      {meta.readOnly && (
+                        <span className="text-[9px] font-semibold uppercase tracking-wide text-[var(--accent-teal)] bg-[var(--accent-teal)]/10 px-1 py-0.5 rounded">
+                          Auto
+                        </span>
+                      )}
                     </div>
                   </th>
                 );
@@ -111,19 +139,21 @@ export function ForecastAssumptions({ assumptions, formatValue, onSave }: Foreca
               <tr key={field.key} className="border-t border-[var(--border-subtle)]">
                 <td className="py-2.5 text-[var(--text-secondary)]">
                   {field.label}
-                  {field.suffix && (
-                    <span className="text-[var(--text-muted)] ml-0.5 text-xs">
-                      {field.suffix === "%" ? " (%)" : ""}
-                    </span>
+                  {field.suffix === "%" && (
+                    <span className="text-[var(--text-muted)] ml-0.5 text-xs"> (%)</span>
                   )}
                 </td>
-                {scenarioOrder.map((s) => {
+                {SCENARIO_ORDER.map((s) => {
                   const row = local.find((a) => a.scenario === s);
                   const rawValue = row ? row[field.key] : 0;
-                  const displayValue =
-                    field.format === "currency"
-                      ? (rawValue / 100).toString() // øre → kroner for display
-                      : rawValue.toString();
+
+                  if (row?.readOnly) {
+                    return (
+                      <td key={s} className="py-2.5 text-center text-[var(--text-primary)] font-medium">
+                        {readonlyText(field.key, field.format, rawValue)}
+                      </td>
+                    );
+                  }
 
                   return (
                     <td key={s} className="py-2.5 text-center">
@@ -133,14 +163,14 @@ export function ForecastAssumptions({ assumptions, formatValue, onSave }: Foreca
                         )}
                         <input
                           type="number"
-                          value={displayValue}
+                          value={inputValue(field.format, rawValue)}
                           step={field.step}
                           min={field.min}
                           max={field.max}
                           onChange={(e) => {
                             const val =
                               field.format === "currency"
-                                ? (parseFloat(e.target.value) * 100).toString() // kroner → øre
+                                ? (parseFloat(e.target.value) * 100).toString()
                                 : e.target.value;
                             handleChange(s, field.key, val);
                           }}
@@ -156,26 +186,37 @@ export function ForecastAssumptions({ assumptions, formatValue, onSave }: Foreca
               </tr>
             ))}
 
-            {/* Save buttons row */}
+            {/* Action row */}
             <tr className="border-t border-[var(--border-subtle)]">
               <td className="py-3" />
-              {scenarioOrder.map((s) => (
-                <td key={s} className="py-3 text-center">
-                  <button
-                    onClick={() => handleSave(s)}
-                    disabled={savingScenario === s}
-                    className="px-3 py-1.5 text-xs font-medium text-white bg-[var(--accent-teal)] rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
-                  >
-                    {savingScenario === s ? "Saving..." : "Save"}
-                  </button>
-                  {saveStatus[s] === "saved" && (
-                    <span className="block text-[10px] text-emerald-600 mt-1">Saved ✓</span>
-                  )}
-                  {saveStatus[s] === "error" && (
-                    <span className="block text-[10px] text-red-600 mt-1">Error</span>
-                  )}
-                </td>
-              ))}
+              {SCENARIO_ORDER.map((s) => {
+                const row = local.find((a) => a.scenario === s);
+                if (row?.readOnly) {
+                  return (
+                    <td key={s} className="py-3 text-center align-top">
+                      <span className="text-[10px] text-[var(--text-muted)]">Auto-updated</span>
+                    </td>
+                  );
+                }
+                return (
+                  <td key={s} className="py-3 text-center align-top">
+                    <button
+                      onClick={() => handleSave(s)}
+                      disabled={savingScenario === s}
+                      className="px-3 py-1.5 text-xs font-medium text-white bg-[var(--accent-teal)] rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
+                    >
+                      {savingScenario === s ? "Saving..." : "Save"}
+                    </button>
+                    {saveStatus[s] === "saved" && (
+                      <span className="block text-[10px] text-emerald-600 mt-1">Saved ✓</span>
+                    )}
+                    {saveStatus[s] === "error" && (
+                      <span className="block text-[10px] text-red-600 mt-1">Error</span>
+                    )}
+                    <div className="mt-1.5">{renderBandStatus(row, s, resettingScenario, handleReset)}</div>
+                  </td>
+                );
+              })}
             </tr>
           </tbody>
         </table>
@@ -183,7 +224,7 @@ export function ForecastAssumptions({ assumptions, formatValue, onSave }: Foreca
 
       {/* Mobile: card layout */}
       <div className="md:hidden space-y-4">
-        {scenarioOrder.map((s) => {
+        {SCENARIO_ORDER.map((s) => {
           const meta = SCENARIO_META[s];
           const row = local.find((a) => a.scenario === s);
           if (!row || !meta) return null;
@@ -199,70 +240,114 @@ export function ForecastAssumptions({ assumptions, formatValue, onSave }: Foreca
                   style={{ backgroundColor: meta.color }}
                 />
                 <span className="text-sm font-semibold text-[var(--text-primary)]">
-                  {meta.label} Case
+                  {meta.label}
                 </span>
+                {meta.readOnly ? (
+                  <span className="text-[9px] font-semibold uppercase tracking-wide text-[var(--accent-teal)] bg-[var(--accent-teal)]/10 px-1.5 py-0.5 rounded">
+                    Auto
+                  </span>
+                ) : (
+                  <span className="ml-auto">{renderBandStatus(row, s, resettingScenario, handleReset)}</span>
+                )}
               </div>
 
               <div className="space-y-2.5">
                 {FIELDS.map((field) => {
                   const rawValue = row[field.key];
-                  const displayValue =
-                    field.format === "currency"
-                      ? (rawValue / 100).toString()
-                      : rawValue.toString();
 
                   return (
                     <div key={field.key} className="flex items-center justify-between gap-3">
                       <label className="text-xs text-[var(--text-muted)] shrink-0">
                         {field.label}
                       </label>
-                      <div className="flex items-center gap-1">
-                        {field.format === "currency" && (
-                          <span className="text-xs text-[var(--text-muted)]">kr</span>
-                        )}
-                        <input
-                          type="number"
-                          value={displayValue}
-                          step={field.step}
-                          min={field.min}
-                          max={field.max}
-                          onChange={(e) => {
-                            const val =
-                              field.format === "currency"
-                                ? (parseFloat(e.target.value) * 100).toString()
-                                : e.target.value;
-                            handleChange(s, field.key, val);
-                          }}
-                          className="w-24 px-2 py-1.5 text-sm text-right bg-[var(--bg-card)] border border-[var(--border-subtle)] rounded text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-teal)] focus:border-transparent"
-                        />
-                        {field.suffix === "%" && (
-                          <span className="text-xs text-[var(--text-muted)]">%</span>
-                        )}
-                      </div>
+                      {row.readOnly ? (
+                        <span className="text-sm font-medium text-[var(--text-primary)]">
+                          {readonlyText(field.key, field.format, rawValue)}
+                        </span>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          {field.format === "currency" && (
+                            <span className="text-xs text-[var(--text-muted)]">kr</span>
+                          )}
+                          <input
+                            type="number"
+                            value={inputValue(field.format, rawValue)}
+                            step={field.step}
+                            min={field.min}
+                            max={field.max}
+                            onChange={(e) => {
+                              const val =
+                                field.format === "currency"
+                                  ? (parseFloat(e.target.value) * 100).toString()
+                                  : e.target.value;
+                              handleChange(s, field.key, val);
+                            }}
+                            className="w-24 px-2 py-1.5 text-sm text-right bg-[var(--bg-card)] border border-[var(--border-subtle)] rounded text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-teal)] focus:border-transparent"
+                          />
+                          {field.suffix === "%" && (
+                            <span className="text-xs text-[var(--text-muted)]">%</span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
 
-              <div className="flex items-center gap-2 mt-3 pt-3 border-t border-[var(--border-subtle)]">
-                <button
-                  onClick={() => handleSave(s)}
-                  disabled={savingScenario === s}
-                  className="px-4 py-2 text-xs font-medium text-white bg-[var(--accent-teal)] rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
-                >
-                  {savingScenario === s ? "Saving..." : "Save"}
-                </button>
-                {saveStatus[s] === "saved" && (
-                  <span className="text-[10px] text-emerald-600">Saved ✓</span>
-                )}
-                {saveStatus[s] === "error" && (
-                  <span className="text-[10px] text-red-600">Error</span>
-                )}
-              </div>
+              {!row.readOnly && (
+                <div className="flex items-center gap-2 mt-3 pt-3 border-t border-[var(--border-subtle)]">
+                  <button
+                    onClick={() => handleSave(s)}
+                    disabled={savingScenario === s}
+                    className="px-4 py-2 text-xs font-medium text-white bg-[var(--accent-teal)] rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
+                  >
+                    {savingScenario === s ? "Saving..." : "Save"}
+                  </button>
+                  {saveStatus[s] === "saved" && (
+                    <span className="text-[10px] text-emerald-600">Saved ✓</span>
+                  )}
+                  {saveStatus[s] === "error" && (
+                    <span className="text-[10px] text-red-600">Error</span>
+                  )}
+                </div>
+              )}
+              {row.readOnly && (
+                <p className="text-[10px] text-[var(--text-muted)] mt-3 pt-3 border-t border-[var(--border-subtle)]">
+                  Auto-updated from your trailing actuals.
+                </p>
+              )}
             </div>
           );
         })}
       </div>
     </GlassCard>
+  );
+}
+
+// Suggested vs Custom indicator (+ reset link) for an editable band.
+function renderBandStatus(
+  row: ScenarioAssumptionMeta | undefined,
+  scenario: ScenarioId,
+  resetting: string | null,
+  onReset: (scenario: ScenarioId) => void
+) {
+  if (!row) return null;
+  if (!row.isCustom) {
+    return (
+      <span className="text-[10px] text-[var(--text-muted)]">Suggested</span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="text-[10px] font-medium text-[var(--accent-teal)]">Custom</span>
+      <span className="text-[var(--text-muted)] text-[10px]">·</span>
+      <button
+        onClick={() => onReset(scenario)}
+        disabled={resetting === scenario}
+        className="text-[10px] text-[var(--text-muted)] underline hover:text-[var(--text-secondary)] disabled:opacity-50"
+      >
+        {resetting === scenario ? "Resetting…" : "Reset to suggested"}
+      </button>
+    </span>
   );
 }

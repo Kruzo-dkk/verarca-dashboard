@@ -1,7 +1,6 @@
 "use client";
 
 import { GlassCard } from "@/components/ui/GlassCard";
-import { CohortHeatmap } from "@/components/charts/CohortHeatmap";
 import { MetricTooltip } from "@/components/ui/MetricTooltip";
 import type { MetricKey } from "@/lib/tooltip-registry";
 import type { ReportData } from "@/lib/types/report";
@@ -71,14 +70,6 @@ export function RetentionSection({ data }: RetentionSectionProps) {
           </GlassCard>
         ))}
       </div>
-
-      {/* Cohort heatmap */}
-      <GlassCard>
-        <MetricTooltip metric="cohortRetention">
-          <h3 className="text-sm font-medium text-[var(--text-muted)] mb-4">Cohort Retention</h3>
-        </MetricTooltip>
-        <CohortHeatmap data={data.retention.cohortData} />
-      </GlassCard>
     </section>
   );
 }
