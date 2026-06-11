@@ -471,17 +471,22 @@ function EditableCell({
   onSave: (v: number | null) => void;
   muted?: boolean;
 }) {
+  const display = toDisplayNumber(value, metric);
   return (
     <input
+      // Remount when the underlying value changes externally (reload / prefill /
+      // future fill-down) so the uncontrolled input never shows stale text — and
+      // no per-cell state/effects, so it can't re-introduce the render freeze.
+      key={display}
       type="text"
       inputMode="decimal"
-      defaultValue={toDisplayNumber(value, metric)}
+      defaultValue={display}
       onFocus={(e) => e.target.select()}
       onBlur={(e) => {
         const raw = e.target.value;
         const native = fromDisplayNumber(raw, metric);
         if (raw.trim() !== "" && native == null) {
-          e.target.value = toDisplayNumber(value, metric); // revert an invalid entry
+          e.target.value = display; // revert an invalid entry
           return;
         }
         if (native !== value) onSave(native);
