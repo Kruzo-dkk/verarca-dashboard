@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import type { ScenarioAssumptionMeta } from "@/lib/forecast";
 import { SCENARIO_ORDER, SCENARIO_META, type ScenarioId } from "@/lib/forecast-scenarios";
@@ -57,10 +57,24 @@ export function ForecastAssumptions({ assumptions, formatValue, onSave, onReset 
   const [resettingScenario, setResettingScenario] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<Record<string, "saved" | "error" | null>>({});
 
-  // Re-sync when the parent reloads the forecast (save, reset, window/month change).
+  // Re-sync local state only when the assumption VALUES change — not on every
+  // refetch. Changing Horizon (a chart-only control) refetches and returns
+  // identical assumptions, so keying the resync on a value signature instead of
+  // the array reference preserves in-progress, unsaved band edits.
+  const assumptionsSignature = useMemo(
+    () =>
+      assumptions
+        .map(
+          (a) =>
+            `${a.scenario}:${a.isCustom}:${a.monthlyChurnPct}:${a.monthlyExpansionPct}:${a.newLogosPerMonth}:${a.avgNewDealSize}:${a.pipelineConversionPct}`
+        )
+        .join("|"),
+    [assumptions]
+  );
   useEffect(() => {
     setLocal(assumptions);
-  }, [assumptions]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assumptionsSignature]);
 
   const handleChange = useCallback(
     (scenario: string, key: FieldKey, value: string) => {

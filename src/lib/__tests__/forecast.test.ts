@@ -322,4 +322,23 @@ describe("deriveSuggestedBand", () => {
     const high: ForecastAssumptions = { ...predicted, monthlyChurnPct: 80 };
     expect(deriveSuggestedBand(high, "worst").monthlyChurnPct).toBe(100); // 80 × 1.5 → clamp
   });
+
+  it("rounds suggested values to one decimal (no noisy fractions in inputs)", () => {
+    // Fractional predicted (e.g. 2.6667% churn) must not produce 4.00005-style noise.
+    const fractional: ForecastAssumptions = {
+      scenario: "predicted",
+      monthlyChurnPct: 8 / 3, // 2.6666…
+      monthlyExpansionPct: 1 / 3, // 0.3333…
+      newLogosPerMonth: 7 / 3, // 2.3333…
+      avgNewDealSize: 50_000,
+      pipelineConversionPct: 30,
+    };
+    const oneDecimal = (v: number) => Math.abs(v * 10 - Math.round(v * 10)) < 1e-9;
+    for (const s of ["worst", "better", "best"] as const) {
+      const band = deriveSuggestedBand(fractional, s);
+      expect(oneDecimal(band.monthlyChurnPct)).toBe(true);
+      expect(oneDecimal(band.monthlyExpansionPct)).toBe(true);
+      expect(oneDecimal(band.newLogosPerMonth)).toBe(true);
+    }
+  });
 });

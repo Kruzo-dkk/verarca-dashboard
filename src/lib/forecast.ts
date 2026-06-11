@@ -258,11 +258,14 @@ export function deriveSuggestedBand(
   scenario: "worst" | "better" | "best"
 ): ForecastAssumptions {
   const m = BAND_MULTIPLIERS[scenario];
+  // Round suggestions to one decimal so the editable inputs show clean starting
+  // values (predicted is fractional, so unrounded products like 2.6667 read as noise).
+  const round1 = (v: number) => Math.round(v * 10) / 10;
   return {
     scenario,
-    monthlyChurnPct: clampPct(predicted.monthlyChurnPct * m.churn),
-    monthlyExpansionPct: clampPct(predicted.monthlyExpansionPct * m.expansion),
-    newLogosPerMonth: Math.max(0, predicted.newLogosPerMonth * m.newLogos),
+    monthlyChurnPct: clampPct(round1(predicted.monthlyChurnPct * m.churn)),
+    monthlyExpansionPct: clampPct(round1(predicted.monthlyExpansionPct * m.expansion)),
+    newLogosPerMonth: Math.max(0, round1(predicted.newLogosPerMonth * m.newLogos)),
     avgNewDealSize: predicted.avgNewDealSize,
     pipelineConversionPct: predicted.pipelineConversionPct,
   };
