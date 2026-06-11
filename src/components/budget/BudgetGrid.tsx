@@ -453,9 +453,12 @@ function MetricRows({
 }
 
 /**
- * Click-to-edit cell: renders plain text and only mounts an <input> for the
- * cell being edited. Keeps the grid responsive — hundreds of always-mounted
- * inputs would block the main thread.
+ * Editable cell — an always-visible, lightweight UNCONTROLLED input. Every
+ * budget month cell and every editable finance-actual cell renders one, so it's
+ * obvious you can click straight in (and Tab between months). Uncontrolled means
+ * no per-cell React state/effects — that's what froze the page when these were
+ * controlled. defaultValue is read on mount; the grid loads once, so values stay
+ * correct without controlled state.
  */
 function EditableCell({
   value,
@@ -468,63 +471,27 @@ function EditableCell({
   onSave: (v: number | null) => void;
   muted?: boolean;
 }) {
-  const [editing, setEditing] = useState(false);
-
-  if (editing) {
-    return (
-      <CellInput
-        value={value}
-        metric={metric}
-        muted={muted}
-        onSave={onSave}
-        onDone={() => setEditing(false)}
-      />
-    );
-  }
-  return (
-    <button
-      type="button"
-      onClick={() => setEditing(true)}
-      className={`w-[72px] text-right tabular-nums rounded px-1 hover:bg-gray-100 ${
-        muted ? "text-[var(--text-muted)]" : "text-[var(--text-primary)]"
-      }`}
-    >
-      {value == null ? <span className="text-gray-300">—</span> : formatValue(value, metric)}
-    </button>
-  );
-}
-
-function CellInput({
-  value,
-  metric,
-  onSave,
-  onDone,
-  muted,
-}: {
-  value: number | null;
-  metric: BudgetMetric;
-  onSave: (v: number | null) => void;
-  onDone: () => void;
-  muted?: boolean;
-}) {
-  const [v, setV] = useState(toDisplayNumber(value, metric));
   return (
     <input
-      autoFocus
+      type="text"
       inputMode="decimal"
-      value={v}
-      onChange={(e) => setV(e.target.value)}
-      onBlur={() => {
-        const native = fromDisplayNumber(v, metric);
-        if (!(v.trim() !== "" && native == null) && native !== value) onSave(native);
-        onDone();
+      defaultValue={toDisplayNumber(value, metric)}
+      onFocus={(e) => e.target.select()}
+      onBlur={(e) => {
+        const raw = e.target.value;
+        const native = fromDisplayNumber(raw, metric);
+        if (raw.trim() !== "" && native == null) {
+          e.target.value = toDisplayNumber(value, metric); // revert an invalid entry
+          return;
+        }
+        if (native !== value) onSave(native);
       }}
       onKeyDown={(e) => {
         if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-        else if (e.key === "Escape") onDone();
       }}
       placeholder="—"
-      className={`w-[72px] bg-transparent text-right tabular-nums outline-none focus:ring-1 focus:ring-[var(--text-primary)]/30 rounded px-1 ${
+      aria-label={`${metric.label} ${muted ? "actual" : "budget"}`}
+      className={`w-[72px] bg-transparent text-right tabular-nums rounded px-1 border border-transparent hover:border-gray-300 hover:bg-gray-50 focus:bg-white focus:border-[var(--text-primary)]/40 focus:outline-none ${
         muted ? "text-[var(--text-muted)]" : "text-[var(--text-primary)]"
       } placeholder:text-gray-300`}
     />
