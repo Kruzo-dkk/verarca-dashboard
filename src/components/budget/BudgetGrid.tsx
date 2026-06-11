@@ -21,6 +21,12 @@ import {
   signedVariancePct,
   heatScale,
   monthExceptions,
+  fillRightTargets,
+  fillDownTargets,
+  parseClipboard,
+  flattenClipboard,
+  planPaste,
+  type PasteCandidate,
 } from "@/lib/budget";
 
 interface BudgetGridData {
@@ -110,6 +116,10 @@ export function BudgetGrid() {
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [mode, setMode] = useState<Mode>("numbers");
   const [flashId, setFlashId] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const [lastBatch, setLastBatch] = useState<
+    { month: string; metricKey: string; field: "budget" | "actual"; value: number | null }[] | null
+  >(null);
   const currentRef = useRef<HTMLTableCellElement | null>(null);
 
   useEffect(() => {
@@ -276,6 +286,165 @@ export function BudgetGrid() {
     return [...seen.values()];
   }, [data, view]);
 
+  // ── Bulk editing: fill-down / fill-right (⌘D/⌘R) + column paste ──
+  const editableMonths = useMemo(
+    () => periods.filter((p) => p.kind === "month").map((p) => p.months[0]),
+    [periods]
+  );
+
+  async function batchSave(
+    entries: { month: string; metricKey: string; field: "budget" | "actual"; value: number | null }[],
+    label: string
+  ) {
+    if (!entries.length) return;
+    // Capture prior values first so the toast's Undo can restore them.
+    const prior = entries.map((e) => ({
+      month: e.month,
+      metricKey: e.metricKey,
+      field: e.field,
+      value:
+        e.field === "budget"
+          ? budgets[e.month]?.[e.metricKey] ?? null
+          : financeActuals[e.month]?.[e.metricKey] ?? null,
+    }));
+    for (const e of entries) {
+      setLocal(e.field === "budget" ? setBudgets : setFinanceActuals, e.month, e.metricKey, e.value);
+    }
+    setInFlight((n) => n + 1);
+    try {
+      await fetch("/api/budget/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entries }),
+      });
+      setSavedAt(Date.now());
+      setLastBatch(prior);
+      setToast(label);
+    } catch {
+      setError("Bulk save failed — check your connection");
+    } finally {
+      setInFlight((n) => n - 1);
+    }
+  }
+
+  async function undoLast() {
+    if (!lastBatch) return;
+    const entries = lastBatch;
+    setLastBatch(null);
+    setToast(null);
+    for (const e of entries) {
+      setLocal(e.field === "budget" ? setBudgets : setFinanceActuals, e.month, e.metricKey, e.value);
+    }
+    setInFlight((n) => n + 1);
+    try {
+      await fetch("/api/budget/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entries }),
+      });
+      setSavedAt(Date.now());
+    } catch {
+      setError("Undo failed — check your connection");
+    } finally {
+      setInFlight((n) => n - 1);
+    }
+  }
+
+  function fillBudget(
+    dir: "right" | "down",
+    month: string,
+    metricKey: string,
+    nativeValue: number | null
+  ) {
+    const metric = BUDGET_METRICS.find((m) => m.key === metricKey);
+    const targets =
+      dir === "right"
+        ? fillRightTargets(month, editableMonths).map((m) => ({ month: m, metricKey }))
+        : fillDownTargets(metricKey, BUDGET_METRICS).map((k) => ({ month, metricKey: k }));
+    if (!targets.length) return;
+    const entries = [
+      { month, metricKey, field: "budget" as const, value: nativeValue },
+      ...targets.map((t) => ({
+        month: t.month,
+        metricKey: t.metricKey,
+        field: "budget" as const,
+        value: nativeValue,
+      })),
+    ];
+    const label =
+      dir === "right"
+        ? `Filled ${metric?.label ?? metricKey} → ${targets.length} month${targets.length === 1 ? "" : "s"}`
+        : `Filled down ${targets.length} metric${targets.length === 1 ? "" : "s"}`;
+    batchSave(entries, label);
+  }
+
+  function pasteInto(
+    month: string,
+    metricKey: string,
+    field: "budget" | "actual",
+    text: string
+  ): boolean {
+    const cells = parseClipboard(text);
+    const { values, orientation } = flattenClipboard(cells);
+    if (values.length <= 1) return false; // single value → let the input paste natively
+    const cur = data?.currentMonth ?? "";
+    let candidates: PasteCandidate[];
+    if (orientation === "right") {
+      const start = editableMonths.indexOf(month);
+      const ms = start >= 0 ? editableMonths.slice(start) : [month];
+      candidates = ms.map((m) => {
+        const mm = BUDGET_METRICS.find((x) => x.key === metricKey);
+        return {
+          month: m,
+          metricKey,
+          field,
+          editable: field === "budget" ? true : mm?.actual === "settings" && m <= cur,
+        };
+      });
+    } else {
+      const keys = [metricKey, ...fillDownTargets(metricKey, BUDGET_METRICS)];
+      candidates = keys.map((k) => {
+        const mm = BUDGET_METRICS.find((x) => x.key === k);
+        return {
+          month,
+          metricKey: k,
+          field,
+          editable: field === "budget" ? true : mm?.actual === "settings" && month <= cur,
+        };
+      });
+    }
+    const targets = planPaste(values, candidates);
+    if (!targets.length) return false;
+    const entries = targets.map((t) => {
+      const mm = BUDGET_METRICS.find((x) => x.key === t.metricKey);
+      const native = t.value == null ? null : mm?.ore ? Math.round(t.value * 100) : t.value;
+      return { month: t.month, metricKey: t.metricKey, field: t.field, value: native };
+    });
+    batchSave(entries, `Pasted ${entries.length} cell${entries.length === 1 ? "" : "s"}`);
+    return true;
+  }
+
+  // Auto-dismiss the bulk-edit toast.
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 6000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  // ⌘Z / Ctrl+Z undoes the last bulk edit (only when not typing in a field).
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && (e.key === "z" || e.key === "Z") && lastBatch) {
+        const tag = (document.activeElement?.tagName ?? "").toLowerCase();
+        if (tag === "input" || tag === "textarea") return; // leave native undo while typing
+        e.preventDefault();
+        undoLast();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lastBatch]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Off-plan metrics for the most-recent completed month (the previous calendar
   // month — the current month's actuals are still partial, which would spam
   // false misses). Worst-first; empty = on plan.
@@ -305,7 +474,7 @@ export function BudgetGrid() {
         <div>
           <h1 className="text-2xl font-semibold text-[var(--text-primary)]">Budget</h1>
           <p className="text-xs text-[var(--text-muted)]">
-            Budget vs Actual · fiscal year 1 Aug – 31 Jul · budget editable up to 24 months ahead · grey = synced actual
+            Budget vs Actual · fiscal year 1 Aug – 31 Jul · grey = synced actual · ⌘D fill down · ⌘R fill right · paste a column
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -412,6 +581,8 @@ export function BudgetGrid() {
                 budgetOf={budgetOf}
                 actualOf={actualOf}
                 onSave={save}
+                onFill={fillBudget}
+                onPaste={pasteInto}
                 stickyCol={stickyCol}
                 numCell={numCell}
                 mode={mode}
@@ -421,6 +592,21 @@ export function BudgetGrid() {
           </tbody>
         </table>
       </div>
+
+      {toast && (
+        <div className="fixed bottom-4 right-4 z-30 flex items-center gap-3 rounded-lg bg-[var(--text-primary)] px-4 py-2 text-sm text-white shadow-lg">
+          <span>{toast}</span>
+          {lastBatch && (
+            <button
+              type="button"
+              onClick={undoLast}
+              className="text-xs underline underline-offset-2 hover:no-underline"
+            >
+              Undo ⌘Z
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -433,6 +619,8 @@ function SectionRows({
   budgetOf,
   actualOf,
   onSave,
+  onFill,
+  onPaste,
   stickyCol,
   numCell,
   mode,
@@ -445,6 +633,8 @@ function SectionRows({
   budgetOf: (m: string, key: string) => number | null;
   actualOf: (m: string, metric: BudgetMetric) => number | null;
   onSave: (month: string, key: string, field: "budget" | "actual", value: number | null) => void;
+  onFill: (dir: "right" | "down", month: string, key: string, nativeValue: number | null) => void;
+  onPaste: (month: string, key: string, field: "budget" | "actual", text: string) => boolean;
   stickyCol: string;
   numCell: string;
   mode: Mode;
@@ -468,6 +658,8 @@ function SectionRows({
           budgetOf={budgetOf}
           actualOf={actualOf}
           onSave={onSave}
+          onFill={onFill}
+          onPaste={onPaste}
           stickyCol={stickyCol}
           numCell={numCell}
           mode={mode}
@@ -484,6 +676,8 @@ function MetricRows({
   budgetOf,
   actualOf,
   onSave,
+  onFill,
+  onPaste,
   stickyCol,
   numCell,
   mode,
@@ -494,6 +688,8 @@ function MetricRows({
   budgetOf: (m: string, key: string) => number | null;
   actualOf: (m: string, metric: BudgetMetric) => number | null;
   onSave: (month: string, key: string, field: "budget" | "actual", value: number | null) => void;
+  onFill: (dir: "right" | "down", month: string, key: string, nativeValue: number | null) => void;
+  onPaste: (month: string, key: string, field: "budget" | "actual", text: string) => boolean;
   stickyCol: string;
   numCell: string;
   mode: Mode;
@@ -519,7 +715,13 @@ function MetricRows({
           return (
             <td key={p.key} className={`${numCell} ${colClasses(p.kind, p.isCurrent)}`}>
               {p.kind === "month" ? (
-                <EditableCell value={val} metric={metric} onSave={(v) => onSave(p.months[0], metric.key, "budget", v)} />
+                <EditableCell
+                  value={val}
+                  metric={metric}
+                  onSave={(v) => onSave(p.months[0], metric.key, "budget", v)}
+                  onFill={(dir, nv) => onFill(dir, p.months[0], metric.key, nv)}
+                  onPasteText={(t) => onPaste(p.months[0], metric.key, "budget", t)}
+                />
               ) : (
                 <span className="text-[var(--text-primary)]">{formatValue(val, metric)}</span>
               )}
@@ -563,7 +765,13 @@ function MetricRows({
               }`}
             >
               {editableActual ? (
-                <EditableCell value={val} metric={metric} muted onSave={(v) => onSave(p.months[0], metric.key, "actual", v)} />
+                <EditableCell
+                  value={val}
+                  metric={metric}
+                  muted
+                  onSave={(v) => onSave(p.months[0], metric.key, "actual", v)}
+                  onPasteText={(t) => onPaste(p.months[0], metric.key, "actual", t)}
+                />
               ) : p.kind === "month" && p.isFuture ? (
                 <span className="text-gray-300">·</span>
               ) : (
@@ -611,11 +819,15 @@ function EditableCell({
   metric,
   onSave,
   muted,
+  onFill,
+  onPasteText,
 }: {
   value: number | null;
   metric: BudgetMetric;
   onSave: (v: number | null) => void;
   muted?: boolean;
+  onFill?: (dir: "right" | "down", nativeValue: number | null) => void;
+  onPasteText?: (text: string) => boolean;
 }) {
   const display = toDisplayNumber(value, metric);
   return (
@@ -638,8 +850,26 @@ function EditableCell({
         if (native !== value) onSave(native);
       }}
       onKeyDown={(e) => {
-        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        if (e.key === "Enter") {
+          (e.target as HTMLInputElement).blur();
+          return;
+        }
+        if ((e.metaKey || e.ctrlKey) && onFill && (e.key === "d" || e.key === "D")) {
+          e.preventDefault();
+          onFill("down", fromDisplayNumber((e.target as HTMLInputElement).value, metric));
+        } else if ((e.metaKey || e.ctrlKey) && onFill && (e.key === "r" || e.key === "R")) {
+          e.preventDefault();
+          onFill("right", fromDisplayNumber((e.target as HTMLInputElement).value, metric));
+        }
       }}
+      onPaste={
+        onPasteText
+          ? (e) => {
+              const text = e.clipboardData.getData("text");
+              if (text && onPasteText(text)) e.preventDefault();
+            }
+          : undefined
+      }
       placeholder="—"
       aria-label={`${metric.label} ${muted ? "actual" : "budget"}`}
       className={`w-[72px] bg-transparent text-right tabular-nums rounded px-1 border border-transparent hover:border-gray-300 hover:bg-gray-50 focus:bg-white focus:border-[var(--text-primary)]/40 focus:outline-none ${
