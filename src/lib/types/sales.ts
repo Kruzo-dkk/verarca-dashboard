@@ -6,6 +6,7 @@ export interface SalesDashboardData {
   leaderboard: LeaderboardEntry[];
   recentWins: DealOutcome[];
   recentLosses: DealOutcome[];
+  employeeComparison: EmployeeComparison[];
 }
 
 export interface SalesTargets {
@@ -48,6 +49,12 @@ export interface SalesDeal {
   closeDate: string | null;
   daysToClose: number | null;
   ownerName: string | null;
+  /** ISO date the deal was created. Null on pre-feature (frozen) snapshots. */
+  createdDate: string | null;
+  /** ISO date the deal was last modified. Null on pre-feature snapshots. */
+  updatedDate: string | null;
+  /** Whole days since createdDate (deal age in the sales cycle); null when unknown. */
+  ageDays: number | null;
 }
 
 export interface ActivitySummary {
@@ -76,6 +83,22 @@ export interface LeaderboardEntry {
   ownerName: string;
   dealsWon: number;
   mrrClosed: number; // DKK øre
+  totalActivities: number;
+}
+
+/** Per-owner roll-up shown in the Employee Comparison panel. */
+export interface EmployeeComparison {
+  ownerId: string;
+  ownerName: string;
+  openDealCount: number;
+  openPipelineValue: number; // DKK øre
+  weightedPipeline: number; // DKK øre
+  /** Avg age (days) of this owner's open deals; null when none have a createdate. */
+  avgDealAgeDays: number | null;
+  dealsWon: number;
+  mrrClosed: number; // DKK øre
+  /** Win rate as a 0–1 decimal (multiply by 100 for display); 0 when no closed deals. */
+  winRate: number;
   totalActivities: number;
 }
 

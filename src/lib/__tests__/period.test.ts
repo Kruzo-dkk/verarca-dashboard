@@ -7,7 +7,36 @@ import {
   periodToParams,
   periodFromParams,
   generatePeriodOptions,
+  daysSince,
 } from "../period";
+
+// ─── daysSince ───────────────────────────────────────────────────
+
+describe("daysSince", () => {
+  const now = Date.parse("2026-01-11T00:00:00Z");
+
+  it("counts whole days from an ISO date up until now", () => {
+    expect(daysSince("2026-01-01T00:00:00Z", now)).toBe(10);
+  });
+
+  it("floors partial days", () => {
+    expect(daysSince("2026-01-01T00:00:00Z", Date.parse("2026-01-11T23:00:00Z"))).toBe(10);
+  });
+
+  it("returns null for null/undefined/empty input", () => {
+    expect(daysSince(null, now)).toBeNull();
+    expect(daysSince(undefined, now)).toBeNull();
+    expect(daysSince("", now)).toBeNull();
+  });
+
+  it("returns null for an unparseable date", () => {
+    expect(daysSince("not-a-date", now)).toBeNull();
+  });
+
+  it("clamps future dates to 0", () => {
+    expect(daysSince("2026-12-31T00:00:00Z", now)).toBe(0);
+  });
+});
 
 // ─── monthPeriod ─────────────────────────────────────────────────
 

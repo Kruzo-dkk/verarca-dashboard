@@ -20,6 +20,7 @@ export interface HubSpotDeal {
     hs_deal_stage_probability: string | null;
     hs_forecast_amount: string | null;
     hubspot_owner_id: string | null;
+    hs_lastmodifieddate: string | null;
   };
 }
 
@@ -38,6 +39,12 @@ export interface StoredDeal {
   closedate: string | null;
   days_to_close: string | null;
   owner_id: string | null;
+  /** Deal creation timestamp (ISO) from HubSpot `createdate`. Null on
+   *  snapshots written before this field shipped. */
+  createdate: string | null;
+  /** Last-modified timestamp (ISO) from HubSpot `hs_lastmodifieddate`. Null on
+   *  snapshots written before this field shipped. */
+  updateddate: string | null;
   /** Stage win-probability as a 0–1 decimal (e.g. 0.25). */
   probability: number | null;
   /** Won/lost/open classification, stamped at sync time from the live pipeline
@@ -74,6 +81,8 @@ export function buildStoredDeals(
       closedate: d.properties.closedate,
       days_to_close: d.properties.days_to_close,
       owner_id: d.properties.hubspot_owner_id ?? null,
+      createdate: d.properties.createdate ?? null,
+      updateddate: d.properties.hs_lastmodifieddate ?? null,
       probability,
       is_closed: isClosed,
       is_won: isClosed && (probability ?? 0) >= 1,
@@ -139,7 +148,7 @@ export async function listDeals(): Promise<HubSpotDeal[]> {
   const properties = [
     "dealname", "amount", "amount_in_home_currency", "createdate",
     "closedate", "days_to_close", "dealstage", "hs_deal_stage_probability",
-    "hs_forecast_amount", "hubspot_owner_id"
+    "hs_forecast_amount", "hubspot_owner_id", "hs_lastmodifieddate"
   ].join(",");
 
   const all: HubSpotDeal[] = [];

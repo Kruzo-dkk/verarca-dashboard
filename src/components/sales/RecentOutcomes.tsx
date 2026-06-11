@@ -2,17 +2,8 @@
 
 import { GlassCard } from "@/components/ui/GlassCard";
 import { useSalesContext } from "./SalesProvider";
+import { formatDKK, formatDate } from "@/lib/sales-format";
 import type { DealOutcome } from "@/lib/types/sales";
-
-function formatDKK(ore: number): string {
-  const kr = ore / 100;
-  return `kr ${kr.toLocaleString("da-DK", { maximumFractionDigits: 0 })}`;
-}
-
-function formatDate(dateStr: string): string {
-  const d = new Date(dateStr);
-  return d.toLocaleDateString("da-DK", { day: "numeric", month: "short" });
-}
 
 function DealRow({
   deal,
