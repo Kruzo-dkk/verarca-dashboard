@@ -31,6 +31,8 @@ import {
   monthsOfRunway,
   cashZeroMonth,
   type CashPoint,
+  suggestBudget,
+  type SuggestLookup,
 } from "@/lib/budget";
 
 interface BudgetGridData {
@@ -117,6 +119,7 @@ export function BudgetGrid() {
   const [budgets, setBudgets] = useState<Record<string, Record<string, number>>>({});
   const [financeActuals, setFinanceActuals] = useState<Record<string, Record<string, number>>>({});
   const [cashByMonth, setCashByMonth] = useState<Record<string, number>>({});
+  const [suggest, setSuggest] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [inFlight, setInFlight] = useState(0);
   const [savedAt, setSavedAt] = useState<number | null>(null);
@@ -156,6 +159,7 @@ export function BudgetGrid() {
     try {
       const saved = window.localStorage.getItem("budgetMode");
       if (saved === "heatmap" || saved === "numbers") setMode(saved);
+      if (window.localStorage.getItem("budgetSuggest") === "1") setSuggest(true);
     } catch {
       /* ignore */
     }
@@ -165,6 +169,15 @@ export function BudgetGrid() {
     setMode(m);
     try {
       window.localStorage.setItem("budgetMode", m);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function changeSuggest(v: boolean) {
+    setSuggest(v);
+    try {
+      window.localStorage.setItem("budgetSuggest", v ? "1" : "0");
     } catch {
       /* ignore */
     }
@@ -452,6 +465,40 @@ export function BudgetGrid() {
       .finally(() => setInFlight((n) => n - 1));
   }
 
+  // ── Budget suggestions from trailing actuals (no-ERP-friendly) ──
+  const suggestLookup: SuggestLookup = {
+    actual: (k, m) => {
+      const metric = BUDGET_METRICS.find((x) => x.key === k);
+      return (
+        (metric?.actual === "settings"
+          ? financeActuals[m]?.[k]
+          : data?.salesActuals?.[m]?.[k]) ?? null
+      );
+    },
+    budget: (k, m) => budgets[m]?.[k] ?? null,
+  };
+  function suggestionFor(metric: BudgetMetric, month: string): number | null {
+    return suggestBudget(metric, month, suggestLookup);
+  }
+  function acceptSuggestions(section: BudgetSection) {
+    const cur = data?.currentMonth;
+    if (!cur) return;
+    const entries: { month: string; metricKey: string; field: "budget"; value: number | null }[] = [];
+    for (const metric of BUDGET_METRICS.filter((m) => m.section === section)) {
+      for (const m of editableMonths) {
+        if (m <= cur) continue; // only fill the future
+        if (budgets[m]?.[metric.key] != null) continue; // don't overwrite a real budget
+        const sug = suggestBudget(metric, m, suggestLookup);
+        if (sug != null) entries.push({ month: m, metricKey: metric.key, field: "budget", value: sug });
+      }
+    }
+    if (!entries.length) {
+      setToast(`No suggestions for ${section}`);
+      return;
+    }
+    batchSave(entries, `Accepted ${entries.length} · ${section}`);
+  }
+
   // Auto-dismiss the bulk-edit toast.
   useEffect(() => {
     if (!toast) return;
@@ -546,6 +593,18 @@ export function BudgetGrid() {
           <span className="text-xs text-[var(--text-muted)] min-w-[64px] text-right">
             {inFlight > 0 ? "Saving…" : savedAt ? "Saved ✓" : ""}
           </span>
+          <button
+            type="button"
+            onClick={() => changeSuggest(!suggest)}
+            title="Show suggested budgets from trailing actuals"
+            className={`px-3 py-1 rounded-md border text-sm transition-colors ${
+              suggest
+                ? "bg-[var(--text-primary)] text-white border-[var(--text-primary)]"
+                : "border-gray-200 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            }`}
+          >
+            ✦ Suggest
+          </button>
           <div className="flex rounded-md border border-gray-200 overflow-hidden text-sm">
             {(["numbers", "heatmap"] as Mode[]).map((m) => (
               <button
@@ -657,6 +716,9 @@ export function BudgetGrid() {
                 onSave={save}
                 onFill={fillBudget}
                 onPaste={pasteInto}
+                suggest={suggest}
+                suggestionFor={suggestionFor}
+                onAcceptSection={acceptSuggestions}
                 stickyCol={stickyCol}
                 numCell={numCell}
                 mode={mode}
@@ -695,6 +757,9 @@ function SectionRows({
   onSave,
   onFill,
   onPaste,
+  suggest,
+  suggestionFor,
+  onAcceptSection,
   stickyCol,
   numCell,
   mode,
@@ -709,6 +774,9 @@ function SectionRows({
   onSave: (month: string, key: string, field: "budget" | "actual", value: number | null) => void;
   onFill: (dir: "right" | "down", month: string, key: string, nativeValue: number | null) => void;
   onPaste: (month: string, key: string, field: "budget" | "actual", text: string) => boolean;
+  suggest: boolean;
+  suggestionFor: (metric: BudgetMetric, month: string) => number | null;
+  onAcceptSection: (section: BudgetSection) => void;
   stickyCol: string;
   numCell: string;
   mode: Mode;
@@ -722,6 +790,15 @@ function SectionRows({
           className={`${stickyCol} px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]`}
         >
           {section}
+          {suggest && (
+            <button
+              type="button"
+              onClick={() => onAcceptSection(section)}
+              className="ml-3 normal-case text-[10px] font-medium text-emerald-700 underline underline-offset-2 hover:no-underline"
+            >
+              ✦ Accept all
+            </button>
+          )}
         </td>
       </tr>
       {metrics.map((metric) => (
@@ -734,6 +811,8 @@ function SectionRows({
           onSave={onSave}
           onFill={onFill}
           onPaste={onPaste}
+          suggest={suggest}
+          suggestionFor={suggestionFor}
           stickyCol={stickyCol}
           numCell={numCell}
           mode={mode}
@@ -752,6 +831,8 @@ function MetricRows({
   onSave,
   onFill,
   onPaste,
+  suggest,
+  suggestionFor,
   stickyCol,
   numCell,
   mode,
@@ -764,6 +845,8 @@ function MetricRows({
   onSave: (month: string, key: string, field: "budget" | "actual", value: number | null) => void;
   onFill: (dir: "right" | "down", month: string, key: string, nativeValue: number | null) => void;
   onPaste: (month: string, key: string, field: "budget" | "actual", text: string) => boolean;
+  suggest: boolean;
+  suggestionFor: (metric: BudgetMetric, month: string) => number | null;
   stickyCol: string;
   numCell: string;
   mode: Mode;
@@ -786,12 +869,17 @@ function MetricRows({
         </td>
         {periods.map((p) => {
           const val = rollup(p, (m) => budgetOf(m, metric.key));
+          const suggestion =
+            suggest && p.kind === "month" && p.isFuture && val == null
+              ? suggestionFor(metric, p.months[0])
+              : null;
           return (
             <td key={p.key} className={`${numCell} ${colClasses(p.kind, p.isCurrent)}`}>
               {p.kind === "month" ? (
                 <EditableCell
                   value={val}
                   metric={metric}
+                  suggestion={suggestion}
                   onSave={(v) => onSave(p.months[0], metric.key, "budget", v)}
                   onFill={(dir, nv) => onFill(dir, p.months[0], metric.key, nv)}
                   onPasteText={(t) => onPaste(p.months[0], metric.key, "budget", t)}
@@ -895,6 +983,7 @@ function EditableCell({
   muted,
   onFill,
   onPasteText,
+  suggestion,
 }: {
   value: number | null;
   metric: BudgetMetric;
@@ -902,18 +991,25 @@ function EditableCell({
   muted?: boolean;
   onFill?: (dir: "right" | "down", nativeValue: number | null) => void;
   onPasteText?: (text: string) => boolean;
+  suggestion?: number | null;
 }) {
   const display = toDisplayNumber(value, metric);
+  const hasSuggestion = value == null && suggestion != null;
   return (
     <input
       // Remount when the underlying value changes externally (reload / prefill /
       // future fill-down) so the uncontrolled input never shows stale text — and
       // no per-cell state/effects, so it can't re-introduce the render freeze.
-      key={display}
+      key={display || (hasSuggestion ? `s${suggestion}` : "")}
       type="text"
       inputMode="decimal"
       defaultValue={display}
-      onFocus={(e) => e.target.select()}
+      onFocus={(e) => {
+        if (hasSuggestion && e.target.value === "") {
+          e.target.value = toDisplayNumber(suggestion ?? null, metric);
+        }
+        e.target.select();
+      }}
       onBlur={(e) => {
         const raw = e.target.value;
         const native = fromDisplayNumber(raw, metric);
@@ -944,11 +1040,15 @@ function EditableCell({
             }
           : undefined
       }
-      placeholder="—"
+      placeholder={hasSuggestion ? `≈${toDisplayNumber(suggestion ?? null, metric)}` : "—"}
       aria-label={`${metric.label} ${muted ? "actual" : "budget"}`}
       className={`w-[72px] bg-transparent text-right tabular-nums rounded px-1 border border-transparent hover:border-gray-300 hover:bg-gray-50 focus:bg-white focus:border-[var(--text-primary)]/40 focus:outline-none ${
         muted ? "text-[var(--text-muted)]" : "text-[var(--text-primary)]"
-      } placeholder:text-gray-300`}
+      } ${
+        hasSuggestion
+          ? "placeholder:text-emerald-600/60 placeholder:italic"
+          : "placeholder:text-gray-300"
+      }`}
     />
   );
 }

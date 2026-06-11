@@ -422,3 +422,46 @@ export function cashZeroMonth(series: CashPoint[]): string | null {
   }
   return null;
 }
+
+
+// ─── Budget suggestions (from trailing actuals) ───────────────
+
+/** Reads an actual or budget for a metric/month — supplied by the grid. */
+export interface SuggestLookup {
+  actual: (metricKey: string, month: string) => number | null;
+  budget: (metricKey: string, month: string) => number | null;
+}
+
+/**
+ * Suggest a budget for `metric` in `month` from the trailing `trailing` months.
+ * Sales metrics use synced actuals; finance metrics fall back to the prior
+ * BUDGET when an actual is absent (the no-ERP reality — manual finance actuals
+ * are sparse). Run-rate metrics (sum/average) return the trailing mean;
+ * endOfPeriod (headcount) returns the most recent known value. null when there
+ * is nothing to go on. Returned in native units (øre for kr metrics).
+ */
+export function suggestBudget(
+  metric: BudgetMetric,
+  month: string,
+  lookup: SuggestLookup,
+  trailing = 3
+): number | null {
+  const valueAt = (m: string): number | null => {
+    const a = lookup.actual(metric.key, m);
+    if (a != null) return a;
+    // Finance actuals are sparse without an ERP → lean on the prior budget.
+    if (metric.actual === "settings") return lookup.budget(metric.key, m);
+    return null;
+  };
+  const present: number[] = [];
+  for (let i = 1; i <= trailing; i++) {
+    const v = valueAt(addMonths(month, -i)); // most-recent first
+    if (v != null) present.push(v);
+  }
+  if (present.length === 0) return null;
+  const raw =
+    metric.rollup === "endOfPeriod"
+      ? present[0] // most recent known
+      : present.reduce((a, b) => a + b, 0) / present.length; // trailing run-rate
+  return metric.ore ? Math.round(raw) : Math.round(raw * 10) / 10;
+}
