@@ -114,6 +114,17 @@ export function projectScenario(
 }
 
 /**
+ * New-business MRR per month from a projection: new-logo run-rate + weighted
+ * pipeline (the two net-new components a sales New-MRR budget targets). Keyed
+ * YYYY-MM, DKK øre.
+ */
+export function forecastNewMrrByMonth(months: ForecastMonth[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const m of months) out[m.month] = m.newLogoAmount + m.pipelineAmount;
+  return out;
+}
+
+/**
  * Add N months to a YYYY-MM string.
  */
 function addMonths(yearMonth: string, n: number): string {

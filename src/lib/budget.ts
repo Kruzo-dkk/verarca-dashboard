@@ -465,3 +465,57 @@ export function suggestBudget(
       : present.reduce((a, b) => a + b, 0) / present.length; // trailing run-rate
   return metric.ore ? Math.round(raw) : Math.round(raw * 10) / 10;
 }
+
+
+// ─── New-MRR reconcile (budget vs forecast) ───────────────────
+
+export interface NewMrrReconcile {
+  budgetTotal: number;
+  forecastTotal: number;
+  divergencePct: number | null; // signed: + = budget above forecast
+  band: "aligned" | "ambitious" | "conservative" | "unknown";
+  message: string;
+}
+
+/**
+ * Compare the New-MRR BUDGET against a forecast's new-MRR over the forecast's
+ * horizon (the forecast month set is the reference window). `band` is aligned
+ * within ±tolerancePct, ambitious when the plan runs above forecast,
+ * conservative below.
+ */
+export function reconcileNewMrr(
+  budgetByMonth: Record<string, number>,
+  forecastByMonth: Record<string, number>,
+  tolerancePct = 15
+): NewMrrReconcile {
+  const months = Object.keys(forecastByMonth);
+  let budgetTotal = 0;
+  let forecastTotal = 0;
+  for (const m of months) {
+    budgetTotal += budgetByMonth[m] ?? 0;
+    forecastTotal += forecastByMonth[m] ?? 0;
+  }
+  if (forecastTotal === 0) {
+    return {
+      budgetTotal,
+      forecastTotal,
+      divergencePct: null,
+      band: "unknown",
+      message: "No forecast to compare against yet.",
+    };
+  }
+  const divergencePct = Math.round(((budgetTotal - forecastTotal) / forecastTotal) * 1000) / 10;
+  const band: NewMrrReconcile["band"] =
+    divergencePct > tolerancePct
+      ? "ambitious"
+      : divergencePct < -tolerancePct
+        ? "conservative"
+        : "aligned";
+  const message =
+    band === "aligned"
+      ? "New-MRR plan tracks the predicted forecast."
+      : band === "ambitious"
+        ? `New-MRR plan is ${Math.abs(divergencePct)}% above the predicted forecast.`
+        : `New-MRR plan is ${Math.abs(divergencePct)}% below the predicted forecast.`;
+  return { budgetTotal, forecastTotal, divergencePct, band, message };
+}

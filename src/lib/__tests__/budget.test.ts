@@ -28,6 +28,7 @@ import {
   cashZeroMonth,
   suggestBudget,
   type SuggestLookup,
+  reconcileNewMrr,
 } from "../budget";
 
 // ─── Month arithmetic ────────────────────────────────────────────
@@ -479,5 +480,39 @@ describe("suggestBudget", () => {
 
   it("returns null when there is nothing to go on", () => {
     expect(suggestBudget(mNewMrr, "2026-06", lk({}))).toBeNull();
+  });
+});
+
+
+// ─── reconcileNewMrr ─────────────────────────────────────────────
+
+describe("reconcileNewMrr", () => {
+  it("is aligned within tolerance", () => {
+    const r = reconcileNewMrr({ "2026-01": 100, "2026-02": 100 }, { "2026-01": 100, "2026-02": 100 });
+    expect(r.band).toBe("aligned");
+    expect(r.divergencePct).toBe(0);
+  });
+  it("is ambitious when the plan runs above forecast", () => {
+    const r = reconcileNewMrr({ "2026-01": 200 }, { "2026-01": 100 });
+    expect(r.band).toBe("ambitious");
+    expect(r.divergencePct).toBe(100);
+  });
+  it("is conservative when the plan runs below forecast", () => {
+    const r = reconcileNewMrr({ "2026-01": 50 }, { "2026-01": 100 });
+    expect(r.band).toBe("conservative");
+    expect(r.divergencePct).toBe(-50);
+  });
+  it("only counts months present in the forecast window", () => {
+    const r = reconcileNewMrr(
+      { "2026-01": 100, "2026-09": 999 }, // Sep ignored (not in forecast)
+      { "2026-01": 100 }
+    );
+    expect(r.budgetTotal).toBe(100);
+    expect(r.band).toBe("aligned");
+  });
+  it("is unknown when there is no forecast", () => {
+    const r = reconcileNewMrr({ "2026-01": 100 }, {});
+    expect(r.band).toBe("unknown");
+    expect(r.divergencePct).toBeNull();
   });
 });
