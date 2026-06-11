@@ -17,6 +17,12 @@ import {
   varianceBucket,
   heatScale,
   monthExceptions,
+  fillRightTargets,
+  fillDownTargets,
+  parseClipboard,
+  flattenClipboard,
+  planPaste,
+  type PasteCandidate,
 } from "../budget";
 
 // ─── Month arithmetic ────────────────────────────────────────────
@@ -269,5 +275,104 @@ describe("monthExceptions", () => {
       { metric: metricByKey("target_new_mrr"), budget: 100, actual: 105 },  // ahead → neutral
     ];
     expect(monthExceptions(rows)).toEqual([]);
+  });
+});
+
+
+// ─── Fill & paste ────────────────────────────────────────────────
+
+describe("fillRightTargets", () => {
+  it("returns editable months strictly to the right", () => {
+    const months = ["2026-01", "2026-02", "2026-03", "2026-04"];
+    expect(fillRightTargets("2026-02", months)).toEqual(["2026-03", "2026-04"]);
+  });
+  it("is empty at the right edge", () => {
+    expect(fillRightTargets("2026-04", ["2026-03", "2026-04"])).toEqual([]);
+  });
+});
+
+describe("fillDownTargets", () => {
+  it("returns same-section metrics below the anchor", () => {
+    expect(fillDownTargets("cac_outbound", BUDGET_METRICS)).toEqual([
+      "cac_partner",
+      "cac_inbound",
+    ]);
+    expect(fillDownTargets("gross_margin_pct", BUDGET_METRICS)).toEqual([
+      "monthly_cogs",
+      "monthly_burn",
+    ]);
+  });
+  it("is empty at a section's last metric or for a lone metric", () => {
+    expect(fillDownTargets("target_calls", BUDGET_METRICS)).toEqual([]);
+    expect(fillDownTargets("employee_count", BUDGET_METRICS)).toEqual([]);
+  });
+  it("is empty for an unknown key", () => {
+    expect(fillDownTargets("nope", BUDGET_METRICS)).toEqual([]);
+  });
+});
+
+describe("parseClipboard", () => {
+  it("splits a single column", () => {
+    expect(parseClipboard("1\n2\n3")).toEqual([["1"], ["2"], ["3"]]);
+  });
+  it("splits rows and tab columns and drops one trailing newline", () => {
+    expect(parseClipboard("1\t2\r\n3\t4\n")).toEqual([
+      ["1", "2"],
+      ["3", "4"],
+    ]);
+  });
+  it("keeps a single value", () => {
+    expect(parseClipboard("5")).toEqual([["5"]]);
+  });
+});
+
+describe("flattenClipboard", () => {
+  it("a lone row pastes right", () => {
+    expect(flattenClipboard([["1", "2", "3"]])).toEqual({
+      values: [1, 2, 3],
+      orientation: "right",
+    });
+  });
+  it("a taller block pastes down its first column", () => {
+    expect(flattenClipboard([["1", "x"], ["2", "y"], ["", "z"]])).toEqual({
+      values: [1, 2, null],
+      orientation: "down",
+    });
+  });
+});
+
+describe("planPaste", () => {
+  const C = (
+    month: string,
+    metricKey: string,
+    editable: boolean
+  ): PasteCandidate => ({ month, metricKey, field: "budget", editable });
+
+  it("zips values onto consecutive editable cells", () => {
+    const candidates = [
+      C("2026-01", "a", true),
+      C("2026-02", "a", true),
+      C("2026-03", "a", true),
+    ];
+    expect(planPaste([10, 20, 30], candidates)).toEqual([
+      { month: "2026-01", metricKey: "a", field: "budget", value: 10 },
+      { month: "2026-02", metricKey: "a", field: "budget", value: 20 },
+      { month: "2026-03", metricKey: "a", field: "budget", value: 30 },
+    ]);
+  });
+  it("skips non-editable cells without consuming a value", () => {
+    const candidates = [
+      C("2026-01", "a", true),
+      C("2026-02", "a", false), // synced/future → skipped
+      C("2026-03", "a", true),
+    ];
+    expect(planPaste([10, 20], candidates).map((t) => [t.month, t.value])).toEqual([
+      ["2026-01", 10],
+      ["2026-03", 20],
+    ]);
+  });
+  it("stops when values run out", () => {
+    const candidates = [C("2026-01", "a", true), C("2026-02", "a", true)];
+    expect(planPaste([99], candidates)).toHaveLength(1);
   });
 });

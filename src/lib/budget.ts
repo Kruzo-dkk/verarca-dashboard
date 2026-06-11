@@ -279,3 +279,94 @@ export function monthExceptions(
       Math.abs(b.variancePct) - Math.abs(a.variancePct)
   );
 }
+
+
+// ─── Fill & paste (bulk budget editing) ───────────────────────
+
+/** Parse a pasted display number (spaces stripped, comma→dot). null on blank/NaN. */
+function parsePastedNumber(text: string): number | null {
+  const t = text.trim().replace(/\s/g, "").replace(",", ".");
+  if (t === "") return null;
+  const n = Number(t);
+  return Number.isNaN(n) ? null : n;
+}
+
+/** Editable months strictly to the right of `startMonth` (fill-right / ⌘R). */
+export function fillRightTargets(startMonth: string, editableMonths: string[]): string[] {
+  return editableMonths.filter((m) => m > startMonth);
+}
+
+/**
+ * Metric keys below `metricKey` within the SAME section, in registry order
+ * (fill-down / ⌘D). E.g. cac_outbound → [cac_partner, cac_inbound].
+ */
+export function fillDownTargets(metricKey: string, metrics: BudgetMetric[]): string[] {
+  const idx = metrics.findIndex((m) => m.key === metricKey);
+  if (idx < 0) return [];
+  const section = metrics[idx].section;
+  const out: string[] = [];
+  for (let i = idx + 1; i < metrics.length; i++) {
+    if (metrics[i].section !== section) break;
+    out.push(metrics[i].key);
+  }
+  return out;
+}
+
+/** Split clipboard text into a grid of cells (rows on \n, columns on \t). */
+export function parseClipboard(text: string): string[][] {
+  const lines = text.replace(/\r\n?/g, "\n").split("\n");
+  if (lines.length > 1 && lines[lines.length - 1] === "") lines.pop(); // trailing newline
+  return lines.map((line) => line.split("\t"));
+}
+
+/**
+ * Reduce a clipboard grid to a single line of numbers + its orientation: a lone
+ * row pastes across months (right); anything taller pastes down its first column.
+ */
+export function flattenClipboard(cells: string[][]): {
+  values: (number | null)[];
+  orientation: "down" | "right";
+} {
+  if (cells.length === 1) {
+    return { values: cells[0].map(parsePastedNumber), orientation: "right" };
+  }
+  return { values: cells.map((r) => parsePastedNumber(r[0] ?? "")), orientation: "down" };
+}
+
+export type PasteField = "budget" | "actual";
+
+/** A cell the paste could land on, with whether it accepts an edit. */
+export interface PasteCandidate {
+  month: string;
+  metricKey: string;
+  field: PasteField;
+  editable: boolean;
+}
+
+/** A resolved write: the display value to set on an editable cell. */
+export interface PasteTarget {
+  month: string;
+  metricKey: string;
+  field: PasteField;
+  value: number | null; // DISPLAY units — caller converts to native via metric.ore
+}
+
+/**
+ * Zip pasted values onto candidate cells in order, assigning to consecutive
+ * EDITABLE cells only (synced/future cells are skipped without consuming a
+ * value, so the column lands where the user can actually type).
+ */
+export function planPaste(
+  values: (number | null)[],
+  candidates: PasteCandidate[]
+): PasteTarget[] {
+  const out: PasteTarget[] = [];
+  let vi = 0;
+  for (const c of candidates) {
+    if (vi >= values.length) break;
+    if (!c.editable) continue;
+    out.push({ month: c.month, metricKey: c.metricKey, field: c.field, value: values[vi] });
+    vi++;
+  }
+  return out;
+}
