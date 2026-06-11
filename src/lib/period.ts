@@ -24,6 +24,23 @@ function formatMonthLabel(ym: string): string {
   return date.toLocaleDateString("en-US", { month: "short", year: "numeric" });
 }
 
+/**
+ * Whole days elapsed from an ISO date up until `now` (deal age in the sales
+ * cycle). Returns null for null/empty/unparseable input. Future dates clamp
+ * to 0 (never negative). `now` is injectable for deterministic tests.
+ */
+export function daysSince(
+  dateStr: string | null | undefined,
+  now: number = Date.now()
+): number | null {
+  if (!dateStr) return null;
+  const then = new Date(dateStr).getTime();
+  if (Number.isNaN(then)) return null;
+  const diffMs = now - then;
+  if (diffMs <= 0) return 0;
+  return Math.floor(diffMs / 86_400_000); // 1000 * 60 * 60 * 24
+}
+
 // ---------------------------------------------------------------------------
 // Period resolution
 // ---------------------------------------------------------------------------

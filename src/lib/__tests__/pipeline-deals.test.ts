@@ -66,4 +66,28 @@ describe("buildStoredDeals", () => {
     expect(d.is_won).toBe(false);
     expect(d.probability).toBe(0.3);
   });
+
+  it("carries createdate and last-modified date through to the stored deal", () => {
+    const deals = [
+      buildHubSpotDeal({
+        dealstage: "stage-1",
+        createdate: "2026-01-10T08:00:00Z",
+        hs_lastmodifieddate: "2026-03-02T10:00:00Z",
+      }),
+    ] as unknown as HubSpotDeal[];
+
+    const [d] = buildStoredDeals(deals, STAGES);
+    expect(d.createdate).toBe("2026-01-10T08:00:00Z");
+    expect(d.updateddate).toBe("2026-03-02T10:00:00Z");
+  });
+
+  it("coalesces missing createdate/last-modified to null", () => {
+    const deals = [
+      buildHubSpotDeal({ dealstage: "stage-1" }),
+    ] as unknown as HubSpotDeal[];
+
+    const [d] = buildStoredDeals(deals, STAGES);
+    expect(d.createdate).toBeNull();
+    expect(d.updateddate).toBeNull();
+  });
 });

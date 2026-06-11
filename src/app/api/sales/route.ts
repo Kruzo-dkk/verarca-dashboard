@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getPipelineStages } from "@/lib/hubspot";
+import { daysSince } from "@/lib/period";
+import { computeEmployeeComparison } from "@/lib/employee-comparison";
 import type {
   SalesDashboardData,
   SalesTargets,
@@ -13,6 +15,7 @@ import type {
   OwnerActivity,
   LeaderboardEntry,
   DealOutcome,
+  EmployeeComparison,
 } from "@/lib/types/sales";
 
 export async function GET(request: NextRequest) {
@@ -96,6 +99,8 @@ export async function GET(request: NextRequest) {
     isWon: boolean;
     displayOrder: number;
     hubspot_owner_id?: string;
+    createdDate: string | null;
+    updatedDate: string | null;
   }> = [];
 
   if (pipeline?.deals_json) {
@@ -116,6 +121,8 @@ export async function GET(request: NextRequest) {
         probability?: number | string | null;
         is_closed?: boolean;
         is_won?: boolean;
+        createdate?: string | null;
+        updateddate?: string | null;
       };
       const stage = stageMap.get(deal.stage ?? "");
       const probability =
@@ -138,6 +145,8 @@ export async function GET(request: NextRequest) {
         isWon,
         displayOrder: stage?.displayOrder ?? 999,
         hubspot_owner_id: deal.owner_id ?? undefined,
+        createdDate: deal.createdate ?? null,
+        updatedDate: deal.updateddate ?? null,
       });
     }
   }
@@ -157,6 +166,9 @@ export async function GET(request: NextRequest) {
       closeDate: d.closedate,
       daysToClose: d.days_to_close ? parseInt(d.days_to_close) : null,
       ownerName: ownerName(d.hubspot_owner_id),
+      createdDate: d.createdDate,
+      updatedDate: d.updatedDate,
+      ageDays: daysSince(d.createdDate, now.getTime()),
     });
     stageGroups.set(d.dealstage, list);
   }
@@ -274,6 +286,28 @@ export async function GET(request: NextRequest) {
     })
     .sort((a, b) => b.mrrClosed - a.mrrClosed);
 
+  // ── Employee comparison ────────────────────────────────────────
+  // Reuses rawDeals (pipeline) + byOwner (activity) so every owner with a deal
+  // or any activity gets a row, compared across pipeline, win, and effort metrics.
+  const employeeComparison: EmployeeComparison[] = computeEmployeeComparison(
+    rawDeals.map((d) => ({
+      ownerId: d.hubspot_owner_id ?? null,
+      amount: d.amount,
+      probability: d.probability,
+      isClosed: d.isClosed,
+      isWon: d.isWon,
+      createdDate: d.createdDate,
+    })),
+    byOwner.map((o) => ({
+      ownerId: o.ownerId,
+      ownerName: o.ownerName,
+      totalActivities:
+        o.thisMonth.calls + o.thisMonth.meetings + o.thisMonth.emails,
+    })),
+    (id) => ownerName(id) ?? id,
+    now.getTime()
+  );
+
   // ── Recent outcomes ────────────────────────────────────────────
   const closedDeals = rawDeals.filter((d) => d.isClosed && d.closedate);
 
@@ -306,6 +340,7 @@ export async function GET(request: NextRequest) {
     leaderboard,
     recentWins,
     recentLosses,
+    employeeComparison,
   };
 
   return NextResponse.json(data);

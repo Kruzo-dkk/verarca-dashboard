@@ -2,17 +2,13 @@
 
 import { GlassCard } from "@/components/ui/GlassCard";
 import { useSalesContext } from "./SalesProvider";
-
-function formatDKK(ore: number): string {
-  const kr = ore / 100;
-  return `kr ${kr.toLocaleString("da-DK", { maximumFractionDigits: 0 })}`;
-}
-
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "-";
-  const d = new Date(dateStr);
-  return d.toLocaleDateString("da-DK", { day: "numeric", month: "short" });
-}
+import {
+  formatDKK,
+  formatDate,
+  formatDealAge,
+  formatPercent01,
+} from "@/lib/sales-format";
+import type { SalesDeal, StageGroup } from "@/lib/types/sales";
 
 export function PipelineBoard() {
   const { data } = useSalesContext();
@@ -24,101 +20,104 @@ export function PipelineBoard() {
   );
 
   return (
-    <GlassCard>
-      <h2 className="section-heading mb-4">Pipeline</h2>
+    <div className="space-y-4">
+      <h2 className="section-heading">Pipeline</h2>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-[11px] uppercase tracking-wider text-[var(--text-muted)] border-b border-[var(--bg-secondary)]">
-              <th className="text-left py-2 pr-4 font-medium">Deal</th>
-              <th className="text-right py-2 px-2 font-medium">Amount</th>
-              <th className="text-right py-2 px-2 font-medium">Close Date</th>
-              <th className="text-right py-2 pl-2 font-medium">Prob.</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sortedStages.map((stage) => {
-              const sortedDeals = [...stage.deals].sort(
-                (a, b) => b.amount - a.amount
-              );
-              return (
-                <StageSection key={stage.stageId} stage={stage}>
-                  {sortedDeals.map((deal) => (
-                    <tr
-                      key={deal.id}
-                      className="border-b border-[var(--bg-secondary)]/50 hover:bg-[var(--bg-secondary)]/30 transition-colors"
-                    >
-                      <td className="py-1.5 pr-4">
-                        <span className="truncate block max-w-[200px] text-[var(--text-primary)]">
-                          {deal.name}
-                        </span>
-                        {deal.ownerName && (
-                          <span className="text-[11px] text-[var(--text-muted)]">
-                            {deal.ownerName}
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-1.5 px-2 text-right tabular-nums text-[var(--text-primary)]">
-                        {formatDKK(deal.amount)}
-                      </td>
-                      <td className="py-1.5 px-2 text-right tabular-nums text-[var(--text-muted)]">
-                        {formatDate(deal.closeDate)}
-                      </td>
-                      <td className="py-1.5 pl-2 text-right tabular-nums text-[var(--text-muted)]">
-                        {Math.round(deal.probability * 100)}%
-                      </td>
-                    </tr>
-                  ))}
-                </StageSection>
-              );
-            })}
-          </tbody>
-          <tfoot>
-            <tr className="border-t-2 border-[var(--bg-secondary)] font-medium text-[var(--text-primary)]">
-              <td className="py-2 pr-4">
-                Total ({pipeline.dealCount} deals)
-              </td>
-              <td className="py-2 px-2 text-right tabular-nums">
-                {formatDKK(pipeline.totalValue)}
-              </td>
-              <td className="py-2 px-2 text-right text-[11px] text-[var(--text-muted)]">
-                weighted
-              </td>
-              <td className="py-2 pl-2 text-right tabular-nums">
-                {formatDKK(pipeline.weightedValue)}
-              </td>
-            </tr>
-          </tfoot>
-        </table>
+      {sortedStages.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {sortedStages.map((stage) => (
+            <StagePane key={stage.stageId} stage={stage} />
+          ))}
+        </div>
+      ) : (
+        <GlassCard>
+          <p className="text-sm text-[var(--text-muted)] py-4 text-center">
+            No open deals in the pipeline
+          </p>
+        </GlassCard>
+      )}
+
+      {/* Footer totals — full width, preserves the old tfoot semantics */}
+      <GlassCard className="flex flex-wrap items-center justify-between gap-2">
+        <span className="font-medium text-[var(--text-primary)]">
+          Total ({pipeline.dealCount} deals)
+        </span>
+        <div className="flex items-center gap-4 tabular-nums">
+          <span className="text-[var(--text-primary)] font-medium">
+            {formatDKK(pipeline.totalValue)}
+          </span>
+          <span className="text-[11px] uppercase tracking-wider text-[var(--text-muted)]">
+            weighted
+          </span>
+          <span className="text-[var(--text-primary)] font-medium">
+            {formatDKK(pipeline.weightedValue)}
+          </span>
+        </div>
+      </GlassCard>
+    </div>
+  );
+}
+
+function StagePane({ stage }: { stage: StageGroup }) {
+  const sortedDeals = [...stage.deals].sort((a, b) => b.amount - a.amount);
+
+  return (
+    <GlassCard className="flex flex-col">
+      <div className="flex items-baseline justify-between gap-2 mb-3">
+        <h3 className="text-sm font-medium text-[var(--text-primary)] truncate">
+          {stage.label}
+        </h3>
+        <span className="text-[11px] text-[var(--text-muted)] tabular-nums whitespace-nowrap">
+          {stage.deals.length} deals &middot; {formatDKK(stage.totalValue)}
+        </span>
       </div>
+
+      {sortedDeals.length > 0 ? (
+        <div className="flex flex-col divide-y divide-[var(--bg-secondary)]/50 max-h-[22rem] overflow-y-auto">
+          {sortedDeals.map((deal) => (
+            <DealCard key={deal.id} deal={deal} />
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-[var(--text-muted)] py-4 text-center">
+          No deals
+        </p>
+      )}
     </GlassCard>
   );
 }
 
-function StageSection({
-  stage,
-  children,
-}: {
-  stage: { stageId: string; label: string; totalValue: number; deals: { id: string }[] };
-  children: React.ReactNode;
-}) {
+function DealCard({ deal }: { deal: SalesDeal }) {
   return (
-    <>
-      <tr className="bg-[var(--bg-secondary)]/40">
-        <td
-          colSpan={4}
-          className="py-2 px-1 font-medium text-xs text-[var(--text-primary)]"
-        >
-          <div className="flex items-center justify-between">
-            <span>{stage.label}</span>
-            <span className="text-[11px] text-[var(--text-muted)] tabular-nums">
-              {stage.deals.length} deals &middot; {formatDKK(stage.totalValue)}
-            </span>
-          </div>
-        </td>
-      </tr>
-      {children}
-    </>
+    <div className="py-2 hover:bg-[var(--bg-secondary)]/30 transition-colors">
+      {/* Primary line: name + amount */}
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="truncate text-sm text-[var(--text-primary)]">
+          {deal.name}
+        </span>
+        <span className="tabular-nums text-sm font-medium text-[var(--text-primary)] whitespace-nowrap">
+          {formatDKK(deal.amount)}
+        </span>
+      </div>
+
+      {/* Secondary line: owner · created · age · probability */}
+      <div className="flex items-center justify-between gap-2 mt-0.5">
+        <span className="text-[11px] text-[var(--text-muted)] truncate">
+          {deal.ownerName ?? "Unassigned"} &middot; oprettet{" "}
+          {formatDate(deal.createdDate)} &middot; {formatDealAge(deal.ageDays)}
+        </span>
+        <span className="text-[11px] text-[var(--text-muted)] tabular-nums whitespace-nowrap">
+          {formatPercent01(deal.probability)}
+        </span>
+      </div>
+
+      {/* Tertiary line: close date + last update (subtle) */}
+      <div className="flex items-center justify-between gap-2 mt-0.5 text-[10px] text-[var(--text-muted)]/70">
+        <span>lukker {formatDate(deal.closeDate)}</span>
+        <span className="whitespace-nowrap">
+          opdateret {formatDate(deal.updatedDate)}
+        </span>
+      </div>
+    </div>
   );
 }

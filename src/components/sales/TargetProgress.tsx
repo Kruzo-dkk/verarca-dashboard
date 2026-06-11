@@ -2,11 +2,7 @@
 
 import { GlassCard } from "@/components/ui/GlassCard";
 import { useSalesContext } from "./SalesProvider";
-
-function formatDKK(ore: number): string {
-  const kr = ore / 100;
-  return `kr ${kr.toLocaleString("da-DK", { maximumFractionDigits: 0 })}`;
-}
+import { formatDKK } from "@/lib/sales-format";
 
 function ProgressRing({
   progress,

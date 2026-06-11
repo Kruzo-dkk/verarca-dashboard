@@ -5,6 +5,7 @@ import { TargetProgress } from "./TargetProgress";
 import { PipelineBoard } from "./PipelineBoard";
 import { ActivityFeed } from "./ActivityFeed";
 import { Leaderboard } from "./Leaderboard";
+import { EmployeeComparison } from "./EmployeeComparison";
 import { RecentOutcomes } from "./RecentOutcomes";
 import { TVModeWrapper } from "./TVModeWrapper";
 import { GlassCard } from "@/components/ui/GlassCard";
@@ -33,6 +34,7 @@ export function SalesDashboard() {
         <ActivityFeed />
         <Leaderboard />
       </div>
+      <EmployeeComparison />
       <PipelineBoard />
       <RecentOutcomes />
     </div>
