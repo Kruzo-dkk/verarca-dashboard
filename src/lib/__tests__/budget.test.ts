@@ -13,6 +13,10 @@ import {
   attainmentPct,
   prefillBudget,
   BUDGET_METRICS,
+  signedVariancePct,
+  varianceBucket,
+  heatScale,
+  monthExceptions,
 } from "../budget";
 
 // ─── Month arithmetic ────────────────────────────────────────────
@@ -163,5 +167,107 @@ describe("BUDGET_METRICS registry", () => {
       if (m.unit === "kr") expect(m.ore).toBe(true);
       else expect(m.ore).toBe(false);
     }
+  });
+});
+
+
+// ─── Variance / heat / exceptions ────────────────────────────────
+
+const metricByKey = (k: string) => BUDGET_METRICS.find((m) => m.key === k)!;
+
+describe("BUDGET_METRICS goodDirection", () => {
+  it("assigns a goodDirection to every metric", () => {
+    for (const m of BUDGET_METRICS) {
+      expect(["higher", "lower", "neutral"]).toContain(m.goodDirection);
+    }
+  });
+  it("burn/COGS/CAC are lower-is-better; MRR/margin/activity higher; headcount neutral", () => {
+    expect(metricByKey("monthly_burn").goodDirection).toBe("lower");
+    expect(metricByKey("total_cac").goodDirection).toBe("lower");
+    expect(metricByKey("gross_margin_pct").goodDirection).toBe("higher");
+    expect(metricByKey("target_new_mrr").goodDirection).toBe("higher");
+    expect(metricByKey("employee_count").goodDirection).toBe("neutral");
+  });
+});
+
+describe("signedVariancePct", () => {
+  it("is positive when actual exceeds budget", () => {
+    expect(signedVariancePct(110, 100)).toBe(10);
+  });
+  it("is negative when actual is below budget", () => {
+    expect(signedVariancePct(80, 100)).toBe(-20);
+  });
+  it("returns null for missing/zero budget or missing actual", () => {
+    expect(signedVariancePct(100, 0)).toBeNull();
+    expect(signedVariancePct(100, null)).toBeNull();
+    expect(signedVariancePct(null, 100)).toBeNull();
+  });
+});
+
+describe("varianceBucket", () => {
+  it("higher-is-better: above tolerance = good, below = bad/warn", () => {
+    expect(varianceBucket("higher", 15)).toBe("good");
+    expect(varianceBucket("higher", -15)).toBe("bad");
+    expect(varianceBucket("higher", -5)).toBe("warn");
+    expect(varianceBucket("higher", 5)).toBe("neutral"); // on/ahead within tol
+  });
+  it("lower-is-better flips: under budget = good, over = bad/warn", () => {
+    expect(varianceBucket("lower", -15)).toBe("good");
+    expect(varianceBucket("lower", 15)).toBe("bad");
+    expect(varianceBucket("lower", 5)).toBe("warn");
+  });
+  it("neutral direction or null variance is neutral", () => {
+    expect(varianceBucket("neutral", 50)).toBe("neutral");
+    expect(varianceBucket("higher", null)).toBe("neutral");
+  });
+  it("respects a custom tolerance", () => {
+    expect(varianceBucket("higher", 8, 5)).toBe("good");
+    expect(varianceBucket("higher", 8, 20)).toBe("neutral");
+  });
+});
+
+describe("heatScale", () => {
+  it("neutral bucket → no tint", () => {
+    expect(heatScale("neutral", 50).opacity).toBe(0);
+    expect(heatScale("higher", null).opacity).toBe(0);
+    expect(heatScale("higher", 3).opacity).toBe(0);
+  });
+  it("opacity grows with magnitude and caps at 0.45", () => {
+    const small = heatScale("lower", 15).opacity;
+    const big = heatScale("lower", 120).opacity;
+    expect(small).toBeGreaterThan(0);
+    expect(big).toBe(0.45);
+    expect(big).toBeGreaterThan(small);
+  });
+  it("carries the direction-aware bucket", () => {
+    expect(heatScale("lower", -30).bucket).toBe("good");
+    expect(heatScale("higher", -30).bucket).toBe("bad");
+  });
+});
+
+describe("monthExceptions", () => {
+  it("returns only off-plan metrics, worst first (bad before warn, then |variance|)", () => {
+    const rows = [
+      { metric: metricByKey("monthly_burn"), budget: 100, actual: 130 },    // +30% → bad
+      { metric: metricByKey("target_new_mrr"), budget: 100, actual: 95 },   // -5%  → warn
+      { metric: metricByKey("gross_margin_pct"), budget: 50, actual: 70 },  // +40% → good (omit)
+      { metric: metricByKey("target_new_logos"), budget: 100, actual: 60 }, // -40% → bad
+      { metric: metricByKey("employee_count"), budget: 10, actual: 4 },     // neutral (omit)
+    ];
+    const ex = monthExceptions(rows);
+    expect(ex.map((e) => e.metricKey)).toEqual([
+      "target_new_logos",
+      "monthly_burn",
+      "target_new_mrr",
+    ]);
+    expect(ex[0].severity).toBe("bad");
+    expect(ex[2].severity).toBe("warn");
+  });
+  it("is empty when everything is on or ahead of plan", () => {
+    const rows = [
+      { metric: metricByKey("monthly_burn"), budget: 100, actual: 90 },     // under → good
+      { metric: metricByKey("target_new_mrr"), budget: 100, actual: 105 },  // ahead → neutral
+    ];
+    expect(monthExceptions(rows)).toEqual([]);
   });
 });
