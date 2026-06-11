@@ -4,57 +4,6 @@ import { GlassCard } from "@/components/ui/GlassCard";
 import { useSalesContext } from "./SalesProvider";
 import { formatDKK } from "@/lib/sales-format";
 
-function ProgressRing({
-  progress,
-  size = 80,
-  strokeWidth = 6,
-  muted = false,
-}: {
-  progress: number;
-  size?: number;
-  strokeWidth?: number;
-  /** No target set — render a neutral gray ring instead of a failing red one. */
-  muted?: boolean;
-}) {
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const offset =
-    circumference - (Math.min(progress, 100) / 100) * circumference;
-  const color = muted
-    ? "#9ca3af"
-    : progress >= 80
-      ? "#10b981"
-      : progress >= 50
-        ? "#f59e0b"
-        : "#ef4444";
-
-  return (
-    <svg width={size} height={size} className="transform -rotate-90">
-      <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={radius}
-        stroke="currentColor"
-        strokeWidth={strokeWidth}
-        fill="none"
-        className="text-[var(--bg-secondary)]"
-      />
-      <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={radius}
-        stroke={color}
-        strokeWidth={strokeWidth}
-        fill="none"
-        strokeDasharray={circumference}
-        strokeDashoffset={offset}
-        strokeLinecap="round"
-        className="transition-all duration-700"
-      />
-    </svg>
-  );
-}
-
 interface TargetItem {
   label: string;
   actual: number;
@@ -101,9 +50,6 @@ export function TargetProgress() {
     },
   ];
 
-  const ringSize = tvMode ? 120 : 80;
-  const ringStroke = tvMode ? 8 : 6;
-
   return (
     <GlassCard>
       <h2 className="section-heading mb-4">Monthly Targets</h2>
@@ -117,55 +63,71 @@ export function TargetProgress() {
             item.format === "dkk"
               ? formatDKK(item.actual)
               : item.actual.toLocaleString("da-DK");
-          const targetStr =
-            item.format === "dkk"
-              ? formatDKK(item.target)
-              : item.target.toLocaleString("da-DK");
+
+          // The bar/percent is the secondary cue, so colour stays subtle but
+          // still signals attainment: green ≥80%, amber ≥50%, else red.
+          const barColor =
+            progress >= 80 ? "#10b981" : progress >= 50 ? "#f59e0b" : "#ef4444";
+          const pctClass =
+            progress >= 80
+              ? "text-emerald-500"
+              : progress >= 50
+                ? "text-amber-500"
+                : "text-red-500";
 
           return (
-            <div
-              key={item.label}
-              className="flex flex-col items-center gap-2 py-2"
-            >
-              <div className="relative">
-                <ProgressRing
-                  progress={progress}
-                  size={ringSize}
-                  strokeWidth={ringStroke}
-                  muted={!hasTarget}
-                />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span
-                    className={`font-semibold tabular-nums ${
-                      tvMode ? "text-lg" : "text-sm"
-                    } ${
-                      !hasTarget
-                        ? "text-[var(--text-muted)]"
-                        : progress >= 80
-                          ? "text-emerald-500"
-                          : progress >= 50
-                            ? "text-amber-500"
-                            : "text-red-500"
-                    }`}
-                  >
-                    {hasTarget ? `${progress}%` : "—"}
-                  </span>
-                </div>
-              </div>
+            <div key={item.label} className="flex flex-col gap-1.5 py-1">
+              {/* Label — quiet caption above the figure */}
               <span
-                className={`font-medium text-[var(--text-primary)] ${
-                  tvMode ? "text-base" : "text-xs"
+                className={`text-[var(--text-muted)] ${
+                  tvMode ? "text-sm" : "text-[11px]"
                 }`}
               >
                 {item.label}
               </span>
+
+              {/* The number — the headline */}
               <span
-                className={`text-[var(--text-muted)] tabular-nums ${
-                  tvMode ? "text-sm" : "text-[11px]"
+                className={`font-semibold tabular-nums text-[var(--text-primary)] leading-tight ${
+                  tvMode ? "text-3xl" : "text-lg sm:text-xl"
                 }`}
               >
-                {actualStr} / {hasTarget ? targetStr : "ingen mål"}
+                {actualStr}
               </span>
+
+              {/* Target attainment — the bi-ting: thin bar + small % */}
+              {hasTarget ? (
+                <div className="flex items-center gap-2">
+                  <div
+                    className={`flex-1 rounded-full bg-[var(--bg-secondary)] overflow-hidden ${
+                      tvMode ? "h-2" : "h-1.5"
+                    }`}
+                  >
+                    <div
+                      className="h-full rounded-full transition-all duration-700"
+                      style={{
+                        width: `${Math.min(progress, 100)}%`,
+                        backgroundColor: barColor,
+                      }}
+                    />
+                  </div>
+                  <span
+                    className={`tabular-nums shrink-0 ${pctClass} ${
+                      tvMode ? "text-sm" : "text-[11px]"
+                    }`}
+                  >
+                    {progress}%
+                  </span>
+                </div>
+              ) : (
+                <span
+                  className={`text-[var(--text-muted)]/70 ${
+                    tvMode ? "text-sm" : "text-[11px]"
+                  }`}
+                >
+                  ingen mål
+                </span>
+              )}
             </div>
           );
         })}
