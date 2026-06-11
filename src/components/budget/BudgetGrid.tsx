@@ -75,7 +75,7 @@ function formatValue(value: number | null, metric: BudgetMetric): string {
 
 function colClasses(kind: PeriodKind, isCurrent: boolean): string {
   if (kind === "year") return "border-l-2 border-gray-300 bg-gray-100";
-  if (kind === "quarter") return "border-l border-gray-200 bg-gray-50";
+  if (kind === "quarter") return "border-l border-blue-200 bg-blue-50";
   if (kind === "ytd") return "border-l border-emerald-200 bg-emerald-50";
   return isCurrent ? "bg-gray-50" : "";
 }
