@@ -436,6 +436,15 @@ describe("decomposeMRR", () => {
     expect(result.netNewMRR).toBe(8_000 + 5_000 - 2_000 - 5_000); // 6000
   });
 
+  it("counts paying new logos (mrr>0), excluding zero-MRR new signups", () => {
+    const prev = [snap("A", 10_000)];
+    const curr = [snap("A", 10_000), snap("B", 8_000), snap("Z", 0)];
+    // B = new paying (+8K); Z = new but zero-MRR → not paying, not in newMRR
+    const result = decomposeMRR(curr, prev);
+    expect(result.newMRR).toBe(8_000);
+    expect(result.newPayingLogos).toBe(1);
+  });
+
   it("returns all zeros when snapshots are identical", () => {
     const both = [snap("A", 10_000)];
     const result = decomposeMRR(both, both);

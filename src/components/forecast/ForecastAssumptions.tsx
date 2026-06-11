@@ -22,11 +22,20 @@ const FIELDS: {
   min: number;
   max?: number;
   format?: "currency";
+  hint?: string;
 }[] = [
   { key: "monthlyChurnPct", label: "Monthly Churn", suffix: "%", step: "0.1", min: 0, max: 100 },
   { key: "monthlyExpansionPct", label: "Monthly Expansion", suffix: "%", step: "0.1", min: 0, max: 100 },
   { key: "newLogosPerMonth", label: "New Logos / Month", suffix: "", step: "1", min: 0 },
-  { key: "avgNewDealSize", label: "Avg Deal Size", suffix: "", step: "1", min: 0, format: "currency" },
+  {
+    key: "avgNewDealSize",
+    label: "Avg new-deal MRR",
+    suffix: "",
+    step: "1",
+    min: 0,
+    format: "currency",
+    hint: "Average MRR of a new deal over the window = new MRR ÷ new logos. New-business economics — distinct from blended ARPA; new deals typically land below ARPA and expand over time.",
+  },
   { key: "pipelineConversionPct", label: "Pipeline Conversion", suffix: "%", step: "1", min: 0, max: 100 },
 ];
 
@@ -141,6 +150,11 @@ export function ForecastAssumptions({ assumptions, formatValue, onSave, onReset 
                   {field.label}
                   {field.suffix === "%" && (
                     <span className="text-[var(--text-muted)] ml-0.5 text-xs"> (%)</span>
+                  )}
+                  {field.hint && (
+                    <span className="ml-1 text-[var(--text-muted)] cursor-help" title={field.hint}>
+                      ⓘ
+                    </span>
                   )}
                 </td>
                 {SCENARIO_ORDER.map((s) => {
@@ -257,8 +271,9 @@ export function ForecastAssumptions({ assumptions, formatValue, onSave, onReset 
 
                   return (
                     <div key={field.key} className="flex items-center justify-between gap-3">
-                      <label className="text-xs text-[var(--text-muted)] shrink-0">
+                      <label className="text-xs text-[var(--text-muted)] shrink-0" title={field.hint}>
                         {field.label}
+                        {field.hint && <span className="ml-1 cursor-help">ⓘ</span>}
                       </label>
                       {row.readOnly ? (
                         <span className="text-sm font-medium text-[var(--text-primary)]">

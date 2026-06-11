@@ -176,6 +176,30 @@ describe("computePredictedAssumptions", () => {
     expect(assumptions.pipelineConversionPct).toBe(35);
   });
 
+  it("uses PAYING new logos (mrr>0) for the deal-size denominator", () => {
+    // 5 rows → 4 transitions; 6 new logos/mo but only 3 paying; new_mrr 180,000/mo.
+    const trailing: TrailingSnapshot[] = [
+      "2025-12", "2026-01", "2026-02", "2026-03", "2026-04",
+    ].map((m) => snap(m, { new_logos: 6, new_paying_logos: 3, new_mrr: 180_000 }));
+    const { assumptions } = computePredictedAssumptions(trailing, 20);
+    // 12 paying logos / 4 mo = 3/mo; 720,000 new_mrr / 12 paying = 60,000 (not /24 = 30,000)
+    expect(assumptions.newLogosPerMonth).toBeCloseTo(3, 6);
+    expect(assumptions.avgNewDealSize).toBe(60_000);
+    // invariant: newLogosPerMonth × avgNewDealSize × months === Σ new_mrr
+    expect(
+      Math.round(assumptions.newLogosPerMonth * assumptions.avgNewDealSize * 4)
+    ).toBe(720_000);
+  });
+
+  it("falls back to all new_logos when new_paying_logos is absent (un-backfilled)", () => {
+    const trailing: TrailingSnapshot[] = [
+      "2025-12", "2026-01", "2026-02", "2026-03", "2026-04",
+    ].map((m) => snap(m, { new_logos: 6, new_mrr: 180_000 }));
+    const { assumptions } = computePredictedAssumptions(trailing, 20);
+    expect(assumptions.newLogosPerMonth).toBeCloseTo(6, 6);
+    expect(assumptions.avgNewDealSize).toBe(30_000); // 720,000 / 24 all-logos
+  });
+
   it("falls back to defaults with <3 months of history", () => {
     const trailing = [snap("2026-02", { arpa: 40_000 }), snap("2026-03", { arpa: 40_000 })];
     const { assumptions, sufficientHistory } = computePredictedAssumptions(trailing, null);

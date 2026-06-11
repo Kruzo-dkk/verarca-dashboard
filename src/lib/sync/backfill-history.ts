@@ -327,6 +327,7 @@ export async function backfillHistory(
         quick_ratio: m.quickRatio,
         customer_count: m.customerCount,
         new_logos: m.newLogos,
+        new_paying_logos: m.newPayingLogos,
         churned_logos: m.churnedLogos,
         arpa: m.arpa,
         top10_concentration: m.top10Concentration,

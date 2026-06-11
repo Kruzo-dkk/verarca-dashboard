@@ -400,6 +400,9 @@ export interface MRRDecomposition {
   contractionMRR: number;
   churnedMRR: number;
   netNewMRR: number;
+  /** New customers (decomposition basis) with mrr > 0 — the paying new logos.
+   *  Optional: only the snapshot/sync path sets it. */
+  newPayingLogos?: number;
 }
 
 export interface CustomerMRRSnapshot {
@@ -449,6 +452,7 @@ export function decomposeMRR(
   let expansionMRR = 0;
   let contractionMRR = 0;
   let churnedMRR = 0;
+  let newPayingLogos = 0;
 
   for (const [id, c] of currMap) {
     const prevMrr = prevMap.get(id);
@@ -456,6 +460,7 @@ export function decomposeMRR(
       if (prevMrr !== undefined) churnedMRR += prevMrr;
     } else if (prevMrr === undefined) {
       newMRR += c.mrr;
+      if (c.mrr > 0) newPayingLogos++;
     } else if (c.mrr > prevMrr) {
       expansionMRR += c.mrr - prevMrr;
     } else if (c.mrr < prevMrr) {
@@ -474,6 +479,7 @@ export function decomposeMRR(
     contractionMRR,
     churnedMRR,
     netNewMRR: newMRR + expansionMRR - contractionMRR - churnedMRR,
+    newPayingLogos,
   };
 }
 
