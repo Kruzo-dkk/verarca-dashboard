@@ -370,3 +370,55 @@ export function planPaste(
   }
   return out;
 }
+
+
+// ─── Cash runway ──────────────────────────────────────────────
+
+/** A month and the projected cash balance entering it (DKK øre). */
+export interface CashPoint {
+  month: string;
+  cash: number;
+}
+
+/**
+ * Project the cash balance forward from `startingCashOre` at `startMonth`,
+ * subtracting each month's burn. `burnByMonth` is keyed YYYY-MM (øre, positive =
+ * cash out); months absent from it burn 0. The first point is `startMonth` at
+ * the full starting balance, then `cash[m] = startCash − Σ burn[startMonth..m-1]`.
+ */
+export function projectCashRunway(
+  startingCashOre: number,
+  startMonth: string,
+  burnByMonth: Record<string, number>,
+  horizon = 24
+): CashPoint[] {
+  const out: CashPoint[] = [{ month: startMonth, cash: startingCashOre }];
+  let cash = startingCashOre;
+  let m = startMonth;
+  for (let i = 0; i < horizon; i++) {
+    cash -= burnByMonth[m] ?? 0;
+    m = addMonths(m, 1);
+    out.push({ month: m, cash });
+  }
+  return out;
+}
+
+/**
+ * Months of runway = cash ÷ average monthly burn (1 dp). null when not burning
+ * (avg ≤ 0) — runway is effectively infinite.
+ */
+export function monthsOfRunway(
+  startingCashOre: number,
+  avgMonthlyBurnOre: number
+): number | null {
+  if (avgMonthlyBurnOre <= 0) return null;
+  return Math.round((startingCashOre / avgMonthlyBurnOre) * 10) / 10;
+}
+
+/** First month in a cash series where the balance is ≤ 0, else null. */
+export function cashZeroMonth(series: CashPoint[]): string | null {
+  for (const p of series) {
+    if (p.cash <= 0) return p.month;
+  }
+  return null;
+}

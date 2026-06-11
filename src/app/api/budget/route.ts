@@ -59,7 +59,7 @@ export async function GET() {
     admin
       .from("settings")
       .select(
-        "month, gross_margin_pct, monthly_cogs, monthly_burn, total_cac, cac_outbound, cac_partner, cac_inbound, employee_count"
+        "month, gross_margin_pct, monthly_cogs, monthly_burn, total_cac, cac_outbound, cac_partner, cac_inbound, employee_count, cash_on_hand"
       ),
     admin.from("monthly_snapshots").select("month, new_mrr, new_logos"),
     admin.from("pipeline_snapshots").select("month, total_pipeline_value"),
@@ -80,6 +80,13 @@ export async function GET() {
       if (v != null) row[k] = Number(v);
     }
     if (Object.keys(row).length) financeActuals[r.month] = row;
+  }
+
+  // Cash on hand per month (øre) — a manual/management figure (no ERP feed).
+  const cashByMonth: Record<string, number> = {};
+  for (const r of settingsRes.data ?? []) {
+    const v = (r as Record<string, unknown>).cash_on_hand;
+    if (v != null) cashByMonth[r.month] = Number(v);
   }
 
   const salesActuals: Record<string, Record<string, number>> = {};
@@ -144,6 +151,7 @@ export async function GET() {
     budgets,
     financeActuals,
     salesActuals,
+    cashByMonth,
   });
 }
 
@@ -194,6 +202,7 @@ export async function PUT(request: NextRequest) {
       monthly_cogs: e?.monthly_cogs ?? 0,
       gross_margin_pct: e?.gross_margin_pct ?? null,
       monthly_burn: e?.monthly_burn ?? null,
+      cash_on_hand: e?.cash_on_hand ?? null,
       notes: text,
     };
     const { error } = await admin
@@ -202,6 +211,35 @@ export async function PUT(request: NextRequest) {
     if (error) {
       console.error("notes upsert failed:", error);
       return NextResponse.json({ error: "Failed to save notes" }, { status: 500 });
+    }
+    return NextResponse.json({ ok: true });
+  }
+
+  // Cash on hand (per month, øre) → settings.cash_on_hand via read-merge-write.
+  if (field === "cash") {
+    const admin = createAdminClient();
+    const { data: e } = await admin
+      .from("settings")
+      .select("*")
+      .eq("month", month)
+      .maybeSingle();
+    const merged = {
+      month,
+      total_cac: e?.total_cac ?? 0,
+      cac_outbound: e?.cac_outbound ?? null,
+      cac_partner: e?.cac_partner ?? null,
+      cac_inbound: e?.cac_inbound ?? null,
+      employee_count: e?.employee_count ?? null,
+      monthly_cogs: e?.monthly_cogs ?? 0,
+      gross_margin_pct: e?.gross_margin_pct ?? null,
+      monthly_burn: e?.monthly_burn ?? null,
+      cash_on_hand: value,
+      notes: e?.notes ?? null,
+    };
+    const { error } = await admin.from("settings").upsert(merged, { onConflict: "month" });
+    if (error) {
+      console.error("cash upsert failed:", error);
+      return NextResponse.json({ error: "Failed to save cash" }, { status: 500 });
     }
     return NextResponse.json({ ok: true });
   }
@@ -252,6 +290,7 @@ export async function PUT(request: NextRequest) {
     monthly_cogs: e?.monthly_cogs ?? 0,
     gross_margin_pct: e?.gross_margin_pct ?? null,
     monthly_burn: e?.monthly_burn ?? null,
+    cash_on_hand: e?.cash_on_hand ?? null,
     notes: e?.notes ?? null,
   };
   (merged as Record<string, number | string | null>)[metricKey] = value;
