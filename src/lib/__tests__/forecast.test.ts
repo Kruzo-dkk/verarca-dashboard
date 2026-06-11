@@ -1,5 +1,33 @@
 import { describe, it, expect } from "vitest";
-import { projectScenario, type ForecastAssumptions } from "../forecast";
+import {
+  projectScenario,
+  computePredictedAssumptions,
+  deriveSuggestedBand,
+  clampPct,
+  PREDICTED_FALLBACK,
+  type ForecastAssumptions,
+  type TrailingSnapshot,
+} from "../forecast";
+
+// Build a trailing snapshot with sensible defaults; override per-test.
+function snap(month: string, over: Partial<TrailingSnapshot> = {}): TrailingSnapshot {
+  return {
+    month,
+    mrr: 1_000_000,
+    churned_mrr: 0,
+    contraction_mrr: 0,
+    expansion_mrr: 0,
+    new_mrr: 0,
+    new_logos: 0,
+    arpa: 50_000,
+    ...over,
+  };
+}
+
+const finalMrr = (a: ForecastAssumptions): number => {
+  const months = projectScenario(1_000_000, a, 12, "2026-03");
+  return months[months.length - 1].mrr;
+};
 
 const BASE_ASSUMPTIONS: ForecastAssumptions = {
   scenario: "base",
@@ -105,5 +133,169 @@ describe("projectScenario", () => {
     // Only new logos contribute
     expect(months[0].newLogoAmount).toBe(100_000);
     expect(months[0].mrr).toBe(100_000);
+  });
+});
+
+// ─── clampPct ────────────────────────────────────────────────────
+
+describe("clampPct", () => {
+  it("clamps to the 0–100 range", () => {
+    expect(clampPct(-5)).toBe(0);
+    expect(clampPct(150)).toBe(100);
+    expect(clampPct(42.5)).toBe(42.5);
+  });
+});
+
+// ─── computePredictedAssumptions ─────────────────────────────────
+
+describe("computePredictedAssumptions", () => {
+  it("derives MRR-weighted rates from a trailing window (gross churn incl. contraction)", () => {
+    // 7 rows → 6 month-transitions. Constant prior MRR of 1,000,000.
+    const trailing: TrailingSnapshot[] = [
+      "2025-09", "2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03",
+    ].map((m) =>
+      snap(m, {
+        mrr: 1_000_000,
+        churned_mrr: 25_000,
+        contraction_mrr: 5_000, // → 30,000 gross churn / 1,000,000 = 3.0%
+        expansion_mrr: 15_000, // → 1.5%
+        new_logos: 4,
+        new_mrr: 240_000, // 240,000 / 4 = 60,000 avg deal
+        arpa: 55_000,
+      })
+    );
+
+    const { assumptions, sufficientHistory } = computePredictedAssumptions(trailing, 35);
+
+    expect(sufficientHistory).toBe(true);
+    expect(assumptions.scenario).toBe("predicted");
+    expect(assumptions.monthlyChurnPct).toBeCloseTo(3.0, 6); // 2.0 without contraction
+    expect(assumptions.monthlyExpansionPct).toBeCloseTo(1.5, 6);
+    expect(assumptions.newLogosPerMonth).toBeCloseTo(4, 6);
+    expect(assumptions.avgNewDealSize).toBe(60_000);
+    expect(assumptions.pipelineConversionPct).toBe(35);
+  });
+
+  it("falls back to defaults with <3 months of history", () => {
+    const trailing = [snap("2026-02", { arpa: 40_000 }), snap("2026-03", { arpa: 40_000 })];
+    const { assumptions, sufficientHistory } = computePredictedAssumptions(trailing, null);
+
+    expect(sufficientHistory).toBe(false);
+    expect(assumptions.monthlyChurnPct).toBe(PREDICTED_FALLBACK.monthlyChurnPct);
+    expect(assumptions.monthlyExpansionPct).toBe(PREDICTED_FALLBACK.monthlyExpansionPct);
+    expect(assumptions.newLogosPerMonth).toBe(PREDICTED_FALLBACK.newLogosPerMonth);
+    expect(assumptions.avgNewDealSize).toBe(40_000); // latest arpa
+    expect(assumptions.pipelineConversionPct).toBe(20); // winRate null → 20
+  });
+
+  it("skips zero-prior-MRR months for rates without NaN", () => {
+    const trailing: TrailingSnapshot[] = [
+      snap("2026-01", { mrr: 0, arpa: 0 }), // tenant's first month
+      snap("2026-02", { mrr: 1_000_000, new_logos: 3, new_mrr: 150_000 }),
+      snap("2026-03", {
+        mrr: 1_000_000,
+        churned_mrr: 20_000,
+        expansion_mrr: 5_000,
+        new_logos: 1,
+        new_mrr: 50_000,
+      }),
+    ];
+
+    const { assumptions } = computePredictedAssumptions(trailing, 25);
+
+    expect(Number.isNaN(assumptions.monthlyChurnPct)).toBe(false);
+    // Only the 2026-03 transition has a positive prior MRR.
+    expect(assumptions.monthlyChurnPct).toBeCloseTo(2.0, 6);
+    expect(assumptions.monthlyExpansionPct).toBeCloseTo(0.5, 6);
+    // Run-rate counts both transitions: (3+1) logos / 2 months = 2.
+    expect(assumptions.newLogosPerMonth).toBeCloseTo(2, 6);
+    expect(assumptions.avgNewDealSize).toBe(50_000); // 200,000 / 4
+  });
+
+  it("falls back avgNewDealSize to ARPA when no new logos closed", () => {
+    const trailing = [
+      snap("2026-01", { mrr: 1_000_000, arpa: 70_000 }),
+      snap("2026-02", { mrr: 1_000_000, arpa: 70_000 }),
+      snap("2026-03", { mrr: 1_000_000, arpa: 70_000 }),
+    ];
+    const { assumptions } = computePredictedAssumptions(trailing, 10);
+    expect(assumptions.avgNewDealSize).toBe(70_000);
+    expect(assumptions.newLogosPerMonth).toBe(0);
+  });
+
+  it("clamps an extreme churn rate to 100%", () => {
+    const trailing = [
+      snap("2026-01", { mrr: 100_000 }),
+      snap("2026-02", { mrr: 100_000, churned_mrr: 200_000 }),
+      snap("2026-03", { mrr: 100_000, churned_mrr: 200_000 }),
+    ];
+    const { assumptions } = computePredictedAssumptions(trailing, 50);
+    expect(assumptions.monthlyChurnPct).toBe(100);
+  });
+});
+
+// ─── deriveSuggestedBand ─────────────────────────────────────────
+
+describe("deriveSuggestedBand", () => {
+  const predicted: ForecastAssumptions = {
+    scenario: "predicted",
+    monthlyChurnPct: 4,
+    monthlyExpansionPct: 2,
+    newLogosPerMonth: 4,
+    avgNewDealSize: 50_000,
+    pipelineConversionPct: 30,
+  };
+
+  it("applies the band multipliers and passes deal economics through", () => {
+    const worst = deriveSuggestedBand(predicted, "worst");
+    expect(worst.monthlyChurnPct).toBeCloseTo(6, 6); // ×1.5
+    expect(worst.monthlyExpansionPct).toBeCloseTo(1, 6); // ×0.5
+    expect(worst.newLogosPerMonth).toBeCloseTo(2, 6); // ×0.5
+    expect(worst.avgNewDealSize).toBe(50_000); // passthrough
+    expect(worst.pipelineConversionPct).toBe(30); // passthrough
+
+    const best = deriveSuggestedBand(predicted, "best");
+    expect(best.monthlyChurnPct).toBeCloseTo(2, 6); // ×0.5
+    expect(best.monthlyExpansionPct).toBeCloseTo(3.5, 6); // ×1.75
+    expect(best.newLogosPerMonth).toBeCloseTo(7, 6); // ×1.75
+  });
+
+  it("orders projected MRR worst ≤ predicted ≤ better ≤ best", () => {
+    const p: ForecastAssumptions = {
+      scenario: "predicted",
+      monthlyChurnPct: 3,
+      monthlyExpansionPct: 1.5,
+      newLogosPerMonth: 4,
+      avgNewDealSize: 50_000,
+      pipelineConversionPct: 20,
+    };
+    const worst = finalMrr(deriveSuggestedBand(p, "worst"));
+    const predictedMrr = finalMrr(p);
+    const better = finalMrr(deriveSuggestedBand(p, "better"));
+    const best = finalMrr(deriveSuggestedBand(p, "best"));
+
+    expect(worst).toBeLessThanOrEqual(predictedMrr);
+    expect(predictedMrr).toBeLessThanOrEqual(better);
+    expect(better).toBeLessThanOrEqual(best);
+  });
+
+  it("collapses all bands to predicted when there is no signal", () => {
+    const flat: ForecastAssumptions = {
+      scenario: "predicted",
+      monthlyChurnPct: 0,
+      monthlyExpansionPct: 0,
+      newLogosPerMonth: 0,
+      avgNewDealSize: 0,
+      pipelineConversionPct: 0,
+    };
+    const p = finalMrr(flat);
+    expect(finalMrr(deriveSuggestedBand(flat, "worst"))).toBe(p);
+    expect(finalMrr(deriveSuggestedBand(flat, "better"))).toBe(p);
+    expect(finalMrr(deriveSuggestedBand(flat, "best"))).toBe(p);
+  });
+
+  it("clamps a multiplied churn rate at 100%", () => {
+    const high: ForecastAssumptions = { ...predicted, monthlyChurnPct: 80 };
+    expect(deriveSuggestedBand(high, "worst").monthlyChurnPct).toBe(100); // 80 × 1.5 → clamp
   });
 });

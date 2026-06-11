@@ -33,12 +33,20 @@ export interface ForecastScenario {
   months: ForecastMonth[];
 }
 
+/** A scenario's assumptions plus UI metadata returned by the API. */
+export interface ScenarioAssumptionMeta extends ForecastAssumptions {
+  isCustom: boolean; // false for predicted and for uncustomized (suggested) bands
+  readOnly: boolean; // true only for predicted
+}
+
 export interface ForecastResult {
   historical: { month: string; mrr: number; arr: number }[];
   projections: ForecastScenario[];
-  assumptions: ForecastAssumptions[];
+  assumptions: ScenarioAssumptionMeta[]; // 4 entries: predicted, worst, better, best
   currentMRR: number;
   currentARPA: number;
+  sufficientHistory: boolean; // false → predicted falls back to defaults
+  predictedWindow: number; // trailing months used for the predicted derivation
 }
 
 interface PipelineDeal {
@@ -112,4 +120,146 @@ function addMonths(yearMonth: string, n: number): string {
   const [y, m] = yearMonth.split("-").map(Number);
   const d = new Date(y, m - 1 + n, 1);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+// ─── Predicted scenario (auto-derived from trailing actuals) ──────────
+
+/**
+ * A trailing monthly snapshot row used to derive the predicted assumptions.
+ * All monetary fields are DKK øre.
+ */
+export interface TrailingSnapshot {
+  month: string; // YYYY-MM
+  mrr: number; // end-of-month MRR
+  churned_mrr: number; // revenue lost to full cancellations (positive)
+  contraction_mrr: number; // revenue lost to downgrades (positive)
+  expansion_mrr: number; // gross expansion from existing customers
+  new_mrr: number; // MRR from new logos
+  new_logos: number;
+  arpa: number;
+}
+
+/** Defaults used when there is too little history to derive a prediction. */
+export const PREDICTED_FALLBACK: Omit<ForecastAssumptions, "scenario"> = {
+  monthlyChurnPct: 2.5,
+  monthlyExpansionPct: 1.0,
+  newLogosPerMonth: 2,
+  avgNewDealSize: 0,
+  pipelineConversionPct: 20,
+};
+
+/** Clamp a percentage to the [0, 100] range. */
+export function clampPct(v: number): number {
+  return Math.min(100, Math.max(0, v));
+}
+
+/**
+ * Derive the "predicted" assumptions from a trailing window of snapshots plus
+ * the live pipeline win-rate. Rates are MRR-weighted across the window (sum of
+ * flows ÷ sum of prior-month MRR), never a mean of monthly ratios.
+ *
+ * `trailing` must be the window's snapshots in any order, including one extra
+ * predecessor month so the earliest in-window month has a prior MRR.
+ *
+ * Churn is GROSS revenue churn (cancellations + downgrades); expansion is gross.
+ */
+export function computePredictedAssumptions(
+  trailing: TrailingSnapshot[],
+  pipelineWinRate: number | null
+): { assumptions: ForecastAssumptions; sufficientHistory: boolean } {
+  const rows = [...trailing].sort((a, b) => a.month.localeCompare(b.month));
+  const conversion =
+    pipelineWinRate != null
+      ? clampPct(pipelineWinRate)
+      : PREDICTED_FALLBACK.pipelineConversionPct;
+
+  // Need at least 3 rows (≥2 month-transitions) to read a trend.
+  if (rows.length < 3) {
+    const latestArpa = rows.length ? rows[rows.length - 1].arpa : 0;
+    return {
+      assumptions: {
+        scenario: "predicted",
+        ...PREDICTED_FALLBACK,
+        avgNewDealSize: latestArpa,
+        pipelineConversionPct: conversion,
+      },
+      sufficientHistory: false,
+    };
+  }
+
+  let churnNum = 0; // Σ (churned + contraction) over months with a positive prior MRR
+  let expNum = 0; // Σ expansion over those months
+  let baseDen = 0; // Σ prior-month MRR
+  let logoSum = 0; // Σ new logos over the window months
+  let newMrrSum = 0; // Σ new MRR over the window months
+  let monthsCount = 0; // window months (transitions)
+
+  for (let i = 1; i < rows.length; i++) {
+    const cur = rows[i];
+    const prevMrr = rows[i - 1].mrr;
+
+    // Run-rate counts every window month (a zero-base month can still add logos).
+    logoSum += cur.new_logos;
+    newMrrSum += cur.new_mrr;
+    monthsCount++;
+
+    // Rates require a positive base to avoid divide-by-zero / NaN.
+    if (prevMrr > 0) {
+      churnNum += cur.churned_mrr + cur.contraction_mrr;
+      expNum += cur.expansion_mrr;
+      baseDen += prevMrr;
+    }
+  }
+
+  const latestArpa = rows[rows.length - 1].arpa;
+  const monthlyChurnPct =
+    baseDen > 0 ? clampPct((churnNum / baseDen) * 100) : PREDICTED_FALLBACK.monthlyChurnPct;
+  const monthlyExpansionPct =
+    baseDen > 0 ? clampPct((expNum / baseDen) * 100) : PREDICTED_FALLBACK.monthlyExpansionPct;
+  const newLogosPerMonth = monthsCount > 0 ? Math.max(0, logoSum / monthsCount) : 0;
+  const avgNewDealSize = logoSum > 0 ? Math.round(newMrrSum / logoSum) : latestArpa;
+
+  return {
+    assumptions: {
+      scenario: "predicted",
+      monthlyChurnPct,
+      monthlyExpansionPct,
+      newLogosPerMonth,
+      avgNewDealSize,
+      pipelineConversionPct: conversion,
+    },
+    sufficientHistory: true,
+  };
+}
+
+// ─── Suggested bands (derived from predicted, user-correctable) ───────
+
+const BAND_MULTIPLIERS: Record<
+  "worst" | "better" | "best",
+  { churn: number; expansion: number; newLogos: number }
+> = {
+  worst: { churn: 1.5, expansion: 0.5, newLogos: 0.5 },
+  better: { churn: 0.8, expansion: 1.25, newLogos: 1.25 },
+  best: { churn: 0.5, expansion: 1.75, newLogos: 1.75 },
+};
+
+/**
+ * Suggest a worst/better/best band by scaling the predicted churn, expansion,
+ * and new-logo run-rate. Deal economics (avg deal size, pipeline conversion)
+ * pass through unchanged. Because churn moves opposite to growth, projected MRR
+ * orders worst ≤ predicted ≤ better ≤ best for any non-degenerate prediction.
+ */
+export function deriveSuggestedBand(
+  predicted: ForecastAssumptions,
+  scenario: "worst" | "better" | "best"
+): ForecastAssumptions {
+  const m = BAND_MULTIPLIERS[scenario];
+  return {
+    scenario,
+    monthlyChurnPct: clampPct(predicted.monthlyChurnPct * m.churn),
+    monthlyExpansionPct: clampPct(predicted.monthlyExpansionPct * m.expansion),
+    newLogosPerMonth: Math.max(0, predicted.newLogosPerMonth * m.newLogos),
+    avgNewDealSize: predicted.avgNewDealSize,
+    pipelineConversionPct: predicted.pipelineConversionPct,
+  };
 }
