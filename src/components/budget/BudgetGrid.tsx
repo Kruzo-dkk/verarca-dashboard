@@ -109,7 +109,7 @@ export function BudgetGrid() {
   }, []);
 
   useEffect(() => {
-    if (data && view === "monthly") currentRef.current?.scrollIntoView({ inline: "center", block: "nearest" });
+    if (data && view === "monthly") currentRef.current?.scrollIntoView({ inline: "start", block: "nearest" });
   }, [data, view]);
 
   function setLocal(setter: typeof setBudgets, month: string, key: string, value: number | null) {
@@ -149,9 +149,10 @@ export function BudgetGrid() {
     const { months, currentMonth } = data;
 
     if (view === "monthly") {
-      // Window the month columns (12 months back → +24 ahead) to keep the grid
-      // light; older history stays visible in the Quarterly / Yearly views.
-      const visStart = addMonths(currentMonth, -12);
+      // Show from the start of the PRIOR fiscal year (Aug, two FYs back) through
+      // 24 months ahead, so the full previous fiscal year is included. Even older
+      // history stays available in the Quarterly / Yearly views.
+      const visStart = addMonths(fiscalYearMonths(currentMonth)[0], -12);
       const cols: Period[] = [];
       for (const m of months) {
         if (m < visStart) continue;
@@ -164,17 +165,6 @@ export function BudgetGrid() {
           isFuture: m > currentMonth,
           kind: "month",
         });
-        if (m === currentMonth) {
-          cols.push({
-            key: `ytd-${m}`,
-            label: `YTD ${fiscalYearLabel(currentMonth)}`,
-            months: fiscalYTDMonths(currentMonth),
-            editable: false,
-            isCurrent: false,
-            isFuture: false,
-            kind: "ytd",
-          });
-        }
         if (isFiscalQuarterEnd(m)) {
           const fqm = fiscalQuarterMonths(m);
           cols.push({
@@ -186,6 +176,18 @@ export function BudgetGrid() {
             isFuture: fqm[0] > currentMonth,
             kind: "quarter",
           });
+          // YTD sits right after the current quarter's total.
+          if (fqm.includes(currentMonth)) {
+            cols.push({
+              key: `ytd-${currentMonth}`,
+              label: `YTD ${fiscalYearLabel(currentMonth)}`,
+              months: fiscalYTDMonths(currentMonth),
+              editable: false,
+              isCurrent: false,
+              isFuture: false,
+              kind: "ytd",
+            });
+          }
         }
         if (isFiscalYearEnd(m)) {
           const fym = fiscalYearMonths(m);
