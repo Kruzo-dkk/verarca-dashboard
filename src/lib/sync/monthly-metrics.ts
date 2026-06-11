@@ -48,6 +48,7 @@ export interface MonthlyMetrics {
   quickRatio: number | null;
   customerCount: number;
   newLogos: number;
+  newPayingLogos: number;
   churnedLogos: number;
   arpa: number;
   top10Concentration: number;
@@ -153,6 +154,7 @@ export function computeMonthlyMetrics(input: MonthlyMetricsInput): MonthlyMetric
     quickRatio: Number.isFinite(quickRatio) ? quickRatio : null,
     customerCount,
     newLogos,
+    newPayingLogos: decomposition.newPayingLogos ?? 0,
     churnedLogos,
     arpa,
     top10Concentration,

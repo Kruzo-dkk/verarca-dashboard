@@ -135,7 +135,8 @@ export interface TrailingSnapshot {
   contraction_mrr: number; // revenue lost to downgrades (positive)
   expansion_mrr: number; // gross expansion from existing customers
   new_mrr: number; // MRR from new logos
-  new_logos: number;
+  new_logos: number; // all new logos, incl. zero-MRR signups
+  new_paying_logos?: number | null; // new logos with mrr>0 — preferred denominator
   arpa: number;
 }
 
@@ -199,7 +200,10 @@ export function computePredictedAssumptions(
     const prevMrr = rows[i - 1].mrr;
 
     // Run-rate counts every window month (a zero-base month can still add logos).
-    logoSum += cur.new_logos;
+    // Prefer PAYING new logos (mrr>0) so "New logos/month" and "Avg new-deal MRR"
+    // (= new_mrr ÷ logos) are intuitive and not dragged down by zero-MRR signups.
+    // Falls back to all new_logos for months not yet backfilled.
+    logoSum += cur.new_paying_logos ?? cur.new_logos;
     newMrrSum += cur.new_mrr;
     monthsCount++;
 

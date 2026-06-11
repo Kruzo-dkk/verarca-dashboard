@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
         supabase
           .from("monthly_snapshots")
           .select(
-            "month, mrr, churned_mrr, contraction_mrr, expansion_mrr, new_mrr, new_logos, arpa"
+            "month, mrr, churned_mrr, contraction_mrr, expansion_mrr, new_mrr, new_logos, new_paying_logos, arpa"
           )
           .gte("month", decompStart)
           .lte("month", startMonth)
@@ -116,6 +116,7 @@ export async function GET(request: NextRequest) {
       expansion_mrr: r.expansion_mrr ?? 0,
       new_mrr: r.new_mrr ?? 0,
       new_logos: r.new_logos ?? 0,
+      new_paying_logos: r.new_paying_logos,
       arpa: r.arpa ?? 0,
     }));
     const winRate = pipelineRes.data?.win_rate ?? null;

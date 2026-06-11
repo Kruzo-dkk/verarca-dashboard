@@ -555,6 +555,7 @@ export type Database = {
           mrr_growth_yoy: number | null
           net_new_mrr: number
           new_logos: number
+          new_paying_logos: number | null
           new_mrr: number
           non_recurring_revenue: number
           nrr: number | null
@@ -586,6 +587,7 @@ export type Database = {
           mrr_growth_yoy?: number | null
           net_new_mrr?: number
           new_logos?: number
+          new_paying_logos?: number | null
           new_mrr?: number
           non_recurring_revenue?: number
           nrr?: number | null
@@ -617,6 +619,7 @@ export type Database = {
           mrr_growth_yoy?: number | null
           net_new_mrr?: number
           new_logos?: number
+          new_paying_logos?: number | null
           new_mrr?: number
           non_recurring_revenue?: number
           nrr?: number | null
