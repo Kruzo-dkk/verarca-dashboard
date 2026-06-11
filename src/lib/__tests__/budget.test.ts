@@ -26,6 +26,8 @@ import {
   projectCashRunway,
   monthsOfRunway,
   cashZeroMonth,
+  suggestBudget,
+  type SuggestLookup,
 } from "../budget";
 
 // ─── Month arithmetic ────────────────────────────────────────────
@@ -419,5 +421,63 @@ describe("monthsOfRunway", () => {
   it("is null when not burning (infinite runway)", () => {
     expect(monthsOfRunway(1000, 0)).toBeNull();
     expect(monthsOfRunway(1000, -50)).toBeNull();
+  });
+});
+
+
+// ─── Budget suggestions ──────────────────────────────────────────
+
+describe("suggestBudget", () => {
+  // Build a lookup from {month: {key: value}} maps.
+  const lk = (
+    actuals: Record<string, Record<string, number>>,
+    budgets: Record<string, Record<string, number>> = {}
+  ): SuggestLookup => ({
+    actual: (k, m) => actuals[m]?.[k] ?? null,
+    budget: (k, m) => budgets[m]?.[k] ?? null,
+  });
+  const mNewMrr = metricByKey("target_new_mrr"); // sum, synced
+  const mBurn = metricByKey("monthly_burn"); // sum, settings
+  const mMargin = metricByKey("gross_margin_pct"); // average, settings
+  const mHead = metricByKey("employee_count"); // endOfPeriod, settings
+
+  it("averages trailing synced actuals for a sales metric", () => {
+    const actuals = {
+      "2026-03": { target_new_mrr: 100 },
+      "2026-04": { target_new_mrr: 200 },
+      "2026-05": { target_new_mrr: 300 },
+    };
+    expect(suggestBudget(mNewMrr, "2026-06", lk(actuals))).toBe(200);
+  });
+
+  it("falls back to prior budget when a finance actual is missing", () => {
+    const actuals = { "2026-05": { monthly_burn: 120 } }; // only one actual
+    const budgets = {
+      "2026-03": { monthly_burn: 60 },
+      "2026-04": { monthly_burn: 60 },
+    };
+    // values: 120 (actual May) + 60 + 60 (budget Apr/Mar) → mean 80
+    expect(suggestBudget(mBurn, "2026-06", lk(actuals, budgets))).toBe(80);
+  });
+
+  it("averages a percentage metric", () => {
+    const actuals = {
+      "2026-03": { gross_margin_pct: 40 },
+      "2026-04": { gross_margin_pct: 50 },
+      "2026-05": { gross_margin_pct: 60 },
+    };
+    expect(suggestBudget(mMargin, "2026-06", lk(actuals))).toBe(50);
+  });
+
+  it("uses the most recent value for an endOfPeriod metric", () => {
+    const actuals = {
+      "2026-04": { employee_count: 4 },
+      "2026-05": { employee_count: 5 },
+    };
+    expect(suggestBudget(mHead, "2026-06", lk(actuals))).toBe(5);
+  });
+
+  it("returns null when there is nothing to go on", () => {
+    expect(suggestBudget(mNewMrr, "2026-06", lk({}))).toBeNull();
   });
 });
