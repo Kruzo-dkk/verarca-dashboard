@@ -1,76 +1,68 @@
 /**
- * Forecast scenario catalogue — display metadata and constants shared by the
- * forecast API route and the forecast UI.
+ * Shared forecast scenario constants — single source of truth for the four
+ * forecast scenarios consumed by the API route, the assumptions grid, the
+ * summary cards, and the projection chart.
  *
- * The model has four scenarios:
- *   - `predicted` — auto-derived live from trailing actuals (read-only)
- *   - `worst` / `better` / `best` — editable bands suggested around predicted
+ * Scenarios:
+ *   - predicted: auto-derived from trailing actuals + run-rate (read-only)
+ *   - worst / better / best: suggested bands around predicted, user-correctable
  */
 
 export type ScenarioId = "predicted" | "worst" | "better" | "best";
 
-/** Editable bands (suggested around predicted, user-correctable). */
+/** Left-to-right display order (cards, grid columns). Predicted is the centre line. */
+export const SCENARIO_ORDER: ScenarioId[] = ["worst", "predicted", "better", "best"];
+
+/** Chart paint order — bands first so predicted (and best) overlay on top. */
+export const SCENARIO_DRAW_ORDER: ScenarioId[] = ["worst", "better", "best", "predicted"];
+
+/** The editable, persistable scenarios. Predicted is never stored. */
 export const BAND_SCENARIOS = ["worst", "better", "best"] as const;
-export type BandScenarioId = (typeof BAND_SCENARIOS)[number];
-
-/** Display order for columns / summary cards: predicted first, then bands. */
-export const SCENARIO_ORDER: readonly ScenarioId[] = [
-  "predicted",
-  "worst",
-  "better",
-  "best",
-];
-
-/** Chart draw order: bands first, predicted last so its line sits on top. */
-export const SCENARIO_DRAW_ORDER: readonly ScenarioId[] = [
-  "worst",
-  "better",
-  "best",
-  "predicted",
-];
+export type BandScenario = (typeof BAND_SCENARIOS)[number];
 
 export interface ScenarioMeta {
+  id: ScenarioId;
   label: string;
-  /** Concrete colour (hex) — used for chart strokes/gradients and dots. */
-  color: string;
-  /** Short description shown on the summary cards. */
+  color: string; // hex
   desc: string;
-  /** Predicted is auto-derived and not editable. */
-  readOnly: boolean;
+  readOnly: boolean; // predicted only
 }
 
 export const SCENARIO_META: Record<ScenarioId, ScenarioMeta> = {
   predicted: {
+    id: "predicted",
     label: "Predicted",
-    color: "#0d9488", // teal — the auto-derived baseline
-    desc: "Auto-derived from your trailing actuals",
+    color: "#1A5C5A", // brand teal — the centre line
+    desc: "Auto from trailing actuals + run-rate",
     readOnly: true,
   },
   worst: {
+    id: "worst",
     label: "Worst",
-    color: "#ef4444", // red
-    desc: "Higher churn, slower growth",
+    color: "#ef4444",
+    desc: "Elevated churn, weak growth",
     readOnly: false,
   },
   better: {
+    id: "better",
     label: "Better",
-    color: "#3b82f6", // blue
-    desc: "Lower churn, faster growth",
+    color: "#3b82f6",
+    desc: "Improved retention & acquisition",
     readOnly: false,
   },
   best: {
+    id: "best",
     label: "Best",
-    color: "#22c55e", // green
-    desc: "Best-case retention and growth",
+    color: "#10b981",
+    desc: "Low churn, strong expansion",
     readOnly: false,
   },
 };
 
-/** Stable id for a scenario's chart area gradient. */
-export function gradientId(scenario: ScenarioId): string {
-  return `forecast-grad-${scenario}`;
-}
+/** SVG gradient id for a scenario's chart area fill. */
+export const gradientId = (id: ScenarioId): string => `${id}Gradient`;
 
-/** Trailing-window options (months) for deriving the predicted scenario. */
+/** Selectable trailing-window lengths (months) for the Predicted derivation. */
 export const PREDICTED_WINDOW_OPTIONS = [3, 6, 12] as const;
+export type PredictedWindow = (typeof PREDICTED_WINDOW_OPTIONS)[number];
 export const DEFAULT_PREDICTED_WINDOW = 6;
