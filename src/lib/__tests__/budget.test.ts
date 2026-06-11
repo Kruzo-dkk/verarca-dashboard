@@ -23,6 +23,9 @@ import {
   flattenClipboard,
   planPaste,
   type PasteCandidate,
+  projectCashRunway,
+  monthsOfRunway,
+  cashZeroMonth,
 } from "../budget";
 
 // ─── Month arithmetic ────────────────────────────────────────────
@@ -374,5 +377,47 @@ describe("planPaste", () => {
   it("stops when values run out", () => {
     const candidates = [C("2026-01", "a", true), C("2026-02", "a", true)];
     expect(planPaste([99], candidates)).toHaveLength(1);
+  });
+});
+
+
+// ─── Cash runway ─────────────────────────────────────────────────
+
+describe("projectCashRunway", () => {
+  it("subtracts each month's burn, starting at the full balance", () => {
+    const series = projectCashRunway(1000, "2026-01", { "2026-01": 200, "2026-02": 300 }, 3);
+    expect(series).toEqual([
+      { month: "2026-01", cash: 1000 },
+      { month: "2026-02", cash: 800 },
+      { month: "2026-03", cash: 500 },
+      { month: "2026-04", cash: 500 }, // no burn entry → 0
+    ]);
+  });
+  it("satisfies cash[m] = startCash − Σ burn[start..m-1]", () => {
+    const burn = { "2026-01": 100, "2026-02": 100, "2026-03": 100 };
+    const series = projectCashRunway(1000, "2026-01", burn, 3);
+    expect(series[3].cash).toBe(1000 - 300);
+  });
+});
+
+describe("cashZeroMonth", () => {
+  it("returns the first month the balance hits zero or below", () => {
+    const series = projectCashRunway(500, "2026-01", { "2026-01": 300, "2026-02": 300 }, 3);
+    expect(cashZeroMonth(series)).toBe("2026-03"); // 500 → 200 → -100
+  });
+  it("returns null when cash never runs out", () => {
+    const series = projectCashRunway(1000, "2026-01", { "2026-01": 100 }, 3);
+    expect(cashZeroMonth(series)).toBeNull();
+  });
+});
+
+describe("monthsOfRunway", () => {
+  it("is cash ÷ avg burn (1 dp)", () => {
+    expect(monthsOfRunway(1000, 200)).toBe(5);
+    expect(monthsOfRunway(1500, 400)).toBe(3.8);
+  });
+  it("is null when not burning (infinite runway)", () => {
+    expect(monthsOfRunway(1000, 0)).toBeNull();
+    expect(monthsOfRunway(1000, -50)).toBeNull();
   });
 });

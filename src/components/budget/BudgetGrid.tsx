@@ -27,6 +27,10 @@ import {
   flattenClipboard,
   planPaste,
   type PasteCandidate,
+  projectCashRunway,
+  monthsOfRunway,
+  cashZeroMonth,
+  type CashPoint,
 } from "@/lib/budget";
 
 interface BudgetGridData {
@@ -35,6 +39,7 @@ interface BudgetGridData {
   budgets: Record<string, Record<string, number>>;
   financeActuals: Record<string, Record<string, number>>;
   salesActuals: Record<string, Record<string, number>>;
+  cashByMonth: Record<string, number>;
 }
 
 type View = "monthly" | "quarterly" | "yearly";
@@ -111,6 +116,7 @@ export function BudgetGrid() {
   const [view, setView] = useState<View>("monthly");
   const [budgets, setBudgets] = useState<Record<string, Record<string, number>>>({});
   const [financeActuals, setFinanceActuals] = useState<Record<string, Record<string, number>>>({});
+  const [cashByMonth, setCashByMonth] = useState<Record<string, number>>({});
   const [error, setError] = useState<string | null>(null);
   const [inFlight, setInFlight] = useState(0);
   const [savedAt, setSavedAt] = useState<number | null>(null);
@@ -134,6 +140,7 @@ export function BudgetGrid() {
         setData(d);
         setBudgets(d.budgets ?? {});
         setFinanceActuals(d.financeActuals ?? {});
+        setCashByMonth(d.cashByMonth ?? {});
       } catch {
         setError("Failed to load budget");
       }
@@ -424,6 +431,27 @@ export function BudgetGrid() {
     return true;
   }
 
+  // Cash on hand is always stored against the current month (a management figure).
+  function saveCash(native: number | null) {
+    const cur = data?.currentMonth;
+    if (!cur) return;
+    setCashByMonth((prev) => {
+      const next = { ...prev };
+      if (native == null) delete next[cur];
+      else next[cur] = native;
+      return next;
+    });
+    setInFlight((n) => n + 1);
+    fetch("/api/budget", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ month: cur, field: "cash", value: native }),
+    })
+      .then(() => setSavedAt(Date.now()))
+      .catch(() => setError("Cash save failed — check your connection"))
+      .finally(() => setInFlight((n) => n - 1));
+  }
+
   // Auto-dismiss the bulk-edit toast.
   useEffect(() => {
     if (!toast) return;
@@ -467,6 +495,43 @@ export function BudgetGrid() {
 
   const stickyCol = "sticky left-0 z-10 bg-white";
   const numCell = "px-2 py-1 text-right tabular-nums whitespace-nowrap text-sm";
+
+  // ── Cash runway: project forward on actual burn (past/current) then budget
+  //    burn (future). Cash on hand is a manual management figure (no ERP). ──
+  const cur = data.currentMonth;
+  const burnOf = (m: string): number => {
+    const actual = financeActuals[m]?.monthly_burn;
+    const budget = budgets[m]?.monthly_burn;
+    return (m <= cur ? actual ?? budget : budget ?? actual) ?? 0;
+  };
+  const cashMonthsAvail = Object.keys(cashByMonth)
+    .filter((m) => m <= cur)
+    .sort();
+  const cashMonth =
+    cashMonthsAvail[cashMonthsAvail.length - 1] ??
+    Object.keys(cashByMonth).sort().slice(-1)[0] ??
+    cur;
+  const startingCash = cashByMonth[cashMonth] ?? null;
+  const burnByMonth: Record<string, number> = {};
+  for (let i = 0, m = cashMonth; i < 25; i++, m = addMonths(m, 1)) {
+    burnByMonth[m] = burnOf(m);
+  }
+  const cashSeries: CashPoint[] =
+    startingCash != null ? projectCashRunway(startingCash, cashMonth, burnByMonth, 24) : [];
+  let fwdBurnSum = 0;
+  let fwdBurnN = 0;
+  for (let i = 0, m = cashMonth; i < 12; i++, m = addMonths(m, 1)) {
+    const b = burnOf(m);
+    if (b > 0) {
+      fwdBurnSum += b;
+      fwdBurnN++;
+    }
+  }
+  const runwayMonths =
+    startingCash != null
+      ? monthsOfRunway(startingCash, fwdBurnN ? fwdBurnSum / fwdBurnN : 0)
+      : null;
+  const cashZero = cashZeroMonth(cashSeries);
 
   return (
     <div className="space-y-3">
@@ -542,6 +607,15 @@ export function BudgetGrid() {
             On plan ✓ · {monthLabel(exMonth)}
           </div>
         ))}
+
+      <RunwayPanel
+        cashMonth={cashMonth}
+        startingCash={startingCash}
+        series={cashSeries}
+        runwayMonths={runwayMonths}
+        cashZero={cashZero}
+        onSaveCash={saveCash}
+      />
 
       <div className="overflow-x-auto border border-gray-200 rounded-lg">
         <table className="border-collapse text-sm">
@@ -876,5 +950,119 @@ function EditableCell({
         muted ? "text-[var(--text-muted)]" : "text-[var(--text-primary)]"
       } placeholder:text-gray-300`}
     />
+  );
+}
+
+
+/**
+ * Runway: cash on hand (a manual management figure — no ERP feed), months of
+ * runway colour-graded (green >12 · amber 6–12 · red <6), the cash-zero month,
+ * and a sparkline of the projected balance dipping past its zero line.
+ */
+function RunwayPanel({
+  cashMonth,
+  startingCash,
+  series,
+  runwayMonths,
+  cashZero,
+  onSaveCash,
+}: {
+  cashMonth: string;
+  startingCash: number | null;
+  series: CashPoint[];
+  runwayMonths: number | null;
+  cashZero: string | null;
+  onSaveCash: (native: number | null) => void;
+}) {
+  const display = startingCash != null ? String(Math.round(startingCash / 100)) : "";
+  const grade =
+    runwayMonths == null
+      ? "text-[var(--text-muted)]"
+      : runwayMonths >= 12
+        ? "text-emerald-600"
+        : runwayMonths >= 6
+          ? "text-amber-600"
+          : "text-red-600";
+  return (
+    <div className="flex items-center gap-6 flex-wrap rounded-lg border border-gray-200 bg-white px-4 py-3">
+      <div className="flex flex-col">
+        <span className="text-[11px] uppercase tracking-wide text-[var(--text-muted)]">Cash on hand</span>
+        <div className="flex items-baseline gap-1">
+          <input
+            key={display}
+            type="text"
+            inputMode="decimal"
+            defaultValue={display}
+            onFocus={(e) => e.target.select()}
+            onBlur={(e) => {
+              const t = e.target.value.trim().replace(/\s/g, "").replace(",", ".");
+              if (t !== "" && Number.isNaN(Number(t))) {
+                e.target.value = display; // revert invalid
+                return;
+              }
+              const native = t === "" ? null : Math.round(Number(t) * 100);
+              if (native !== startingCash) onSaveCash(native);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+            }}
+            placeholder="—"
+            aria-label="Cash on hand (kr)"
+            className="w-[120px] bg-transparent text-lg font-semibold tabular-nums text-[var(--text-primary)] rounded px-1 border border-transparent hover:border-gray-300 focus:bg-white focus:border-[var(--text-primary)]/40 focus:outline-none placeholder:text-gray-300"
+          />
+          <span className="text-xs text-[var(--text-muted)]">kr</span>
+        </div>
+        <span className="text-[10px] text-gray-400">as of {monthLabel(cashMonth)}</span>
+      </div>
+      <div className="flex flex-col">
+        <span className="text-[11px] uppercase tracking-wide text-[var(--text-muted)]">Runway</span>
+        <span className={`text-2xl font-semibold ${grade}`}>
+          {startingCash == null ? "—" : runwayMonths == null ? "∞" : `${runwayMonths} mo`}
+        </span>
+      </div>
+      <div className="flex flex-col">
+        <span className="text-[11px] uppercase tracking-wide text-[var(--text-muted)]">Cash-zero</span>
+        <span className="text-sm text-[var(--text-primary)]">
+          {startingCash == null ? "—" : cashZero ? monthLabel(cashZero) : "beyond horizon ✓"}
+        </span>
+      </div>
+      <div className="flex-1 min-w-[200px]">
+        <CashSparkline series={series} zeroMonth={cashZero} />
+      </div>
+    </div>
+  );
+}
+
+/** Sparkline of the projected cash balance, with a zero baseline + cash-zero dot. */
+function CashSparkline({ series, zeroMonth }: { series: CashPoint[]; zeroMonth: string | null }) {
+  if (series.length < 2) {
+    return <div className="text-[10px] text-gray-400">enter cash on hand to project runway</div>;
+  }
+  const w = 240;
+  const h = 40;
+  const pad = 3;
+  const vals = series.map((p) => p.cash);
+  const min = Math.min(0, ...vals);
+  const max = Math.max(0, ...vals);
+  const range = max - min || 1;
+  const x = (i: number) => pad + (i / (series.length - 1)) * (w - 2 * pad);
+  const y = (v: number) => h - pad - ((v - min) / range) * (h - 2 * pad);
+  const pts = series.map((p, i) => `${x(i).toFixed(1)},${y(p.cash).toFixed(1)}`).join(" ");
+  const zeroY = y(0);
+  const zeroIdx = zeroMonth ? series.findIndex((p) => p.month === zeroMonth) : -1;
+  return (
+    <svg width="100%" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="block">
+      <line x1={0} x2={w} y1={zeroY} y2={zeroY} stroke="#e5e7eb" strokeWidth={1} />
+      <polyline
+        points={pts}
+        fill="none"
+        stroke="#1A5C5A"
+        strokeWidth={1.5}
+        vectorEffect="non-scaling-stroke"
+      />
+      {zeroIdx >= 0 && (
+        <circle cx={x(zeroIdx)} cy={y(series[zeroIdx].cash)} r={2.5} fill="#ef4444" />
+      )}
+    </svg>
   );
 }

@@ -119,6 +119,7 @@ export async function POST(request: NextRequest) {
       monthly_cogs: existing?.monthly_cogs ?? 0,
       gross_margin_pct: existing?.gross_margin_pct ?? null,
       monthly_burn: existing?.monthly_burn ?? null,
+      cash_on_hand: existing?.cash_on_hand ?? null,
       notes: existing?.notes ?? null,
     };
     for (const e of monthEntries) {
