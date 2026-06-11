@@ -5,6 +5,9 @@ import {
   BUDGET_METRICS,
   type BudgetMetric,
   type BudgetSection,
+  type BudgetException,
+  type MetricCell,
+  type VarianceBucket,
   addMonths,
   fiscalYearMonths,
   fiscalQuarterMonths,
@@ -15,6 +18,9 @@ import {
   fiscalQuarter,
   rollupValues,
   attainmentPct,
+  signedVariancePct,
+  heatScale,
+  monthExceptions,
 } from "@/lib/budget";
 
 interface BudgetGridData {
@@ -80,6 +86,20 @@ function colClasses(kind: PeriodKind, isCurrent: boolean): string {
   return isCurrent ? "bg-gray-50" : "";
 }
 
+type Mode = "numbers" | "heatmap";
+
+/** Stable DOM id for an actual month cell, so exception chips can scroll to it. */
+function cellId(month: string, key: string): string {
+  return `bcell-${month}-${key}`;
+}
+
+/** Heat background for an actual cell: good = emerald, warn/bad = red, by opacity. */
+function heatColor(bucket: VarianceBucket, opacity: number): string | undefined {
+  if (opacity <= 0) return undefined;
+  const rgb = bucket === "good" ? "16,185,129" : "239,68,68";
+  return `rgba(${rgb},${opacity})`;
+}
+
 export function BudgetGrid() {
   const [data, setData] = useState<BudgetGridData | null>(null);
   const [view, setView] = useState<View>("monthly");
@@ -88,6 +108,8 @@ export function BudgetGrid() {
   const [error, setError] = useState<string | null>(null);
   const [inFlight, setInFlight] = useState(0);
   const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [mode, setMode] = useState<Mode>("numbers");
+  const [flashId, setFlashId] = useState<string | null>(null);
   const currentRef = useRef<HTMLTableCellElement | null>(null);
 
   useEffect(() => {
@@ -111,6 +133,35 @@ export function BudgetGrid() {
   useEffect(() => {
     if (data && view === "monthly") currentRef.current?.scrollIntoView({ inline: "start", block: "nearest" });
   }, [data, view]);
+
+  // Restore the Numbers/Heatmap preference once on mount.
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("budgetMode");
+      if (saved === "heatmap" || saved === "numbers") setMode(saved);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  function changeMode(m: Mode) {
+    setMode(m);
+    try {
+      window.localStorage.setItem("budgetMode", m);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  // Clicking an exception chip scrolls its cell into view and flashes it briefly.
+  useEffect(() => {
+    if (!flashId) return;
+    document
+      .getElementById(flashId)
+      ?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+    const t = setTimeout(() => setFlashId(null), 1400);
+    return () => clearTimeout(t);
+  }, [flashId]);
 
   function setLocal(setter: typeof setBudgets, month: string, key: string, value: number | null) {
     setter((prev) => {
@@ -225,6 +276,23 @@ export function BudgetGrid() {
     return [...seen.values()];
   }, [data, view]);
 
+  // Off-plan metrics for the most-recent completed month (the previous calendar
+  // month — the current month's actuals are still partial, which would spam
+  // false misses). Worst-first; empty = on plan.
+  const exMonth = data ? addMonths(data.currentMonth, -1) : "";
+  const exceptions = useMemo<BudgetException[]>(() => {
+    if (!data) return [];
+    const m = addMonths(data.currentMonth, -1);
+    const rows: MetricCell[] = BUDGET_METRICS.map((metric) => {
+      const actual =
+        metric.actual === "settings"
+          ? financeActuals[m]?.[metric.key] ?? null
+          : data.salesActuals?.[m]?.[metric.key] ?? null;
+      return { metric, budget: budgets[m]?.[metric.key] ?? null, actual };
+    });
+    return monthExceptions(rows);
+  }, [data, budgets, financeActuals]);
+
   if (error) return <div className="p-6 text-[var(--text-muted)]">{error}</div>;
   if (!data) return <div className="p-6 text-[var(--text-muted)]">Loading budget…</div>;
 
@@ -245,6 +313,22 @@ export function BudgetGrid() {
             {inFlight > 0 ? "Saving…" : savedAt ? "Saved ✓" : ""}
           </span>
           <div className="flex rounded-md border border-gray-200 overflow-hidden text-sm">
+            {(["numbers", "heatmap"] as Mode[]).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => changeMode(m)}
+                className={`px-3 py-1 capitalize transition-colors ${
+                  mode === m
+                    ? "bg-[var(--text-primary)] text-white"
+                    : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+          <div className="flex rounded-md border border-gray-200 overflow-hidden text-sm">
             {(["monthly", "quarterly", "yearly"] as View[]).map((v) => (
               <button
                 key={v}
@@ -260,6 +344,35 @@ export function BudgetGrid() {
           </div>
         </div>
       </div>
+
+      {exMonth &&
+        (exceptions.length > 0 ? (
+          <div className="flex items-center gap-2 flex-wrap rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-amber-700">
+              Off plan · {monthLabel(exMonth)}
+            </span>
+            {exceptions.map((e) => (
+              <button
+                key={e.metricKey}
+                type="button"
+                onClick={() => setFlashId(cellId(exMonth, e.metricKey))}
+                title={`${e.label}: actual vs budget`}
+                className={`text-xs rounded-full px-2 py-0.5 border transition-colors ${
+                  e.severity === "bad"
+                    ? "border-red-300 bg-red-100 text-red-700 hover:bg-red-200"
+                    : "border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-200"
+                }`}
+              >
+                {e.label} {e.variancePct > 0 ? "+" : ""}
+                {e.variancePct}%
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2 text-xs text-emerald-700">
+            On plan ✓ · {monthLabel(exMonth)}
+          </div>
+        ))}
 
       <div className="overflow-x-auto border border-gray-200 rounded-lg">
         <table className="border-collapse text-sm">
@@ -301,6 +414,8 @@ export function BudgetGrid() {
                 onSave={save}
                 stickyCol={stickyCol}
                 numCell={numCell}
+                mode={mode}
+                flashId={flashId}
               />
             ))}
           </tbody>
@@ -320,6 +435,8 @@ function SectionRows({
   onSave,
   stickyCol,
   numCell,
+  mode,
+  flashId,
 }: {
   section: BudgetSection;
   metrics: BudgetMetric[];
@@ -330,6 +447,8 @@ function SectionRows({
   onSave: (month: string, key: string, field: "budget" | "actual", value: number | null) => void;
   stickyCol: string;
   numCell: string;
+  mode: Mode;
+  flashId: string | null;
 }) {
   return (
     <>
@@ -351,6 +470,8 @@ function SectionRows({
           onSave={onSave}
           stickyCol={stickyCol}
           numCell={numCell}
+          mode={mode}
+          flashId={flashId}
         />
       ))}
     </>
@@ -365,6 +486,8 @@ function MetricRows({
   onSave,
   stickyCol,
   numCell,
+  mode,
+  flashId,
 }: {
   metric: BudgetMetric;
   periods: Period[];
@@ -373,6 +496,8 @@ function MetricRows({
   onSave: (month: string, key: string, field: "budget" | "actual", value: number | null) => void;
   stickyCol: string;
   numCell: string;
+  mode: Mode;
+  flashId: string | null;
 }) {
   const unit = metric.unit === "kr" ? "kr" : metric.unit === "%" ? "%" : "#";
 
@@ -414,8 +539,29 @@ function MetricRows({
           const val = rollup(p, (m) => actualOf(m, metric));
           const budgetVal = rollup(p, (m) => budgetOf(m, metric.key));
           const att = p.kind !== "month" ? attainmentPct(val, budgetVal) : null;
+          const isMonth = p.kind === "month";
+          const id = isMonth ? cellId(p.months[0], metric.key) : undefined;
+          const heat =
+            isMonth && mode === "heatmap" && !p.isFuture
+              ? heatScale(
+                  metric.goodDirection,
+                  signedVariancePct(val, budgetVal),
+                  metric.tolerancePct
+                )
+              : null;
           return (
-            <td key={p.key} className={`${numCell} text-[var(--text-muted)] ${colClasses(p.kind, p.isCurrent)}`}>
+            <td
+              key={p.key}
+              id={id}
+              style={
+                heat && heat.opacity > 0
+                  ? { backgroundColor: heatColor(heat.bucket, heat.opacity) }
+                  : undefined
+              }
+              className={`${numCell} text-[var(--text-muted)] ${colClasses(p.kind, p.isCurrent)} transition-shadow ${
+                id != null && id === flashId ? "ring-2 ring-inset ring-amber-400" : ""
+              }`}
+            >
               {editableActual ? (
                 <EditableCell value={val} metric={metric} muted onSave={(v) => onSave(p.months[0], metric.key, "actual", v)} />
               ) : p.kind === "month" && p.isFuture ? (

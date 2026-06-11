@@ -137,24 +137,145 @@ export interface BudgetMetric {
   rollup: RollupKind;
   /** Where the ACTUAL value comes from. */
   actual: ActualSource;
+  /**
+   * Which way is "good" for variance/heatmap colouring. higher = beating plan
+   * when actual > budget (MRR, margin, activity); lower = beating plan when
+   * actual < budget (burn, COGS, CAC); neutral = no good/bad direction.
+   */
+  goodDirection: GoodDirection;
+  /** Exception/heat band half-width in % (default DEFAULT_TOLERANCE_PCT). */
+  tolerancePct?: number;
 }
+
+export type GoodDirection = "higher" | "lower" | "neutral";
 
 export const BUDGET_METRICS: BudgetMetric[] = [
   // Finance
-  { key: "gross_margin_pct", label: "Gross margin", unit: "%", ore: false, section: "Finance", rollup: "average", actual: "settings" },
-  { key: "monthly_cogs", label: "Monthly COGS", unit: "kr", ore: true, section: "Finance", rollup: "sum", actual: "settings" },
-  { key: "monthly_burn", label: "Monthly net burn", unit: "kr", ore: true, section: "Finance", rollup: "sum", actual: "settings" },
+  { key: "gross_margin_pct", label: "Gross margin", unit: "%", ore: false, section: "Finance", rollup: "average", actual: "settings", goodDirection: "higher" },
+  { key: "monthly_cogs", label: "Monthly COGS", unit: "kr", ore: true, section: "Finance", rollup: "sum", actual: "settings", goodDirection: "lower" },
+  { key: "monthly_burn", label: "Monthly net burn", unit: "kr", ore: true, section: "Finance", rollup: "sum", actual: "settings", goodDirection: "lower" },
   // Acquisition (S&M)
-  { key: "total_cac", label: "Total S&M spend", unit: "kr", ore: true, section: "Acquisition", rollup: "sum", actual: "settings" },
-  { key: "cac_outbound", label: "· Outbound", unit: "kr", ore: true, section: "Acquisition", rollup: "sum", actual: "settings" },
-  { key: "cac_partner", label: "· Partner", unit: "kr", ore: true, section: "Acquisition", rollup: "sum", actual: "settings" },
-  { key: "cac_inbound", label: "· Inbound", unit: "kr", ore: true, section: "Acquisition", rollup: "sum", actual: "settings" },
+  { key: "total_cac", label: "Total S&M spend", unit: "kr", ore: true, section: "Acquisition", rollup: "sum", actual: "settings", goodDirection: "lower" },
+  { key: "cac_outbound", label: "· Outbound", unit: "kr", ore: true, section: "Acquisition", rollup: "sum", actual: "settings", goodDirection: "lower" },
+  { key: "cac_partner", label: "· Partner", unit: "kr", ore: true, section: "Acquisition", rollup: "sum", actual: "settings", goodDirection: "lower" },
+  { key: "cac_inbound", label: "· Inbound", unit: "kr", ore: true, section: "Acquisition", rollup: "sum", actual: "settings", goodDirection: "lower" },
   // Headcount
-  { key: "employee_count", label: "Employees", unit: "#", ore: false, section: "Headcount", rollup: "endOfPeriod", actual: "settings" },
+  { key: "employee_count", label: "Employees", unit: "#", ore: false, section: "Headcount", rollup: "endOfPeriod", actual: "settings", goodDirection: "neutral" },
   // Sales Targets (actuals synced from snapshots)
-  { key: "target_new_mrr", label: "New MRR", unit: "kr", ore: true, section: "Sales Targets", rollup: "sum", actual: "synced" },
-  { key: "target_new_logos", label: "New logos", unit: "#", ore: false, section: "Sales Targets", rollup: "sum", actual: "synced" },
-  { key: "target_pipeline", label: "Pipeline", unit: "kr", ore: true, section: "Sales Targets", rollup: "sum", actual: "synced" },
-  { key: "target_meetings", label: "Meetings", unit: "#", ore: false, section: "Sales Targets", rollup: "sum", actual: "synced" },
-  { key: "target_calls", label: "Calls", unit: "#", ore: false, section: "Sales Targets", rollup: "sum", actual: "synced" },
+  { key: "target_new_mrr", label: "New MRR", unit: "kr", ore: true, section: "Sales Targets", rollup: "sum", actual: "synced", goodDirection: "higher" },
+  { key: "target_new_logos", label: "New logos", unit: "#", ore: false, section: "Sales Targets", rollup: "sum", actual: "synced", goodDirection: "higher" },
+  { key: "target_pipeline", label: "Pipeline", unit: "kr", ore: true, section: "Sales Targets", rollup: "sum", actual: "synced", goodDirection: "higher" },
+  { key: "target_meetings", label: "Meetings", unit: "#", ore: false, section: "Sales Targets", rollup: "sum", actual: "synced", goodDirection: "higher" },
+  { key: "target_calls", label: "Calls", unit: "#", ore: false, section: "Sales Targets", rollup: "sum", actual: "synced", goodDirection: "higher" },
 ];
+
+
+// ─── Variance, heatmap & exceptions ───────────────────────────
+
+/** Default exception/heat band half-width (±%) when a metric sets none. */
+export const DEFAULT_TOLERANCE_PCT = 10;
+
+export type VarianceBucket = "good" | "warn" | "bad" | "neutral";
+
+/**
+ * Signed deviation of actual from budget, as a percentage of the budget
+ * magnitude: (actual − budget) / |budget| × 100, 1 dp. Positive = actual above
+ * budget (regardless of whether that's good). Null when budget is 0/missing or
+ * actual is missing — there is no meaningful variance to colour.
+ */
+export function signedVariancePct(
+  actual: number | null,
+  budget: number | null
+): number | null {
+  if (budget == null || budget === 0 || actual == null) return null;
+  return Math.round(((actual - budget) / Math.abs(budget)) * 1000) / 10;
+}
+
+/**
+ * Classify a signed variance into a direction-aware bucket. `good`/`bad` are
+ * beyond ±tolerance in the metric's good/bad direction; `warn` is a mild miss
+ * within tolerance; `neutral` is on-or-ahead within tolerance, a neutral-
+ * direction metric, or no variance.
+ */
+export function varianceBucket(
+  goodDirection: GoodDirection,
+  signed: number | null,
+  tolerancePct: number = DEFAULT_TOLERANCE_PCT
+): VarianceBucket {
+  if (signed == null || goodDirection === "neutral") return "neutral";
+  const good = goodDirection === "higher" ? signed : -signed; // good-signed deviation
+  if (good >= tolerancePct) return "good";
+  if (good <= -tolerancePct) return "bad";
+  if (good < 0) return "warn";
+  return "neutral";
+}
+
+/**
+ * Heat intensity for an actual cell: its bucket plus a background opacity that
+ * grows with the magnitude of the deviation (0 when neutral, capped at 0.45 for
+ * large misses/beats). The UI maps bucket → hue (good=emerald, warn/bad=red).
+ */
+export function heatScale(
+  goodDirection: GoodDirection,
+  signed: number | null,
+  tolerancePct: number = DEFAULT_TOLERANCE_PCT
+): { bucket: VarianceBucket; opacity: number } {
+  const bucket = varianceBucket(goodDirection, signed, tolerancePct);
+  if (bucket === "neutral" || signed == null) return { bucket, opacity: 0 };
+  const mag = Math.abs(signed);
+  const opacity = Math.min(0.45, 0.12 + (mag / (tolerancePct * 4)) * 0.33);
+  return { bucket, opacity: Math.round(opacity * 100) / 100 };
+}
+
+/** A budget/actual pair for one metric in one month, fed to monthExceptions. */
+export interface MetricCell {
+  metric: BudgetMetric;
+  budget: number | null;
+  actual: number | null;
+}
+
+/** An off-plan metric for a month, surfaced in the exceptions strip. */
+export interface BudgetException {
+  metricKey: string;
+  label: string;
+  budget: number;
+  actual: number;
+  variancePct: number; // signed
+  severity: "warn" | "bad";
+}
+
+/**
+ * The metrics that are off-plan for a month (bucket `warn` or `bad`), worst
+ * first: `bad` before `warn`, then by descending |variance|. Metrics with no
+ * budget+actual pair, on-plan, or ahead of plan are omitted.
+ */
+export function monthExceptions(
+  rows: MetricCell[],
+  tolerancePct: number = DEFAULT_TOLERANCE_PCT
+): BudgetException[] {
+  const out: BudgetException[] = [];
+  for (const { metric, budget, actual } of rows) {
+    const signed = signedVariancePct(actual, budget);
+    const bucket = varianceBucket(
+      metric.goodDirection,
+      signed,
+      metric.tolerancePct ?? tolerancePct
+    );
+    if ((bucket === "warn" || bucket === "bad") && signed != null) {
+      out.push({
+        metricKey: metric.key,
+        label: metric.label,
+        budget: budget as number,
+        actual: actual as number,
+        variancePct: signed,
+        severity: bucket,
+      });
+    }
+  }
+  const rank = { bad: 0, warn: 1 } as const;
+  return out.sort(
+    (a, b) =>
+      rank[a.severity] - rank[b.severity] ||
+      Math.abs(b.variancePct) - Math.abs(a.variancePct)
+  );
+}
