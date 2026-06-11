@@ -33,7 +33,10 @@ import {
   type CashPoint,
   suggestBudget,
   type SuggestLookup,
+  reconcileNewMrr,
 } from "@/lib/budget";
+import { forecastNewMrrByMonth, type ForecastMonth } from "@/lib/forecast";
+import { SCENARIO_META, type ScenarioId } from "@/lib/forecast-scenarios";
 
 interface BudgetGridData {
   months: string[];
@@ -101,6 +104,13 @@ function colClasses(kind: PeriodKind, isCurrent: boolean): string {
 
 type Mode = "numbers" | "heatmap";
 
+interface ForecastRef {
+  id: ScenarioId;
+  label: string;
+  color: string;
+  byMonth: Record<string, number>;
+}
+
 /** Stable DOM id for an actual month cell, so exception chips can scroll to it. */
 function cellId(month: string, key: string): string {
   return `bcell-${month}-${key}`;
@@ -120,6 +130,7 @@ export function BudgetGrid() {
   const [financeActuals, setFinanceActuals] = useState<Record<string, Record<string, number>>>({});
   const [cashByMonth, setCashByMonth] = useState<Record<string, number>>({});
   const [suggest, setSuggest] = useState(false);
+  const [forecastNewMrr, setForecastNewMrr] = useState<Record<string, Record<string, number>>>({});
   const [error, setError] = useState<string | null>(null);
   const [inFlight, setInFlight] = useState(0);
   const [savedAt, setSavedAt] = useState<number | null>(null);
@@ -146,6 +157,26 @@ export function BudgetGrid() {
         setCashByMonth(d.cashByMonth ?? {});
       } catch {
         setError("Failed to load budget");
+      }
+    })();
+  }, []);
+
+  // Forecast new-MRR (predicted/best/worst) for the reconcile banner + ghost
+  // reference rows. Optional context — failures are silent.
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/forecast?horizon=24");
+        if (!res.ok) return;
+        const fr: { projections?: { scenario: string; months: ForecastMonth[] }[] } =
+          await res.json();
+        const byScenario: Record<string, Record<string, number>> = {};
+        for (const p of fr.projections ?? []) {
+          byScenario[p.scenario] = forecastNewMrrByMonth(p.months ?? []);
+        }
+        setForecastNewMrr(byScenario);
+      } catch {
+        /* forecast is optional context */
       }
     })();
   }, []);
@@ -580,6 +611,32 @@ export function BudgetGrid() {
       : null;
   const cashZero = cashZeroMonth(cashSeries);
 
+  // ── New-MRR plan vs forecast (predicted) over budgeted months ──
+  const predictedNewMrr = forecastNewMrr.predicted ?? {};
+  const reconcileMonths = Object.keys(predictedNewMrr).filter(
+    (m) => budgets[m]?.target_new_mrr != null
+  );
+  const reconcile =
+    reconcileMonths.length > 0
+      ? reconcileNewMrr(
+          Object.fromEntries(reconcileMonths.map((m) => [m, budgets[m]?.target_new_mrr ?? 0])),
+          Object.fromEntries(reconcileMonths.map((m) => [m, predictedNewMrr[m]]))
+        )
+      : null;
+  const forecastRefs: {
+    id: ScenarioId;
+    label: string;
+    color: string;
+    byMonth: Record<string, number>;
+  }[] = (["predicted", "best", "worst"] as ScenarioId[])
+    .filter((id) => forecastNewMrr[id] && Object.keys(forecastNewMrr[id]).length > 0)
+    .map((id) => ({
+      id,
+      label: SCENARIO_META[id].label,
+      color: SCENARIO_META[id].color,
+      byMonth: forecastNewMrr[id],
+    }));
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -676,6 +733,24 @@ export function BudgetGrid() {
         onSaveCash={saveCash}
       />
 
+      {reconcile && reconcile.band !== "unknown" && (
+        <div
+          className={`flex items-center gap-2 flex-wrap rounded-lg border px-3 py-2 text-xs ${
+            reconcile.band === "aligned"
+              ? "border-emerald-200 bg-emerald-50/60 text-emerald-700"
+              : reconcile.band === "ambitious"
+                ? "border-blue-200 bg-blue-50/60 text-blue-700"
+                : "border-amber-200 bg-amber-50/60 text-amber-700"
+          }`}
+        >
+          <span className="font-medium">New-MRR plan vs forecast:</span>
+          <span>{reconcile.message}</span>
+          <a href="/forecast" className="underline underline-offset-2 hover:no-underline">
+            view in Forecast →
+          </a>
+        </div>
+      )}
+
       <div className="overflow-x-auto border border-gray-200 rounded-lg">
         <table className="border-collapse text-sm">
           <thead>
@@ -719,6 +794,7 @@ export function BudgetGrid() {
                 suggest={suggest}
                 suggestionFor={suggestionFor}
                 onAcceptSection={acceptSuggestions}
+                forecastRefs={forecastRefs}
                 stickyCol={stickyCol}
                 numCell={numCell}
                 mode={mode}
@@ -760,6 +836,7 @@ function SectionRows({
   suggest,
   suggestionFor,
   onAcceptSection,
+  forecastRefs,
   stickyCol,
   numCell,
   mode,
@@ -777,6 +854,7 @@ function SectionRows({
   suggest: boolean;
   suggestionFor: (metric: BudgetMetric, month: string) => number | null;
   onAcceptSection: (section: BudgetSection) => void;
+  forecastRefs: ForecastRef[];
   stickyCol: string;
   numCell: string;
   mode: Mode;
@@ -813,6 +891,7 @@ function SectionRows({
           onPaste={onPaste}
           suggest={suggest}
           suggestionFor={suggestionFor}
+          forecastRefs={forecastRefs}
           stickyCol={stickyCol}
           numCell={numCell}
           mode={mode}
@@ -833,6 +912,7 @@ function MetricRows({
   onPaste,
   suggest,
   suggestionFor,
+  forecastRefs,
   stickyCol,
   numCell,
   mode,
@@ -847,6 +927,7 @@ function MetricRows({
   onPaste: (month: string, key: string, field: "budget" | "actual", text: string) => boolean;
   suggest: boolean;
   suggestionFor: (metric: BudgetMetric, month: string) => number | null;
+  forecastRefs: ForecastRef[];
   stickyCol: string;
   numCell: string;
   mode: Mode;
@@ -964,6 +1045,34 @@ function MetricRows({
           );
         })}
       </tr>
+      {metric.key === "target_new_mrr" &&
+        forecastRefs.map((ref) => (
+          <tr key={ref.id}>
+            <td className={`${stickyCol} px-3`}>
+              <div className="text-[10px] pl-2" style={{ color: ref.color }}>
+                forecast · {ref.label}
+              </div>
+            </td>
+            {periods.map((p) => {
+              const v =
+                p.kind === "month"
+                  ? ref.byMonth[p.months[0]] ?? null
+                  : rollupValues(
+                      p.months.map((m) => ref.byMonth[m] ?? null),
+                      "sum"
+                    );
+              return (
+                <td
+                  key={p.key}
+                  className={`${numCell} ${colClasses(p.kind, p.isCurrent)}`}
+                  style={{ color: ref.color }}
+                >
+                  {v != null ? formatValue(v, metric) : "—"}
+                </td>
+              );
+            })}
+          </tr>
+        ))}
     </>
   );
 }

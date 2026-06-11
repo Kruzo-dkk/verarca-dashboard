@@ -4,8 +4,10 @@ import {
   computePredictedAssumptions,
   deriveSuggestedBand,
   clampPct,
+  forecastNewMrrByMonth,
   PREDICTED_FALLBACK,
   type ForecastAssumptions,
+  type ForecastMonth,
   type TrailingSnapshot,
 } from "../forecast";
 
@@ -340,5 +342,24 @@ describe("deriveSuggestedBand", () => {
       expect(oneDecimal(band.monthlyExpansionPct)).toBe(true);
       expect(oneDecimal(band.newLogosPerMonth)).toBe(true);
     }
+  });
+});
+
+
+// ─── forecastNewMrrByMonth ───────────────────────────────────────
+
+describe("forecastNewMrrByMonth", () => {
+  const fm = (month: string, newLogoAmount: number, pipelineAmount: number): ForecastMonth => ({
+    month,
+    mrr: 0,
+    arr: 0,
+    churnAmount: 0,
+    expansionAmount: 0,
+    newLogoAmount,
+    pipelineAmount,
+  });
+  it("sums new-logo + pipeline per month", () => {
+    const months = [fm("2026-01", 100, 50), fm("2026-02", 200, 0)];
+    expect(forecastNewMrrByMonth(months)).toEqual({ "2026-01": 150, "2026-02": 200 });
   });
 });
