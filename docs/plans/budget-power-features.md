@@ -330,3 +330,39 @@ and finance actuals via grouped read-merge per month. Returns `{ ok, count }`.
 - Forecast reconcile (PR 5) assumes the forecast horizon can cover the budget window; clamp to available months.
 - Lock (PR 6) changes the data model; the snapshot tables are additive (no existing data touched).
 - Heatmap direction config (PR 1) must be right per metric or colors mislead — covered by tests.
+
+
+---
+
+## Formula register (every calculation, verified)
+
+Each headline calculation, its exact formula, a worked example from live data
+(June 2026 / trailing windows), and where it is verified. "check" = a live
+post-sync integrity check in `src/lib/sync/validate-sync.ts` → `sync_audit_log`
+→ the Data Quality "Metric Integrity" card; "unit" = a Vitest invariant.
+
+| Metric | Formula | Worked example | Verified |
+|---|---|---|---|
+| MRR waterfall | `mrr[m] = mrr[m-1] + new + exp − contr − churn` | May: 29,740,477 + 1,898,900 − 0 − 380,100 − 119,900 = 31,139,377 øre | check `mrr_waterfall_identity` · unit `mrrWaterfallExpected` |
+| ARR | `arr = mrr × 12` | 31.1M øre × 12 | check `arr_arpa_identity` · unit `arrArpaProblems` |
+| ARPA | `arpa = round(mrr ÷ active count)` | mrr ÷ customer_count | check `arr_arpa_identity` · unit `arrArpaProblems` |
+| NRR / GRR | `nrr ≥ grr` always; `nrr > grr ⟺ expansion > 0` | derived from one decomposition + prior MRR | check `nrr_grr_consistency` · unit `nrrGrrProblems` |
+| Predicted churn % | `Σ(churned+contraction) ÷ Σ prior-MRR × 100` | trailing-3 ≈ 1.43% | check `forecast_predicted_rates` · unit `forecastRateProblems` |
+| Predicted expansion % | `Σ expansion ÷ Σ prior-MRR × 100` | trailing-3 = 0.0% (Verarca has none) | check `forecast_predicted_rates` · unit `forecastRateProblems` |
+| Avg new-deal MRR | `Σ new_mrr ÷ Σ new_paying_logos` | Apr–Jun: 3,247,700 ÷ 22 = kr 1,476 (was kr 928 on all 35 logos) | unit `computePredictedAssumptions` (paying-logo basis) |
+| New logos / month | `Σ new_paying_logos ÷ months` | Apr–Jun: 22 ÷ 3 = 7.3 (paying) | unit `computePredictedAssumptions` |
+| Forecast new-MRR | `newLogoAmount + pipelineAmount` per month | from `projectScenario` | unit `forecastNewMrrByMonth` |
+| Reconcile divergence | `(budgetTotal − forecastTotal) ÷ forecastTotal × 100` | aligned within ±15% | unit `reconcileNewMrr` |
+| Budget roll-up | sum / average / endOfPeriod over present values | quarter = Σ its 3 months | unit `rollupValues` |
+| Attainment | `actual ÷ budget × 100` | 1 dp; null when budget 0/missing | unit `attainmentPct` |
+| Signed variance | `(actual − budget) ÷ |budget| × 100` | +30% burn over budget → bad | unit `signedVariancePct` / `varianceBucket` |
+| Suggestion | trailing-3 mean of actuals (finance → prior budget when absent) | run-rate | unit `suggestBudget` |
+| Cash runway | `cash[m] = startCash − Σ burn[start..m-1]` | sparkline + cash-zero month | unit `projectCashRunway` / `cashZeroMonth` |
+| Months of runway | `cash ÷ avg monthly burn` (1 dp; ∞ when not burning) | colour-graded green>12 / amber / red<6 | unit `monthsOfRunway` |
+| FY re-forecast | `Σ (closed ? actualOfRecord : budget)` over the FY | actuals-to-date + remaining budget | unit `fullYearReforecast` |
+| Plan drift | `signedVariancePct(current, planOfRecord)` | ▲/▼ on closed-month budget | unit `planVsReforecastDrift` |
+
+This makes "check all calculations" a standing guarantee: the forecast and
+headline metrics are re-derived independently every sync (drift surfaces on the
+dashboard, not in a board meeting), and every pure budget/forecast helper ships
+with an invariant unit test (522-test suite).

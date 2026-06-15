@@ -3,6 +3,7 @@ import {
   nrrGrrProblems,
   mrrWaterfallExpected,
   arrArpaProblems,
+  forecastRateProblems,
 } from "../validate-sync";
 
 describe("nrrGrrProblems", () => {
@@ -47,5 +48,23 @@ describe("arrArpaProblems", () => {
   });
   it("flags arpa ≠ mrr/count", () => {
     expect(arrArpaProblems(1_000_000, 12_000_000, 9_000, 100)[0]).toContain("mrr/count");
+  });
+});
+
+
+describe("forecastRateProblems", () => {
+  it("passes when derived rates match the independent recomputation", () => {
+    expect(forecastRateProblems(3.0, 3.0, 1.5, 1.5)).toEqual([]);
+    expect(forecastRateProblems(3.0, 3.02, 1.5, 1.48)).toEqual([]); // within tol
+  });
+  it("flags a drifted predicted churn rate", () => {
+    const p = forecastRateProblems(3.0, 2.0, 1.5, 1.5);
+    expect(p.length).toBe(1);
+    expect(p[0]).toContain("predicted churn");
+  });
+  it("flags a drifted predicted expansion rate", () => {
+    const p = forecastRateProblems(3.0, 3.0, 1.5, 0.0);
+    expect(p.length).toBe(1);
+    expect(p[0]).toContain("predicted expansion");
   });
 });
