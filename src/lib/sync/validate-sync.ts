@@ -1,5 +1,10 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { listSubscriptions, type Subscription } from "@/lib/frisbii";
+import {
+  computePredictedAssumptions,
+  clampPct,
+  type TrailingSnapshot,
+} from "@/lib/forecast";
 import { syncLog } from "./logger";
 
 // ─── Types ────────────────────────────────────────────────────
@@ -432,6 +437,30 @@ export function arrArpaProblems(
 }
 
 /**
+ * Predicted-rate identity: the forecast's predicted churn% and expansion% must
+ * equal Σ(churned+contraction)/Σ prior-MRR and Σexpansion/Σ prior-MRR over the
+ * trailing window. Guards computePredictedAssumptions against future drift.
+ */
+export function forecastRateProblems(
+  expectedChurnPct: number,
+  derivedChurnPct: number,
+  expectedExpansionPct: number,
+  derivedExpansionPct: number,
+  tol = 0.05
+): string[] {
+  const p: string[] = [];
+  if (Math.abs(expectedChurnPct - derivedChurnPct) > tol)
+    p.push(
+      `predicted churn ${derivedChurnPct.toFixed(2)}% ≠ Σ(churn+contr)/Σ prevMRR (${expectedChurnPct.toFixed(2)}%)`
+    );
+  if (Math.abs(expectedExpansionPct - derivedExpansionPct) > tol)
+    p.push(
+      `predicted expansion ${derivedExpansionPct.toFixed(2)}% ≠ Σexp/Σ prevMRR (${expectedExpansionPct.toFixed(2)}%)`
+    );
+  return p;
+}
+
+/**
  * NRR/GRR consistency: NRR ≥ GRR always, and NRR > GRR ⟺ expansion_mrr > 0.
  * Self-contained from the snapshot's own fields — would have caught the
  * "106% NRR with zero expansion" bug immediately.
@@ -544,6 +573,96 @@ async function checkArrArpaIdentity(month: string): Promise<ValidationCheck> {
   };
 }
 
+/**
+ * Forecast predicted-rate identity: recompute the predicted churn/expansion from
+ * the trailing snapshots two ways (independent sum vs computePredictedAssumptions)
+ * and confirm they reconcile. A failure means the forecast derivation drifted
+ * from its documented formula.
+ */
+async function checkForecastPredictedRates(month: string): Promise<ValidationCheck> {
+  const supabase = createAdminClient();
+  const [y, mo] = month.split("-").map(Number);
+  const months: string[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(y, mo - 1 - i, 1);
+    months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  }
+  const { data: rows } = await supabase
+    .from("monthly_snapshots")
+    .select(
+      "month, mrr, churned_mrr, contraction_mrr, expansion_mrr, new_mrr, new_logos, new_paying_logos, arpa"
+    )
+    .in("month", months);
+
+  if (!rows || rows.length < 3) {
+    return {
+      checkName: "forecast_predicted_rates",
+      status: "pass",
+      expectedValue: null,
+      actualValue: null,
+      delta: null,
+      details: "Not enough history for predicted derivation",
+    };
+  }
+
+  const trailing: TrailingSnapshot[] = rows
+    .map((r) => ({
+      month: r.month,
+      mrr: r.mrr ?? 0,
+      churned_mrr: r.churned_mrr ?? 0,
+      contraction_mrr: r.contraction_mrr ?? 0,
+      expansion_mrr: r.expansion_mrr ?? 0,
+      new_mrr: r.new_mrr ?? 0,
+      new_logos: r.new_logos ?? 0,
+      new_paying_logos: r.new_paying_logos,
+      arpa: r.arpa ?? 0,
+    }))
+    .sort((a, b) => a.month.localeCompare(b.month));
+
+  // Independent recomputation over transitions with a positive prior MRR.
+  let churnNum = 0;
+  let expNum = 0;
+  let baseDen = 0;
+  for (let i = 1; i < trailing.length; i++) {
+    const prevMrr = trailing[i - 1].mrr;
+    if (prevMrr > 0) {
+      churnNum += trailing[i].churned_mrr + trailing[i].contraction_mrr;
+      expNum += trailing[i].expansion_mrr;
+      baseDen += prevMrr;
+    }
+  }
+
+  const { assumptions, sufficientHistory } = computePredictedAssumptions(trailing, null);
+  if (!sufficientHistory || baseDen === 0) {
+    return {
+      checkName: "forecast_predicted_rates",
+      status: "pass",
+      expectedValue: null,
+      actualValue: null,
+      delta: null,
+      details: "Insufficient base for predicted rates",
+    };
+  }
+
+  const expectedChurn = clampPct((churnNum / baseDen) * 100);
+  const expectedExp = clampPct((expNum / baseDen) * 100);
+  const problems = forecastRateProblems(
+    expectedChurn,
+    assumptions.monthlyChurnPct,
+    expectedExp,
+    assumptions.monthlyExpansionPct
+  );
+
+  return {
+    checkName: "forecast_predicted_rates",
+    status: problems.length ? "fail" : "pass",
+    expectedValue: `churn=${expectedChurn.toFixed(2)}%, exp=${expectedExp.toFixed(2)}%`,
+    actualValue: `churn=${assumptions.monthlyChurnPct.toFixed(2)}%, exp=${assumptions.monthlyExpansionPct.toFixed(2)}%`,
+    delta: Math.round((assumptions.monthlyChurnPct - expectedChurn) * 100) / 100,
+    details: problems.length ? problems.join("; ") : null,
+  };
+}
+
 // ─── Main validation ─────────────────────────────────────────
 
 /**
@@ -562,6 +681,7 @@ export async function validateSync(month: string): Promise<void> {
     checkNrrGrrConsistency(month),
     checkMrrWaterfall(month),
     checkArrArpaIdentity(month),
+    checkForecastPredictedRates(month),
   ]);
 
   const warnings = checks.filter((c) => c.status === "warn");
