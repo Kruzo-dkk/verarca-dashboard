@@ -34,6 +34,10 @@ import {
   suggestBudget,
   type SuggestLookup,
   reconcileNewMrr,
+  isMonthEditable,
+  fullYearReforecast,
+  planVsReforecastDrift,
+  type MonthStatus,
 } from "@/lib/budget";
 import { forecastNewMrrByMonth, type ForecastMonth } from "@/lib/forecast";
 import { SCENARIO_META, type ScenarioId } from "@/lib/forecast-scenarios";
@@ -45,6 +49,15 @@ interface BudgetGridData {
   financeActuals: Record<string, Record<string, number>>;
   salesActuals: Record<string, Record<string, number>>;
   cashByMonth: Record<string, number>;
+  monthStatus: Record<string, string>;
+  planOfRecord: Record<string, Record<string, number>>;
+  actualsOfRecord: Record<string, Record<string, number>>;
+}
+
+interface CloseInfo {
+  monthStatus: Record<string, string>;
+  planOfRecord: Record<string, Record<string, number>>;
+  actualsOfRecord: Record<string, Record<string, number>>;
 }
 
 type View = "monthly" | "quarterly" | "yearly";
@@ -131,6 +144,9 @@ export function BudgetGrid() {
   const [cashByMonth, setCashByMonth] = useState<Record<string, number>>({});
   const [suggest, setSuggest] = useState(false);
   const [forecastNewMrr, setForecastNewMrr] = useState<Record<string, Record<string, number>>>({});
+  const [monthStatus, setMonthStatus] = useState<Record<string, string>>({});
+  const [planOfRecord, setPlanOfRecord] = useState<Record<string, Record<string, number>>>({});
+  const [actualsOfRecord, setActualsOfRecord] = useState<Record<string, Record<string, number>>>({});
   const [error, setError] = useState<string | null>(null);
   const [inFlight, setInFlight] = useState(0);
   const [savedAt, setSavedAt] = useState<number | null>(null);
@@ -155,6 +171,9 @@ export function BudgetGrid() {
         setBudgets(d.budgets ?? {});
         setFinanceActuals(d.financeActuals ?? {});
         setCashByMonth(d.cashByMonth ?? {});
+        setMonthStatus(d.monthStatus ?? {});
+        setPlanOfRecord(d.planOfRecord ?? {});
+        setActualsOfRecord(d.actualsOfRecord ?? {});
       } catch {
         setError("Failed to load budget");
       }
@@ -530,6 +549,38 @@ export function BudgetGrid() {
     batchSave(entries, `Accepted ${entries.length} · ${section}`);
   }
 
+  // Close locks a month's actuals + snapshots plan/actuals of record; reopen
+  // unlocks. Optimistic, with a refresh of the snapshots after a close.
+  async function setMonthClosed(month: string, closed: boolean) {
+    const prevStatus = monthStatus[month];
+    setMonthStatus((prev) => ({ ...prev, [month]: closed ? "closed" : "open" }));
+    setInFlight((n) => n + 1);
+    try {
+      const res = await fetch(`/api/budget/${closed ? "close" : "reopen"}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ month }),
+      });
+      if (!res.ok) throw new Error("request failed");
+      setSavedAt(Date.now());
+      if (closed) {
+        const snap = await fetch("/api/budget")
+          .then((r) => (r.ok ? r.json() : null))
+          .catch(() => null);
+        if (snap) {
+          setPlanOfRecord(snap.planOfRecord ?? {});
+          setActualsOfRecord(snap.actualsOfRecord ?? {});
+        }
+      }
+      setToast(`${closed ? "Closed" : "Reopened"} ${monthLabel(month)}`);
+    } catch {
+      setMonthStatus((prev) => ({ ...prev, [month]: prevStatus ?? "open" })); // revert
+      setError(`Failed to ${closed ? "close" : "reopen"} ${monthLabel(month)}`);
+    } finally {
+      setInFlight((n) => n - 1);
+    }
+  }
+
   // Auto-dismiss the bulk-edit toast.
   useEffect(() => {
     if (!toast) return;
@@ -643,7 +694,7 @@ export function BudgetGrid() {
         <div>
           <h1 className="text-2xl font-semibold text-[var(--text-primary)]">Budget</h1>
           <p className="text-xs text-[var(--text-muted)]">
-            Budget vs Actual · fiscal year 1 Aug – 31 Jul · grey = synced actual · ⌘D fill down · ⌘R fill right · paste a column
+            Budget vs Actual · fiscal year 1 Aug – 31 Jul · grey = synced actual · ⌘D/⌘R fill · paste a column · 🔒 close locks actuals (self-attested, no ERP)
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -771,9 +822,27 @@ export function BudgetGrid() {
                         ? "text-[var(--text-muted)] italic"
                         : "text-[var(--text-muted)]"
                       : "text-[var(--text-primary)]"
+                  } ${
+                    p.kind === "month" && monthStatus[p.months[0]] === "closed" ? "bg-gray-100" : ""
                   }`}
                 >
-                  {p.label}
+                  {p.kind === "month" && !p.isFuture ? (
+                    <span className="inline-flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setMonthClosed(p.months[0], monthStatus[p.months[0]] !== "closed")
+                        }
+                        title={monthStatus[p.months[0]] === "closed" ? "Reopen month" : "Close month"}
+                        className="text-[10px] opacity-50 transition-opacity hover:opacity-100"
+                      >
+                        {monthStatus[p.months[0]] === "closed" ? "🔒" : "🔓"}
+                      </button>
+                      {p.label}
+                    </span>
+                  ) : (
+                    p.label
+                  )}
                 </th>
               ))}
             </tr>
@@ -795,6 +864,7 @@ export function BudgetGrid() {
                 suggestionFor={suggestionFor}
                 onAcceptSection={acceptSuggestions}
                 forecastRefs={forecastRefs}
+                closeInfo={{ monthStatus, planOfRecord, actualsOfRecord }}
                 stickyCol={stickyCol}
                 numCell={numCell}
                 mode={mode}
@@ -837,6 +907,7 @@ function SectionRows({
   suggestionFor,
   onAcceptSection,
   forecastRefs,
+  closeInfo,
   stickyCol,
   numCell,
   mode,
@@ -855,6 +926,7 @@ function SectionRows({
   suggestionFor: (metric: BudgetMetric, month: string) => number | null;
   onAcceptSection: (section: BudgetSection) => void;
   forecastRefs: ForecastRef[];
+  closeInfo: CloseInfo;
   stickyCol: string;
   numCell: string;
   mode: Mode;
@@ -892,6 +964,7 @@ function SectionRows({
           suggest={suggest}
           suggestionFor={suggestionFor}
           forecastRefs={forecastRefs}
+          closeInfo={closeInfo}
           stickyCol={stickyCol}
           numCell={numCell}
           mode={mode}
@@ -913,6 +986,7 @@ function MetricRows({
   suggest,
   suggestionFor,
   forecastRefs,
+  closeInfo,
   stickyCol,
   numCell,
   mode,
@@ -928,6 +1002,7 @@ function MetricRows({
   suggest: boolean;
   suggestionFor: (metric: BudgetMetric, month: string) => number | null;
   forecastRefs: ForecastRef[];
+  closeInfo: CloseInfo;
   stickyCol: string;
   numCell: string;
   mode: Mode;
@@ -954,19 +1029,54 @@ function MetricRows({
             suggest && p.kind === "month" && p.isFuture && val == null
               ? suggestionFor(metric, p.months[0])
               : null;
+          const m0 = p.months[0];
+          const drift =
+            p.kind === "month" && closeInfo.monthStatus[m0] === "closed"
+              ? planVsReforecastDrift(closeInfo.planOfRecord[m0]?.[metric.key] ?? null, val)
+              : null;
+          const fyReforecast =
+            p.kind === "year"
+              ? fullYearReforecast(
+                  p.months,
+                  (mm) => closeInfo.monthStatus[mm] === "closed",
+                  (mm) => closeInfo.actualsOfRecord[mm]?.[metric.key] ?? null,
+                  (mm) => budgetOf(mm, metric.key),
+                  metric.rollup
+                )
+              : null;
           return (
             <td key={p.key} className={`${numCell} ${colClasses(p.kind, p.isCurrent)}`}>
               {p.kind === "month" ? (
-                <EditableCell
-                  value={val}
-                  metric={metric}
-                  suggestion={suggestion}
-                  onSave={(v) => onSave(p.months[0], metric.key, "budget", v)}
-                  onFill={(dir, nv) => onFill(dir, p.months[0], metric.key, nv)}
-                  onPasteText={(t) => onPaste(p.months[0], metric.key, "budget", t)}
-                />
+                <span className="inline-flex items-center justify-end gap-0.5">
+                  <EditableCell
+                    value={val}
+                    metric={metric}
+                    suggestion={suggestion}
+                    onSave={(v) => onSave(p.months[0], metric.key, "budget", v)}
+                    onFill={(dir, nv) => onFill(dir, p.months[0], metric.key, nv)}
+                    onPasteText={(t) => onPaste(p.months[0], metric.key, "budget", t)}
+                  />
+                  {drift != null && Math.abs(drift) >= 0.1 && (
+                    <span
+                      className={`text-[9px] ${drift > 0 ? "text-emerald-600" : "text-red-600"}`}
+                      title={`Re-forecast ${drift > 0 ? "up" : "down"} ${Math.abs(drift)}% vs plan of record`}
+                    >
+                      {drift > 0 ? "▲" : "▼"}
+                    </span>
+                  )}
+                </span>
               ) : (
-                <span className="text-[var(--text-primary)]">{formatValue(val, metric)}</span>
+                <span className="text-[var(--text-primary)]">
+                  {formatValue(val, metric)}
+                  {fyReforecast != null && fyReforecast !== val && (
+                    <span
+                      className="block text-[9px] font-normal text-[var(--text-muted)]"
+                      title="Full-year re-forecast: actuals of record for closed months + budget for the rest"
+                    >
+                      ≈{formatValue(fyReforecast, metric)}
+                    </span>
+                  )}
+                </span>
               )}
             </td>
           );
@@ -980,7 +1090,14 @@ function MetricRows({
           </div>
         </td>
         {periods.map((p) => {
-          const editableActual = p.kind === "month" && metric.actual === "settings" && !p.isFuture;
+          const editableActual =
+            p.kind === "month" &&
+            metric.actual === "settings" &&
+            !p.isFuture &&
+            isMonthEditable(
+              closeInfo.monthStatus[p.months[0]] as MonthStatus | undefined,
+              "actual"
+            );
           const val = rollup(p, (m) => actualOf(m, metric));
           const budgetVal = rollup(p, (m) => budgetOf(m, metric.key));
           const att = p.kind !== "month" ? attainmentPct(val, budgetVal) : null;

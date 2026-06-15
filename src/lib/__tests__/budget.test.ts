@@ -29,6 +29,9 @@ import {
   suggestBudget,
   type SuggestLookup,
   reconcileNewMrr,
+  isMonthEditable,
+  fullYearReforecast,
+  planVsReforecastDrift,
 } from "../budget";
 
 // ─── Month arithmetic ────────────────────────────────────────────
@@ -514,5 +517,43 @@ describe("reconcileNewMrr", () => {
     const r = reconcileNewMrr({ "2026-01": 100 }, {});
     expect(r.band).toBe("unknown");
     expect(r.divergencePct).toBeNull();
+  });
+});
+
+
+// ─── Month close / lock ──────────────────────────────────────────
+
+describe("isMonthEditable", () => {
+  it("open or unknown months are fully editable", () => {
+    expect(isMonthEditable("open", "budget")).toBe(true);
+    expect(isMonthEditable("open", "actual")).toBe(true);
+    expect(isMonthEditable(undefined, "actual")).toBe(true);
+  });
+  it("closed months lock actuals but allow budget re-forecast", () => {
+    expect(isMonthEditable("closed", "actual")).toBe(false);
+    expect(isMonthEditable("closed", "budget")).toBe(true);
+  });
+});
+
+describe("fullYearReforecast", () => {
+  const fy = ["2025-08", "2025-09", "2025-10"];
+  it("uses actuals-of-record for closed months, budget for the rest", () => {
+    const closed = (m: string) => m === "2025-08";
+    const aor = (m: string) => (m === "2025-08" ? 100 : null);
+    const bud = (m: string) => 50;
+    expect(fullYearReforecast(fy, closed, aor, bud, "sum")).toBe(100 + 50 + 50);
+  });
+  it("respects the rollup kind (endOfPeriod = last)", () => {
+    const closed = () => false;
+    const bud = (m: string) => (m === "2025-10" ? 7 : 5);
+    expect(fullYearReforecast(fy, closed, () => null, bud, "endOfPeriod")).toBe(7);
+  });
+});
+
+describe("planVsReforecastDrift", () => {
+  it("is the signed % change from plan of record", () => {
+    expect(planVsReforecastDrift(100, 120)).toBe(20);
+    expect(planVsReforecastDrift(100, 80)).toBe(-20);
+    expect(planVsReforecastDrift(null, 80)).toBeNull();
   });
 });

@@ -705,6 +705,69 @@ export type Database = {
         }
         Relationships: []
       }
+      budget_month_status: {
+        Row: {
+          closed_at: string | null
+          closed_by: string | null
+          month: string
+          status: string
+        }
+        Insert: {
+          closed_at?: string | null
+          closed_by?: string | null
+          month: string
+          status?: string
+        }
+        Update: {
+          closed_at?: string | null
+          closed_by?: string | null
+          month?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      budget_plan_of_record: {
+        Row: {
+          budget: number | null
+          closed_at: string
+          metric_key: string
+          month: string
+        }
+        Insert: {
+          budget?: number | null
+          closed_at?: string
+          metric_key: string
+          month: string
+        }
+        Update: {
+          budget?: number | null
+          closed_at?: string
+          metric_key?: string
+          month?: string
+        }
+        Relationships: []
+      }
+      actuals_of_record: {
+        Row: {
+          actual: number | null
+          closed_at: string
+          metric_key: string
+          month: string
+        }
+        Insert: {
+          actual?: number | null
+          closed_at?: string
+          metric_key: string
+          month: string
+        }
+        Update: {
+          actual?: number | null
+          closed_at?: string
+          metric_key?: string
+          month?: string
+        }
+        Relationships: []
+      }
       sales_targets: {
         Row: {
           created_at: string | null
