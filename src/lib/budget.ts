@@ -519,3 +519,48 @@ export function reconcileNewMrr(
         : `New-MRR plan is ${Math.abs(divergencePct)}% below the predicted forecast.`;
   return { budgetTotal, forecastTotal, divergencePct, band, message };
 }
+
+
+// ─── Month close / lock ───────────────────────────────────────
+
+export type MonthStatus = "open" | "closed";
+
+/**
+ * Whether a cell is editable given its month's close status. Open (or unknown)
+ * months are fully editable. A CLOSED month locks its actuals (self-attested at
+ * close) but still allows budget edits — those become a re-forecast layer.
+ */
+export function isMonthEditable(
+  status: MonthStatus | undefined,
+  field: "budget" | "actual"
+): boolean {
+  if (status !== "closed") return true;
+  return field === "budget";
+}
+
+/**
+ * Full-year re-forecast for a metric: actuals-of-record for closed months +
+ * current budget for the rest, rolled up the metric's way. This is the live
+ * "where will the year land" number beside the static FY budget total.
+ */
+export function fullYearReforecast(
+  fyMonths: string[],
+  isClosed: (m: string) => boolean,
+  actualOfRecord: (m: string) => number | null,
+  budget: (m: string) => number | null,
+  rollup: RollupKind
+): number | null {
+  const vals = fyMonths.map((m) => (isClosed(m) ? actualOfRecord(m) : budget(m)));
+  return rollupValues(vals, rollup);
+}
+
+/**
+ * Drift of the current (re-forecast) budget from the plan of record snapshotted
+ * at close, as a signed %. Positive = revised up since close.
+ */
+export function planVsReforecastDrift(
+  planOfRecord: number | null,
+  current: number | null
+): number | null {
+  return signedVariancePct(current, planOfRecord);
+}

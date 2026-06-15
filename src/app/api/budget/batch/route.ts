@@ -80,6 +80,22 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient();
   const stamp = new Date().toISOString();
 
+  // Reject actual edits that target a closed month (budgets stay editable).
+  const actualMonths = [...new Set(entries.filter((e) => e.field === "actual").map((e) => e.month))];
+  if (actualMonths.length) {
+    const { data: statuses } = await admin
+      .from("budget_month_status")
+      .select("month, status")
+      .in("month", actualMonths);
+    const closed = (statuses ?? []).filter((s) => s.status === "closed").map((s) => s.month);
+    if (closed.length) {
+      return NextResponse.json(
+        { error: `Closed months reject actual edits: ${closed.join(", ")}` },
+        { status: 409 }
+      );
+    }
+  }
+
   // Budget entries → one bulk upsert.
   const budgetRows = entries
     .filter((e) => e.field === "budget")

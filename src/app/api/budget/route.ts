@@ -66,6 +66,23 @@ export async function GET() {
     admin.from("activity_snapshots").select("date, calls_made, meetings_booked"),
   ]);
 
+  // Month close state + the plan/actuals snapshotted at close.
+  const [statusRes, porRes, aorRes] = await Promise.all([
+    admin.from("budget_month_status").select("month, status"),
+    admin.from("budget_plan_of_record").select("month, metric_key, budget"),
+    admin.from("actuals_of_record").select("month, metric_key, actual"),
+  ]);
+  const monthStatus: Record<string, string> = {};
+  for (const r of statusRes.data ?? []) monthStatus[r.month] = r.status;
+  const planOfRecord: Record<string, Record<string, number>> = {};
+  for (const r of porRes.data ?? []) {
+    if (r.budget != null) (planOfRecord[r.month] ??= {})[r.metric_key] = Number(r.budget);
+  }
+  const actualsOfRecord: Record<string, Record<string, number>> = {};
+  for (const r of aorRes.data ?? []) {
+    if (r.actual != null) (actualsOfRecord[r.month] ??= {})[r.metric_key] = Number(r.actual);
+  }
+
   const budgets: Record<string, Record<string, number>> = {};
   for (const r of budgetRes.data ?? []) {
     if (r.budget == null) continue;
@@ -152,6 +169,9 @@ export async function GET() {
     financeActuals,
     salesActuals,
     cashByMonth,
+    monthStatus,
+    planOfRecord,
+    actualsOfRecord,
   });
 }
 
@@ -272,6 +292,18 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json(
       { error: "This metric's actual is synced and cannot be edited" },
       { status: 400 }
+    );
+  }
+  // A closed month locks its actuals (budget edits stay open as a re-forecast).
+  const { data: lock } = await admin
+    .from("budget_month_status")
+    .select("status")
+    .eq("month", month)
+    .maybeSingle();
+  if (lock?.status === "closed") {
+    return NextResponse.json(
+      { error: "This month is closed — actuals are locked. Reopen it to edit." },
+      { status: 409 }
     );
   }
   // Read-merge-write so we never clobber the other settings columns.
