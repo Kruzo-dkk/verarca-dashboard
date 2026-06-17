@@ -118,7 +118,11 @@ export interface SubscriptionDiscount {
   created: string;
 }
 
-async function apiFetch<T>(path: string, params: ListParams = {}): Promise<T> {
+async function apiFetch<T>(
+  path: string,
+  params: ListParams = {},
+  opts: { noStore?: boolean } = {}
+): Promise<T> {
   const url = new URL(`${BASE_URL}${path}`);
   for (const [key, value] of Object.entries(params)) {
     if (value === undefined) continue;
@@ -134,7 +138,14 @@ async function apiFetch<T>(path: string, params: ListParams = {}): Promise<T> {
       Authorization: getAuthHeader(),
       "Content-Type": "application/json",
     },
-    next: { revalidate: 300 }, // cache for 5 minutes
+    // Token-paginated lists MUST NOT be cached: the Data Cache keys by URL, so a
+    // cached page returns a stale cursor token and the chain never reaches pages
+    // of records added after the cache filled — silently dropping the newest
+    // subscriptions/customers from every sync (see fetchAll). Single-object reads
+    // (by handle) stay on the 5-minute cache.
+    ...(opts.noStore
+      ? { cache: "no-store" as const }
+      : { next: { revalidate: 300 } }),
   });
 
   if (!res.ok) {
@@ -150,14 +161,18 @@ async function fetchAll<T>(path: string, params: ListParams = {}): Promise<T[]> 
   let nextToken: string | undefined;
 
   do {
-    const response = await apiFetch<ListResponse<T>>(path, {
-      // Frisbii defaults to range=created with a 1-month window,
-      // so without an explicit `from` it only returns recently-created records.
-      from: "2020-01-01",
-      ...params,
-      size: params.size ?? 100,
-      ...(nextToken ? { next_page_token: nextToken } : {}),
-    });
+    const response = await apiFetch<ListResponse<T>>(
+      path,
+      {
+        // Frisbii defaults to range=created with a 1-month window,
+        // so without an explicit `from` it only returns recently-created records.
+        from: "2020-01-01",
+        ...params,
+        size: params.size ?? 100,
+        ...(nextToken ? { next_page_token: nextToken } : {}),
+      },
+      { noStore: true }
+    );
     all.push(...response.content);
     nextToken = response.next_page_token;
   } while (nextToken);
