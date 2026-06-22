@@ -2,6 +2,7 @@ import { syncFXRates } from "./sync-fx";
 import { syncPipeline } from "./sync-pipeline";
 import { syncCustomers } from "./sync-customers";
 import { detectCustomerLinks } from "./detect-customer-links";
+import { autoRemediate } from "./auto-remediate";
 import { syncCustomerSnapshots } from "./sync-customer-snapshots";
 import { syncDiscounts } from "./sync-discounts";
 import { syncMonthlySnapshot } from "./sync-frisbii";
@@ -240,6 +241,15 @@ export async function runMonthlySyncAll(
     detectCustomerLinks()
   );
   results.push(linksResult);
+
+  // ── Step 3c: Auto-remediate data-quality issues (duplicate active subs,
+  //     delete/recreate) BEFORE snapshots, so the cleaned state flows into the
+  //     snapshots and the final validateSync passes. Every action is recorded in
+  //     this run's metadata (visible in the Data Quality → Sync Log pane). ──
+  const remediationResult = await runModule("auto-remediate", month, () =>
+    autoRemediate(month)
+  );
+  results.push(remediationResult);
 
   // ── Step 4: Customer snapshots (depends on customers) ──
   const customerSnapshotsResult = await runModule(

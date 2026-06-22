@@ -15,6 +15,8 @@ export interface SyncRunLog {
   recordsFetched: number | null;
   recordsUpserted: number | null;
   errorMessage: string | null;
+  /** Module-specific diagnostics (e.g. auto-remediate stores its actions here). */
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface DataQualityData {

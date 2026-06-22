@@ -139,7 +139,7 @@ export async function GET(request: NextRequest) {
   const { data: syncRunRows } = await admin
     .from("sync_runs")
     .select(
-      "id, module, month, status, started_at, finished_at, duration_ms, records_fetched, records_upserted, error_message"
+      "id, module, month, status, started_at, finished_at, duration_ms, records_fetched, records_upserted, error_message, metadata"
     )
     .order("started_at", { ascending: false })
     .limit(150);
@@ -154,6 +154,7 @@ export async function GET(request: NextRequest) {
     recordsFetched: r.records_fetched,
     recordsUpserted: r.records_upserted,
     errorMessage: r.error_message,
+    metadata: (r.metadata as Record<string, unknown> | null) ?? null,
   }));
 
   // ── Reconciliation ────────────────────────────────────────────
