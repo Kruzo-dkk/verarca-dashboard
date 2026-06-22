@@ -197,6 +197,12 @@ export interface LinkedGroup {
   members: LinkedMember[];
   activeSubscriptionCount: number;
   totalMrr: number;
+  /**
+   * ≥2 ACTIVE members share the same (cvr, plan, mrr) — a likely duplicate
+   * registration of one subscription. The MRR collapse counts it once; the
+   * customer may still be double-billed in Frisbii (cancel one).
+   */
+  hasDuplicateActivePlan?: boolean;
 }
 
 export interface PipelineDeal {

@@ -137,7 +137,7 @@ export async function backfillHistory(
   // ── 2. Fetch all customers from DB ────────────────────────────
   const { data: customers, error: custError } = await supabase
     .from("customers")
-    .select("id, frisbii_handle, plan_handle, status, churn_date")
+    .select("id, frisbii_handle, plan_handle, status, churn_date, cvr")
     .eq("excluded", false);
 
   if (custError) {
@@ -149,6 +149,9 @@ export async function backfillHistory(
   }
 
   syncLog.info(`[backfill] Found ${customers.length} customers in DB`);
+
+  // customer_id → cvr, so collapseLinkedSnapshots can de-dupe identical subs.
+  const cvrById = new Map(customers.map((c) => [String(c.id), c.cvr ?? null]));
 
   // ── Customer linking: dedupe real-world customers with multiple handles.
   //    Built once (current state) and applied to every historic month. ──
@@ -256,6 +259,7 @@ export async function backfillHistory(
         mrr: r.mrr,
         status: r.status,
         planHandle: r.plan_handle || "",
+        cvr: cvrById.get(String(r.customer_id)) ?? null,
       }));
 
       // Fetch previous month's customer snapshots for decomposition
@@ -270,6 +274,7 @@ export async function backfillHistory(
         mrr: r.mrr,
         status: r.status,
         planHandle: r.plan_handle || "",
+        cvr: cvrById.get(String(r.customer_id)) ?? null,
       }));
 
       // Aggregate metrics — single source of truth (monthly-metrics.ts),

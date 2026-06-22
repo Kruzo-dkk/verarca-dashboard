@@ -86,11 +86,11 @@ describe("validateSync", () => {
 
     await validateSync("2026-03");
 
-    // Should insert all checks (5 original + 3 metric-integrity invariants +
-    // the forecast predicted-rate identity)
+    // Should insert all checks (5 original + 4 metric-integrity invariants +
+    // conflicting-links + duplicate-active-subs + expansion-anomaly guards)
     expect(mockInsert).toHaveBeenCalledTimes(1);
     const insertedRows = mockInsert.mock.calls[0][0];
-    expect(insertedRows).toHaveLength(10);
+    expect(insertedRows).toHaveLength(12);
     expect(
       insertedRows.map((r: { check_name: string }) => r.check_name)
     ).toEqual(
@@ -105,6 +105,8 @@ describe("validateSync", () => {
         "arr_arpa_identity",
         "forecast_predicted_rates",
         "conflicting_customer_links",
+        "duplicate_active_subscriptions",
+        "expansion_anomaly",
       ])
     );
   });

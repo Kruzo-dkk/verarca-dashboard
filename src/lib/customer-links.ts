@@ -80,7 +80,8 @@ export function collapseCustomerSummaries(
 export function buildLinkedGroup(
   members: LinkedMember[],
   canonicalHandle: string,
-  requestedHandle: string
+  requestedHandle: string,
+  hasDuplicateActivePlan = false
 ): LinkedGroup | null {
   if (members.length <= 1) return null;
   return {
@@ -89,6 +90,7 @@ export function buildLinkedGroup(
     members,
     activeSubscriptionCount: members.filter((m) => m.status === "active").length,
     totalMrr: members.reduce((sum, m) => sum + m.mrr, 0),
+    hasDuplicateActivePlan,
   };
 }
 

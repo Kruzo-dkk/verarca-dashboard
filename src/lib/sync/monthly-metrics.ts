@@ -114,7 +114,13 @@ export function computeMonthlyMetrics(input: MonthlyMetricsInput): MonthlyMetric
   // (NRR ≥ GRR; NRR > GRR ⟺ expansion > 0). The previous NRR used a separate
   // raw-customerId numerator that over-counted re-signups / linked customers,
   // producing NRR > GRR with zero expansion.
-  const prevMRR = prevSnapshots.reduce((sum, s) => sum + s.mrr, 0);
+  // Collapse the prior-month base too (same de-dup/top-K as the current MRR)
+  // so the NRR/GRR denominator matches the collapsed waterfall — a raw sum would
+  // over-count re-signups and identical duplicates that the current side de-dups.
+  const prevMRR = collapseLinkedSnapshots(prevSnapshots, links, activeCount).reduce(
+    (sum, c) => sum + c.mrr,
+    0
+  );
   const nrr = calculateNRR(
     prevMRR,
     decomposition.expansionMRR,
