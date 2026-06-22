@@ -303,9 +303,64 @@ export async function fetchSubscriptionDiscountDetails(
 }
 
 /**
- * Fetch subscription-specific add-on amounts for all subscriptions that have add-ons.
- * Returns a map of subscription handle → total add-on amount per billing period.
+ * Map over items with a bounded number of in-flight async tasks, preserving
+ * input order. Rejects (does not swallow) if any task throws.
  */
+export async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i], i);
+    }
+  }
+  const workers = Array.from({ length: Math.min(Math.max(1, limit), items.length) }, worker);
+  await Promise.all(workers);
+  return results;
+}
+
+/**
+ * Retry an async fn on failure with exponential backoff. Throws the last error
+ * once retries are exhausted — callers must NOT convert a persistent failure
+ * into a silent default (that's how add-on revenue was being dropped from MRR).
+ */
+export async function withRetry<T>(
+  fn: () => Promise<T>,
+  retries = 3,
+  baseDelayMs = 250
+): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, baseDelayMs * 2 ** attempt));
+      }
+    }
+  }
+  throw lastErr;
+}
+
+/**
+ * Fetch subscription-specific add-on amounts for all subscriptions that have
+ * add-ons. Returns a map of subscription handle → total add-on amount per
+ * billing period.
+ *
+ * Add-on amounts require a per-subscription call (the list endpoint only carries
+ * add-on HANDLES). Firing all of them at once rate-limited Frisbii, and the old
+ * code silently caught the failure as 0 — quietly dropping ~17% of MRR. Now the
+ * calls are concurrency-capped + retried, and a persistent failure THROWS so the
+ * sync fails loudly instead of writing an under-counted MRR.
+ */
+const ADDON_FETCH_CONCURRENCY = 6;
+
 export async function fetchSubscriptionAddOnTotals(
   subscriptions: Subscription[]
 ): Promise<Map<string, number>> {
@@ -313,16 +368,14 @@ export async function fetchSubscriptionAddOnTotals(
     (s) => s.subscription_add_ons && s.subscription_add_ons.length > 0
   );
 
-  const results = await Promise.all(
-    subsWithAddOns.map(async (sub) => {
-      try {
-        const addOns = await getSubscriptionAddOns(sub.handle);
-        const total = addOns.reduce((sum, a) => sum + (a.amount || 0), 0);
-        return [sub.handle, total] as const;
-      } catch {
-        return [sub.handle, 0] as const;
-      }
-    })
+  const results = await mapWithConcurrency(
+    subsWithAddOns,
+    ADDON_FETCH_CONCURRENCY,
+    async (sub) => {
+      const addOns = await withRetry(() => getSubscriptionAddOns(sub.handle));
+      const total = addOns.reduce((sum, a) => sum + (a.amount || 0), 0);
+      return [sub.handle, total] as const;
+    }
   );
 
   return new Map(results);
