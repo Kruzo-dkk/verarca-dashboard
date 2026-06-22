@@ -118,6 +118,23 @@ export interface SubscriptionDiscount {
   created: string;
 }
 
+/** A non-2xx Frisbii response, carrying the HTTP status for retry decisions. */
+export class FrisbiiApiError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string
+  ) {
+    super(message);
+    this.name = "FrisbiiApiError";
+  }
+}
+
+/** Retry rate-limit (429) + server (5xx) responses and transient network errors. */
+function isRetryableFrisbiiError(err: unknown): boolean {
+  if (err instanceof FrisbiiApiError) return err.status === 429 || err.status >= 500;
+  return true; // network / unknown transient error
+}
+
 async function apiFetch<T>(
   path: string,
   params: ListParams = {},
@@ -133,27 +150,38 @@ async function apiFetch<T>(
     }
   }
 
-  const res = await fetch(url.toString(), {
-    headers: {
-      Authorization: getAuthHeader(),
-      "Content-Type": "application/json",
+  // Frisbii enforces ~25 read req/sec. No-store paginated lists + per-subscription
+  // add-on calls can burst past that, so retry 429/5xx with backoff (1s, 2s, 4s, 8s)
+  // rather than failing a whole sync on a transient spike. 4xx (other than 429)
+  // fail fast.
+  return withRetry(
+    async () => {
+      const res = await fetch(url.toString(), {
+        headers: {
+          Authorization: getAuthHeader(),
+          "Content-Type": "application/json",
+        },
+        // Token-paginated lists MUST NOT be cached: the Data Cache keys by URL, so
+        // a cached page returns a stale cursor token and the chain never reaches
+        // pages of records added after the cache filled — silently dropping the
+        // newest subscriptions/customers from every sync (see fetchAll). Single-
+        // object reads (by handle) stay on the 5-minute cache.
+        ...(opts.noStore
+          ? { cache: "no-store" as const }
+          : { next: { revalidate: 300 } }),
+      });
+
+      if (!res.ok) {
+        const body = await res.text();
+        throw new FrisbiiApiError(res.status, `Frisbii API error ${res.status}: ${body}`);
+      }
+
+      return res.json() as Promise<T>;
     },
-    // Token-paginated lists MUST NOT be cached: the Data Cache keys by URL, so a
-    // cached page returns a stale cursor token and the chain never reaches pages
-    // of records added after the cache filled — silently dropping the newest
-    // subscriptions/customers from every sync (see fetchAll). Single-object reads
-    // (by handle) stay on the 5-minute cache.
-    ...(opts.noStore
-      ? { cache: "no-store" as const }
-      : { next: { revalidate: 300 } }),
-  });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Frisbii API error ${res.status}: ${body}`);
-  }
-
-  return res.json();
+    4,
+    1000,
+    isRetryableFrisbiiError
+  );
 }
 
 async function fetchAll<T>(path: string, params: ListParams = {}): Promise<T[]> {
@@ -332,7 +360,8 @@ export async function mapWithConcurrency<T, R>(
 export async function withRetry<T>(
   fn: () => Promise<T>,
   retries = 3,
-  baseDelayMs = 250
+  baseDelayMs = 250,
+  shouldRetry: (err: unknown) => boolean = () => true
 ): Promise<T> {
   let lastErr: unknown;
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -340,12 +369,11 @@ export async function withRetry<T>(
       return await fn();
     } catch (err) {
       lastErr = err;
-      if (attempt < retries) {
-        await new Promise((r) => setTimeout(r, baseDelayMs * 2 ** attempt));
-      }
+      if (attempt >= retries || !shouldRetry(err)) throw err;
+      await new Promise((r) => setTimeout(r, baseDelayMs * 2 ** attempt));
     }
   }
-  throw lastErr;
+  throw lastErr; // unreachable
 }
 
 /**
@@ -372,7 +400,7 @@ export async function fetchSubscriptionAddOnTotals(
     subsWithAddOns,
     ADDON_FETCH_CONCURRENCY,
     async (sub) => {
-      const addOns = await withRetry(() => getSubscriptionAddOns(sub.handle));
+      const addOns = await getSubscriptionAddOns(sub.handle);
       const total = addOns.reduce((sum, a) => sum + (a.amount || 0), 0);
       return [sub.handle, total] as const;
     }
