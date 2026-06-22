@@ -3,7 +3,7 @@
 ## Stack
 - Next.js App Router, TypeScript, Tailwind CSS, Supabase (Postgres + Auth)
 - Frisbii (Reepay) for billing/subscriptions, HubSpot for CRM/pipeline
-- Vercel auto-deploys on push to main; daily cron at 06:00 UTC runs /api/cron/snapshot
+- Vercel auto-deploys on push to main. Crons (vercel.json): /api/cron/snapshot + /api/cron/sync-activities every 15 min (incremental sync of the current month); /api/cron/backfill?through=current daily 03:17 UTC (full rebuild of every month, self-healing safety net); /api/cron/send-digest monthly (1st, 07:00 UTC)
 
 ## Build & Test
 - `npx tsc --noEmit` — type check (run before committing)

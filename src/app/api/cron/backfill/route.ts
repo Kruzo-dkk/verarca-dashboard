@@ -16,7 +16,14 @@ export async function GET(request: Request) {
 
   try {
     const url = new URL(request.url);
-    const endMonth = url.searchParams.get("endMonth") ?? undefined;
+    // `?endMonth=YYYY-MM` pins the last month; `?through=current` rebuilds up to
+    // and including the current month (the daily full-rebuild safety net). With
+    // neither, backfillHistory defaults to the previous month.
+    const endMonthParam = url.searchParams.get("endMonth") ?? undefined;
+    const through = url.searchParams.get("through");
+    const now = new Date();
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const endMonth = endMonthParam ?? (through === "current" ? currentMonth : undefined);
 
     const result = await backfillHistory(endMonth);
 
