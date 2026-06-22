@@ -8,6 +8,8 @@ interface CustomerTableProps {
   customers: CustomerSummary[];
   formatValue: (v: number) => string;
   showChurnDate?: boolean;
+  /** When true, the last column shows the customer's start date ("Started") for tracking. */
+  showStartDate?: boolean;
   emptyMessage: string;
   /** When true, clicking a row expands the full customer detail. */
   expandable?: boolean;
@@ -19,6 +21,7 @@ export function CustomerTable({
   customers,
   formatValue,
   showChurnDate,
+  showStartDate,
   emptyMessage,
   expandable,
   movementColumn,
@@ -46,6 +49,8 @@ export function CustomerTable({
           <th className="pb-2 font-medium hidden md:table-cell">Partner</th>
           {showChurnDate ? (
             <th className="pb-2 font-medium">Closed</th>
+          ) : showStartDate ? (
+            <th className="pb-2 font-medium">Started</th>
           ) : (
             <th className="pb-2 font-medium hidden sm:table-cell">Status</th>
           )}
@@ -128,7 +133,11 @@ export function CustomerTable({
                 <td className="py-1.5 text-[var(--text-secondary)] hidden md:table-cell truncate">{c.partner ?? "—"}</td>
                 {showChurnDate ? (
                   <td className="py-1.5 text-[var(--text-secondary)] text-xs">
-                    {formatChurnDate(c.churnDate)}
+                    {formatShortDate(c.churnDate)}
+                  </td>
+                ) : showStartDate ? (
+                  <td className="py-1.5 text-[var(--text-secondary)] text-xs">
+                    {formatShortDate(c.startDate)}
                   </td>
                 ) : (
                   <td className="py-1.5 hidden sm:table-cell">
@@ -162,7 +171,7 @@ function FragmentRow({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function formatChurnDate(d: string | null | undefined): string {
+function formatShortDate(d: string | null | undefined): string {
   if (!d) return "—";
   const date = new Date(d);
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });

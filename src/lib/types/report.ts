@@ -173,6 +173,8 @@ export interface CustomerSummary {
   segment: string | null;
   matchConfidence: string;
   churnDate?: string | null;
+  /** When the customer's subscription started — shown in MRR Movement for tracking. */
+  startDate?: string | null;
   /** Number of frisbii handles rolled up into this row (1 = not merged). */
   linkedCount?: number;
   /** Individual contribution of each linked member (only when linkedCount > 1). */

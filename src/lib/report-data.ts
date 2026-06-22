@@ -440,6 +440,7 @@ export async function getReportData(
       segment: c?.segment ?? null,
       matchConfidence: c?.match_confidence ?? "unknown",
       churnDate: c?.churn_date ?? null,
+      startDate: c?.start_date ?? null,
     };
   };
   const movementActiveCount = buildActiveCountByCanonical(customers, confirmedLinksHandleMap);
