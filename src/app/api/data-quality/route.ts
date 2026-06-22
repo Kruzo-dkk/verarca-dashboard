@@ -11,12 +11,14 @@ import type {
   ExclusionItem,
   OverrideCounts,
   FrisbiiComparison,
+  SyncRunLog,
 } from "@/lib/types/data-quality";
 import type {
   HubSpotSyncHealth,
   HubSpotMatchRate,
   HubSpotApiStatus,
 } from "@/lib/sync/types";
+import { collapsedCustomerMRR } from "@/lib/sync/reconcile";
 
 // ── HubSpot API status cache (60-second in-memory) ───────────────────────────
 // Avoids probing HubSpot on every dashboard request.
@@ -59,7 +61,6 @@ export async function GET(request: NextRequest) {
   // ── Fetch all data in parallel ────────────────────────────────
   const [
     { data: snapshot },
-    { data: customerSnaps },
     { data: auditLogs },
     { count: scopeOverrideCount },
     { count: tierOverrideCount },
@@ -72,11 +73,6 @@ export async function GET(request: NextRequest) {
       .select("mrr")
       .eq("month", month)
       .maybeSingle(),
-    admin
-      .from("customer_snapshots")
-      .select("mrr")
-      .eq("month", month)
-      .eq("status", "active"),
     admin
       .from("sync_audit_log")
       .select("*")
@@ -139,6 +135,27 @@ export async function GET(request: NextRequest) {
     exclusions = [];
   }
 
+  // ── Sync log (full record of what each module synced) ─────────
+  const { data: syncRunRows } = await admin
+    .from("sync_runs")
+    .select(
+      "id, module, month, status, started_at, finished_at, duration_ms, records_fetched, records_upserted, error_message"
+    )
+    .order("started_at", { ascending: false })
+    .limit(150);
+  const syncLog: SyncRunLog[] = (syncRunRows ?? []).map((r) => ({
+    id: r.id,
+    module: r.module,
+    month: r.month,
+    status: r.status,
+    startedAt: r.started_at,
+    finishedAt: r.finished_at,
+    durationMs: r.duration_ms,
+    recordsFetched: r.records_fetched,
+    recordsUpserted: r.records_upserted,
+    errorMessage: r.error_message,
+  }));
+
   // ── Reconciliation ────────────────────────────────────────────
   let reconciliation: ReconciliationStatus;
   if (!snapshot) {
@@ -150,10 +167,9 @@ export async function GET(request: NextRequest) {
     };
   } else {
     const snapshotMRR = snapshot.mrr;
-    const sumCustomerMRR = (customerSnaps ?? []).reduce(
-      (sum, r) => sum + (r.mrr ?? 0),
-      0
-    );
+    // Collapsed (de-duped) customer sum — the SAME source as the validate-sync
+    // audit check, so the card and the check cannot disagree.
+    const sumCustomerMRR = await collapsedCustomerMRR(month);
     const delta = Math.abs(snapshotMRR - sumCustomerMRR);
     let status: ReconciliationStatus["status"] = "pass";
     if (delta > 1000) status = "fail";
@@ -349,6 +365,7 @@ export async function GET(request: NextRequest) {
     exclusions: exclusionItems,
     overrideCounts,
     frisbiiComparison,
+    syncLog,
     lastSyncAt,
     errors,
     hubspotSyncHealth,

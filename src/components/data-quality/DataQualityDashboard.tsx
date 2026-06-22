@@ -505,6 +505,101 @@ function MetricIntegrityCard() {
   );
 }
 
+function formatSyncTime(iso: string): string {
+  return new Date(iso).toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function SyncLogCard() {
+  const { data } = useDataQuality();
+  const [showAll, setShowAll] = useState(false);
+  if (!data) return null;
+
+  const log = data.syncLog ?? [];
+  const rows = showAll ? log : log.slice(0, 30);
+  const badgeStatus = (s: string) =>
+    s === "success" ? "pass" : s === "failed" ? "fail" : s === "running" ? "warn" : "no_data";
+
+  return (
+    <GlassCard>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-sm font-medium text-[var(--text-secondary)]">
+          Sync Log
+          <span className="ml-2 text-[var(--text-muted)] text-xs">
+            ({log.length} run{log.length !== 1 ? "s" : ""})
+          </span>
+        </h2>
+        {log.length > 30 && (
+          <button
+            onClick={() => setShowAll(!showAll)}
+            className="text-xs text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+          >
+            {showAll ? "Show recent" : `Show all (${log.length})`}
+          </button>
+        )}
+      </div>
+
+      {log.length === 0 ? (
+        <p className="text-sm text-[var(--text-muted)]">No sync runs recorded yet.</p>
+      ) : (
+        <div className="overflow-x-auto max-h-[480px] overflow-y-auto">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-[var(--bg-card)]">
+              <tr className="text-left text-[var(--text-muted)] text-xs uppercase tracking-wider">
+                <th className="pb-2 font-medium">Module</th>
+                <th className="pb-2 font-medium">Status</th>
+                <th className="pb-2 font-medium">Started</th>
+                <th className="pb-2 font-medium text-right">Duration</th>
+                <th className="pb-2 font-medium text-right">Records</th>
+                <th className="pb-2 font-medium">Detail</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id} className="border-t border-[var(--border-subtle)]">
+                  <td className="py-1.5 text-[var(--text-primary)] whitespace-nowrap">
+                    {r.module}
+                    {r.month && (
+                      <span className="text-[var(--text-muted)]"> · {r.month}</span>
+                    )}
+                  </td>
+                  <td className="py-1.5">
+                    <StatusBadge status={badgeStatus(r.status)} />
+                  </td>
+                  <td className="py-1.5 text-[var(--text-secondary)] text-xs whitespace-nowrap">
+                    {formatSyncTime(r.startedAt)}
+                  </td>
+                  <td className="py-1.5 text-[var(--text-secondary)] text-xs text-right tabular-nums">
+                    {r.durationMs != null ? `${(r.durationMs / 1000).toFixed(1)}s` : "—"}
+                  </td>
+                  <td className="py-1.5 text-[var(--text-secondary)] text-xs text-right tabular-nums whitespace-nowrap">
+                    {r.recordsUpserted != null || r.recordsFetched != null
+                      ? `${r.recordsFetched ?? 0}→${r.recordsUpserted ?? 0}`
+                      : "—"}
+                  </td>
+                  <td className="py-1.5 text-xs max-w-xs truncate">
+                    {r.errorMessage ? (
+                      <span className="text-red-400" title={r.errorMessage}>
+                        {r.errorMessage}
+                      </span>
+                    ) : (
+                      <span className="text-[var(--text-muted)]">—</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </GlassCard>
+  );
+}
+
 export function DataQualityDashboard() {
   const { loading, error } = useDataQuality();
 
@@ -537,6 +632,7 @@ export function DataQualityDashboard() {
       <SuggestedLinksCard />
       <AnomaliesCard />
       <ExclusionsCard />
+      <SyncLogCard />
     </div>
   );
 }

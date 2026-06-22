@@ -5,12 +5,8 @@ import {
   clampPct,
   type TrailingSnapshot,
 } from "@/lib/forecast";
-import {
-  collapseLinkedSnapshots,
-  buildActiveCountByCanonical,
-  type CustomerMRRSnapshot,
-} from "@/lib/metrics";
 import { getConfirmedLinks } from "./get-customer-links";
+import { collapsedCustomerMRR } from "./reconcile";
 import { syncLog } from "./logger";
 
 // ─── Types ────────────────────────────────────────────────────
@@ -41,24 +37,11 @@ async function checkMRRReconciliation(
   month: string
 ): Promise<ValidationCheck> {
   const supabase = createAdminClient();
-
-  const [{ data: snapshot }, { data: customerSnaps }, { data: customerRows }, confirmedLinks] =
-    await Promise.all([
-      supabase
-        .from("monthly_snapshots")
-        .select("mrr")
-        .eq("month", month)
-        .maybeSingle(),
-      supabase
-        .from("customer_snapshots")
-        .select("customer_id, mrr, status, plan_handle")
-        .eq("month", month),
-      supabase
-        .from("customers")
-        .select("id, frisbii_handle, status, cvr")
-        .eq("excluded", false),
-      getConfirmedLinks(),
-    ]);
+  const { data: snapshot } = await supabase
+    .from("monthly_snapshots")
+    .select("mrr")
+    .eq("month", month)
+    .maybeSingle();
 
   if (!snapshot) {
     return {
@@ -71,33 +54,10 @@ async function checkMRRReconciliation(
     };
   }
 
-  // Rebuild the same collapse computeMonthlyMetrics uses: links (id→id),
-  // active-subscription count per canonical, and cvr per customer.
-  const customers = customerRows ?? [];
-  const handleToId = new Map(customers.map((c) => [c.frisbii_handle, String(c.id)]));
-  const customerLinks = new Map<string, string>();
-  for (const [linked, canon] of confirmedLinks) {
-    const oldId = handleToId.get(linked);
-    const newId = handleToId.get(canon);
-    if (oldId && newId && oldId !== newId) customerLinks.set(oldId, newId);
-  }
-  const links = customerLinks.size > 0 ? customerLinks : undefined;
-  const activeCount = buildActiveCountByCanonical(customers, confirmedLinks);
-  const cvrById = new Map(customers.map((c) => [String(c.id), c.cvr ?? null]));
-
-  const snaps: CustomerMRRSnapshot[] = (customerSnaps ?? []).map((r) => ({
-    customerId: String(r.customer_id),
-    mrr: r.mrr,
-    status: r.status,
-    planHandle: r.plan_handle ?? "",
-    cvr: cvrById.get(String(r.customer_id)) ?? null,
-  }));
-
   const snapshotMRR = snapshot.mrr;
-  const sumCustomerMRR = collapseLinkedSnapshots(snaps, links, activeCount).reduce(
-    (sum, c) => sum + c.mrr,
-    0
-  );
+  // Collapsed (de-duped) sum — the SAME source the Data Quality card uses, so the
+  // two reconciliations can never diverge. See src/lib/sync/reconcile.ts.
+  const sumCustomerMRR = await collapsedCustomerMRR(month);
   const delta = Math.abs(snapshotMRR - sumCustomerMRR);
 
   let status: "pass" | "warn" | "fail" = "pass";
