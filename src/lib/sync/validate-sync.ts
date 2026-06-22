@@ -5,6 +5,12 @@ import {
   clampPct,
   type TrailingSnapshot,
 } from "@/lib/forecast";
+import {
+  collapseLinkedSnapshots,
+  buildActiveCountByCanonical,
+  type CustomerMRRSnapshot,
+} from "@/lib/metrics";
+import { getConfirmedLinks } from "./get-customer-links";
 import { syncLog } from "./logger";
 
 // ─── Types ────────────────────────────────────────────────────
@@ -21,9 +27,11 @@ interface ValidationCheck {
 // ─── Individual checks ───────────────────────────────────────
 
 /**
- * Verify monthly_snapshots.mrr matches the sum of customer_snapshots.mrr
- * for active customers. Since both are derived from the same source
- * (customer_snapshots), a divergence indicates a sync pipeline bug.
+ * Verify monthly_snapshots.mrr matches the COLLAPSED sum of customer_snapshots —
+ * the same linked-group collapse (re-signup top-K + identical-duplicate
+ * de-dup by cvr/plan/amount) that produces monthly_snapshots.mrr. A raw active
+ * sum would diverge by exactly what the collapse removes (re-signups, identical
+ * duplicate subscriptions), so we reconcile against the collapsed value.
  *
  * Thresholds are tight because rounding is the only expected source of delta:
  *   - warn: delta > 100 øre (>1 DKK — possible rounding accumulation)
@@ -34,18 +42,23 @@ async function checkMRRReconciliation(
 ): Promise<ValidationCheck> {
   const supabase = createAdminClient();
 
-  const [{ data: snapshot }, { data: customerSnaps }] = await Promise.all([
-    supabase
-      .from("monthly_snapshots")
-      .select("mrr")
-      .eq("month", month)
-      .maybeSingle(),
-    supabase
-      .from("customer_snapshots")
-      .select("mrr")
-      .eq("month", month)
-      .eq("status", "active"),
-  ]);
+  const [{ data: snapshot }, { data: customerSnaps }, { data: customerRows }, confirmedLinks] =
+    await Promise.all([
+      supabase
+        .from("monthly_snapshots")
+        .select("mrr")
+        .eq("month", month)
+        .maybeSingle(),
+      supabase
+        .from("customer_snapshots")
+        .select("customer_id, mrr, status, plan_handle")
+        .eq("month", month),
+      supabase
+        .from("customers")
+        .select("id, frisbii_handle, status, cvr")
+        .eq("excluded", false),
+      getConfirmedLinks(),
+    ]);
 
   if (!snapshot) {
     return {
@@ -58,9 +71,31 @@ async function checkMRRReconciliation(
     };
   }
 
+  // Rebuild the same collapse computeMonthlyMetrics uses: links (id→id),
+  // active-subscription count per canonical, and cvr per customer.
+  const customers = customerRows ?? [];
+  const handleToId = new Map(customers.map((c) => [c.frisbii_handle, String(c.id)]));
+  const customerLinks = new Map<string, string>();
+  for (const [linked, canon] of confirmedLinks) {
+    const oldId = handleToId.get(linked);
+    const newId = handleToId.get(canon);
+    if (oldId && newId && oldId !== newId) customerLinks.set(oldId, newId);
+  }
+  const links = customerLinks.size > 0 ? customerLinks : undefined;
+  const activeCount = buildActiveCountByCanonical(customers, confirmedLinks);
+  const cvrById = new Map(customers.map((c) => [String(c.id), c.cvr ?? null]));
+
+  const snaps: CustomerMRRSnapshot[] = (customerSnaps ?? []).map((r) => ({
+    customerId: String(r.customer_id),
+    mrr: r.mrr,
+    status: r.status,
+    planHandle: r.plan_handle ?? "",
+    cvr: cvrById.get(String(r.customer_id)) ?? null,
+  }));
+
   const snapshotMRR = snapshot.mrr;
-  const sumCustomerMRR = (customerSnaps ?? []).reduce(
-    (sum, r) => sum + (r.mrr ?? 0),
+  const sumCustomerMRR = collapseLinkedSnapshots(snaps, links, activeCount).reduce(
+    (sum, c) => sum + c.mrr,
     0
   );
   const delta = Math.abs(snapshotMRR - sumCustomerMRR);
@@ -77,7 +112,7 @@ async function checkMRRReconciliation(
     delta,
     details:
       status !== "pass"
-        ? `Snapshot MRR (${snapshotMRR}) differs from customer sum (${Math.round(sumCustomerMRR)}) by ${delta} øre`
+        ? `Snapshot MRR (${snapshotMRR}) differs from collapsed customer sum (${Math.round(sumCustomerMRR)}) by ${delta} øre`
         : null,
   };
 }
@@ -704,6 +739,205 @@ async function checkConflictingLinks(): Promise<ValidationCheck> {
   };
 }
 
+/** A linked group holding ≥2 ACTIVE subscriptions that share (planHandle, mrr). */
+export interface DuplicateActiveSubGroup {
+  canonicalHandle: string;
+  handles: string[];
+  planHandle: string;
+  mrr: number;
+  /** true = every member shares one non-null CVR (same legal entity → a true
+   *  duplicate). false = spans different/absent CVRs (distinct entities). */
+  sameCvr: boolean;
+  cvrs: string[];
+}
+
+/**
+ * Linked customers holding ≥2 ACTIVE subscriptions with the same (planHandle, mrr).
+ * `sameCvr` groups are the SAME legal entity billed twice for the identical sub —
+ * a true duplicate (now de-duped in the MRR collapse, but still double-billed in
+ * Frisbii → cancel one). Different-CVR groups (e.g. Madsen-Kastberg, Tina Olesen)
+ * are distinct legal entities sharing a plan+price — informational, not an error.
+ * Pure: the async wrapper feeds it real rows.
+ */
+export function duplicateActiveSubGroups(
+  activeCustomers: {
+    frisbiiHandle: string;
+    cvr: string | null;
+    planHandle: string | null;
+    mrr: number;
+  }[],
+  confirmedLinks: Map<string, string>
+): DuplicateActiveSubGroup[] {
+  const byCanonical = new Map<
+    string,
+    Map<string, { frisbiiHandle: string; cvr: string | null }[]>
+  >();
+  for (const c of activeCustomers) {
+    const canonical = confirmedLinks.get(c.frisbiiHandle) ?? c.frisbiiHandle;
+    const subKey = `${c.planHandle ?? ""}|${c.mrr}`;
+    let subMap = byCanonical.get(canonical);
+    if (!subMap) {
+      subMap = new Map();
+      byCanonical.set(canonical, subMap);
+    }
+    const list = subMap.get(subKey) ?? [];
+    list.push({ frisbiiHandle: c.frisbiiHandle, cvr: c.cvr });
+    subMap.set(subKey, list);
+  }
+
+  const out: DuplicateActiveSubGroup[] = [];
+  for (const [canonical, subMap] of byCanonical) {
+    for (const [subKey, members] of subMap) {
+      if (members.length < 2) continue;
+      const sepIdx = subKey.lastIndexOf("|");
+      const planHandle = subKey.slice(0, sepIdx);
+      const mrr = Number(subKey.slice(sepIdx + 1));
+      const cvrs = members.map((m) => m.cvr);
+      const nonNull = cvrs.filter((v): v is string => !!v);
+      const sameCvr =
+        nonNull.length === members.length && new Set(nonNull).size === 1;
+      out.push({
+        canonicalHandle: canonical,
+        handles: members.map((m) => m.frisbiiHandle),
+        planHandle,
+        mrr,
+        sameCvr,
+        cvrs: [...new Set(cvrs.map((v) => v ?? "∅"))],
+      });
+    }
+  }
+  return out.sort(
+    (a, b) => Number(b.sameCvr) - Number(a.sameCvr) || b.mrr - a.mrr
+  );
+}
+
+/**
+ * True when a month's expansion_mrr spikes above max(floor, 3× trailing avg).
+ * Verarca's expansion is ~0, so a large value almost always means a stale
+ * snapshot artifact (a month computed before a backfill caught up).
+ */
+export function expansionAnomaly(
+  expansionMrr: number,
+  trailingAvg: number,
+  floorOre = 1_000_000
+): { anomalous: boolean; threshold: number } {
+  const threshold = Math.max(floorOre, trailingAvg * 3);
+  return { anomalous: expansionMrr > threshold, threshold };
+}
+
+/**
+ * Surface linked customers with ≥2 identical ACTIVE subscriptions (same CVR,
+ * plan, amount). The collapse now de-dups these in the dashboard, but the
+ * customer is still double-billed in Frisbii — WARN so an operator cancels one.
+ */
+async function checkDuplicateActiveSubscriptions(
+  month: string
+): Promise<ValidationCheck> {
+  const supabase = createAdminClient();
+  const [{ data: snaps }, { data: customerRows }, confirmedLinks] =
+    await Promise.all([
+      supabase
+        .from("customer_snapshots")
+        .select("customer_id, mrr, plan_handle")
+        .eq("month", month)
+        .eq("status", "active"),
+      supabase
+        .from("customers")
+        .select("id, frisbii_handle, cvr")
+        .eq("excluded", false),
+      getConfirmedLinks(),
+    ]);
+
+  const byId = new Map((customerRows ?? []).map((c) => [c.id, c]));
+  const rows = (snaps ?? [])
+    .map((s) => {
+      const c = byId.get(s.customer_id);
+      return c
+        ? {
+            frisbiiHandle: c.frisbii_handle,
+            cvr: c.cvr ?? null,
+            planHandle: s.plan_handle,
+            mrr: s.mrr,
+          }
+        : null;
+    })
+    .filter((r): r is NonNullable<typeof r> => r !== null);
+
+  const groups = duplicateActiveSubGroups(rows, confirmedLinks);
+  const sameCvr = groups.filter((g) => g.sameCvr);
+
+  return {
+    checkName: "duplicate_active_subscriptions",
+    status: sameCvr.length > 0 ? "warn" : "pass",
+    expectedValue: "0",
+    actualValue: String(sameCvr.length),
+    delta: sameCvr.length,
+    details: groups.length
+      ? JSON.stringify(
+          groups.slice(0, 20).map((g) => ({
+            canonical: g.canonicalHandle,
+            handles: g.handles,
+            mrr: g.mrr,
+            sameCvr: g.sameCvr,
+            cvrs: g.cvrs,
+          }))
+        )
+      : null,
+  };
+}
+
+/**
+ * Guard against phantom expansion spikes (e.g. the kr 40.281 stale-May
+ * artifact). WARN when expansion_mrr exceeds max(floor, 3× trailing avg).
+ */
+async function checkExpansionAnomaly(month: string): Promise<ValidationCheck> {
+  const supabase = createAdminClient();
+  const [y, m] = month.split("-").map(Number);
+  const months: string[] = [];
+  for (let i = 3; i >= 0; i--) {
+    const d = new Date(y, m - 1 - i, 1);
+    months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  }
+
+  const { data: rows } = await supabase
+    .from("monthly_snapshots")
+    .select("month, expansion_mrr")
+    .in("month", months);
+
+  const byMonth = new Map((rows ?? []).map((r) => [r.month, r.expansion_mrr ?? 0]));
+  if (!byMonth.has(month)) {
+    return {
+      checkName: "expansion_anomaly",
+      status: "pass",
+      expectedValue: null,
+      actualValue: null,
+      delta: null,
+      details: "No monthly snapshot yet",
+    };
+  }
+
+  const current = byMonth.get(month) ?? 0;
+  const prior = months
+    .slice(0, 3)
+    .map((mm) => byMonth.get(mm))
+    .filter((v): v is number => v !== undefined);
+  const trailingAvg = prior.length
+    ? prior.reduce((a, b) => a + b, 0) / prior.length
+    : 0;
+  const { anomalous, threshold } = expansionAnomaly(current, trailingAvg);
+
+  return {
+    checkName: "expansion_anomaly",
+    status: anomalous ? "warn" : "pass",
+    expectedValue: `<= ${Math.round(threshold)}`,
+    actualValue: String(current),
+    delta: anomalous ? current - Math.round(threshold) : 0,
+    details: anomalous
+      ? `expansion_mrr ${current} exceeds ${Math.round(threshold)} (max of floor or 3× trailing avg ${Math.round(trailingAvg)}) — likely a stale-snapshot artifact; re-run backfill`
+      : null,
+  };
+}
+
 // ─── Main validation ─────────────────────────────────────────
 
 /**
@@ -724,6 +958,8 @@ export async function validateSync(month: string): Promise<void> {
     checkArrArpaIdentity(month),
     checkForecastPredictedRates(month),
     checkConflictingLinks(),
+    checkDuplicateActiveSubscriptions(month),
+    checkExpansionAnomaly(month),
   ]);
 
   const warnings = checks.filter((c) => c.status === "warn");

@@ -218,6 +218,13 @@ export function normalizeLinks(links: Map<string, string>): Map<string, string> 
  * concurrent subs (e.g. Consensus, K=2) still sum. When activeCountByCanonical
  * is omitted, all members are summed (legacy behaviour).
  *
+ * Before top-K, identical concurrent subscriptions are de-duplicated: active
+ * members sharing the same `(cvr, planHandle, mrr)` are the SAME legal entity
+ * billed twice for the same sub, so they count once (lmpihl: 2×4.599 → 4.599).
+ * Different cvr (Madsen-Kastberg, Tina Olesen), different plan, or different
+ * amount (Consensus) are distinct and still sum. A missing cvr is never treated
+ * as a duplicate.
+ *
  * @param customerLinks - secondaryCustomerId → canonicalCustomerId (stringified DB ids)
  * @param activeCountByCanonical - canonicalId → current active-subscription count
  */
@@ -226,27 +233,49 @@ export function collapseLinkedSnapshots(
   customerLinks?: Map<string, string>,
   activeCountByCanonical?: Map<string, number>
 ): CollapsedCustomer[] {
-  const buckets = new Map<string, { mrrs: number[]; active: boolean }>();
+  const buckets = new Map<
+    string,
+    { members: { mrr: number; plan: string; cvr: string | null; active: boolean }[]; active: boolean }
+  >();
   for (const s of snapshots) {
     const canonicalId = resolveCanonical(s.customerId, customerLinks);
     const isActive = s.status === "active" && s.mrr > 0;
+    const member = { mrr: s.mrr, plan: s.planHandle, cvr: s.cvr ?? null, active: isActive };
     const b = buckets.get(canonicalId);
     if (b) {
-      b.mrrs.push(s.mrr);
+      b.members.push(member);
       b.active = b.active || isActive;
     } else {
-      buckets.set(canonicalId, { mrrs: [s.mrr], active: isActive });
+      buckets.set(canonicalId, { members: [member], active: isActive });
     }
   }
 
   const result: CollapsedCustomer[] = [];
   for (const [canonicalId, b] of buckets) {
+    // De-duplicate identical concurrent subscriptions: the SAME legal entity
+    // (cvr) billed twice for the same plan at the same amount is one real sub,
+    // not expansion. Collapse active members sharing (cvr, plan, mrr) to a single
+    // MRR. Members with no cvr can't be proven duplicates, so each is kept
+    // distinct (the re-signup top-K below still de-dupes those). This runs before
+    // top-K: re-signup groups (one active member) are unaffected; genuine
+    // concurrent subs that differ in plan, amount, or cvr still sum.
+    const seen = new Set<string>();
+    const mrrs: number[] = [];
+    let noCvrSeq = 0;
+    for (const m of b.members) {
+      if (!m.active) continue;
+      const key = m.cvr ? `${m.cvr}|${m.plan}|${m.mrr}` : `__nocvr_${noCvrSeq++}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      mrrs.push(m.mrr);
+    }
+
     const k = activeCountByCanonical?.get(canonicalId);
     let mrr: number;
-    if (k != null && k >= 1 && b.mrrs.length > k) {
-      mrr = [...b.mrrs].sort((x, y) => y - x).slice(0, k).reduce((s, x) => s + x, 0);
+    if (k != null && k >= 1 && mrrs.length > k) {
+      mrr = [...mrrs].sort((x, y) => y - x).slice(0, k).reduce((s, x) => s + x, 0);
     } else {
-      mrr = b.mrrs.reduce((s, x) => s + x, 0);
+      mrr = mrrs.reduce((s, x) => s + x, 0);
     }
     result.push({ canonicalId, mrr, active: b.active });
   }
@@ -468,6 +497,13 @@ export interface CustomerMRRSnapshot {
   mrr: number;
   status: string;
   planHandle: string;
+  /**
+   * CVR of the underlying customer. Used by `collapseLinkedSnapshots` to
+   * de-duplicate identical concurrent subscriptions (same legal entity billed
+   * twice for the same plan at the same amount). Optional/null when unknown —
+   * a missing CVR is never treated as a duplicate.
+   */
+  cvr?: string | null;
 }
 
 // ─── M&A Metric Functions ──────────────────────────────────────

@@ -82,7 +82,7 @@ export async function GET(
     if (memberHandles.length > 1) {
       const { data: memberRows } = await supabase
         .from("customers")
-        .select("id, name, frisbii_handle, status, plan_name, plan_handle, start_date")
+        .select("id, name, frisbii_handle, status, plan_name, plan_handle, start_date, cvr")
         .in("frisbii_handle", memberHandles);
       const memberIds = (memberRows ?? []).map((m) => m.id);
       const { data: memberSnaps } = await supabase
@@ -103,7 +103,27 @@ export async function GET(
         plan: formatPlanName(m.plan_name ?? m.plan_handle),
         startDate: m.start_date,
       }));
-      linkedGroup = buildLinkedGroup(members, canonicalHandle, customer.frisbii_handle);
+      // Flag a likely duplicate registration: ≥2 ACTIVE members sharing the same
+      // (cvr, plan, mrr) — the same legal entity billed twice for one sub.
+      const dupSeen = new Set<string>();
+      let hasDuplicateActivePlan = false;
+      for (const m of memberRows ?? []) {
+        if (m.status !== "active" || !m.cvr) continue;
+        const mrr = latestMrr.get(m.id) ?? 0;
+        if (mrr <= 0) continue;
+        const key = `${m.cvr}|${m.plan_handle ?? ""}|${mrr}`;
+        if (dupSeen.has(key)) {
+          hasDuplicateActivePlan = true;
+          break;
+        }
+        dupSeen.add(key);
+      }
+      linkedGroup = buildLinkedGroup(
+        members,
+        canonicalHandle,
+        customer.frisbii_handle,
+        hasDuplicateActivePlan
+      );
     }
 
     // Build external links

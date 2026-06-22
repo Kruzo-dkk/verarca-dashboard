@@ -5,6 +5,8 @@ import {
   arrArpaProblems,
   forecastRateProblems,
   conflictingLinkPairs,
+  duplicateActiveSubGroups,
+  expansionAnomaly,
 } from "../validate-sync";
 
 describe("nrrGrrProblems", () => {
@@ -87,5 +89,90 @@ describe("conflictingLinkPairs", () => {
       { canonical_handle: "cust-0191", linked_handle: "cust-0190" },
     ]);
     expect(r).toEqual(["cust-0189↔cust-0191"]);
+  });
+});
+
+describe("duplicateActiveSubGroups", () => {
+  it("flags a same-CVR identical pair as a true duplicate (lmpihl)", () => {
+    const rows = [
+      { frisbiiHandle: "cust-0073", cvr: "47982715", planHandle: "c-mellem", mrr: 459900 },
+      { frisbiiHandle: "cust-0081", cvr: "47982715", planHandle: "c-mellem", mrr: 459900 },
+    ];
+    const groups = duplicateActiveSubGroups(
+      rows,
+      new Map([["cust-0081", "cust-0073"]])
+    );
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({
+      canonicalHandle: "cust-0073",
+      mrr: 459900,
+      sameCvr: true,
+    });
+    expect(groups[0].handles.sort()).toEqual(["cust-0073", "cust-0081"]);
+  });
+
+  it("marks a cross-CVR identical pair as sameCvr:false (Madsen-Kastberg / Tina)", () => {
+    const rows = [
+      { frisbiiHandle: "cust-0178", cvr: "25709802", planHandle: "a-b-mikro", mrr: 149900 },
+      { frisbiiHandle: "cust-0179", cvr: "29222169", planHandle: "a-b-mikro", mrr: 149900 },
+    ];
+    const groups = duplicateActiveSubGroups(
+      rows,
+      new Map([["cust-0178", "cust-0179"]])
+    );
+    expect(groups).toHaveLength(1);
+    expect(groups[0].sameCvr).toBe(false);
+  });
+
+  it("does NOT flag same-CVR same-plan but DIFFERENT amount (Consensus)", () => {
+    const rows = [
+      { frisbiiHandle: "cust-0016", cvr: "29194475", planHandle: "b-scope", mrr: 119900 },
+      { frisbiiHandle: "cust-0079", cvr: "29194475", planHandle: "b-scope", mrr: 219900 },
+    ];
+    const groups = duplicateActiveSubGroups(
+      rows,
+      new Map([["cust-0079", "cust-0016"]])
+    );
+    expect(groups).toEqual([]);
+  });
+
+  it("does not flag two unlinked customers (separate canonicals)", () => {
+    const rows = [
+      { frisbiiHandle: "cust-0001", cvr: "111", planHandle: "p", mrr: 1000 },
+      { frisbiiHandle: "cust-0002", cvr: "111", planHandle: "p", mrr: 1000 },
+    ];
+    expect(duplicateActiveSubGroups(rows, new Map())).toEqual([]);
+  });
+
+  it("sorts same-CVR duplicates before cross-CVR groups", () => {
+    const rows = [
+      { frisbiiHandle: "cust-0178", cvr: "25709802", planHandle: "a-b-mikro", mrr: 149900 },
+      { frisbiiHandle: "cust-0179", cvr: "29222169", planHandle: "a-b-mikro", mrr: 149900 },
+      { frisbiiHandle: "cust-0073", cvr: "47982715", planHandle: "c-mellem", mrr: 459900 },
+      { frisbiiHandle: "cust-0081", cvr: "47982715", planHandle: "c-mellem", mrr: 459900 },
+    ];
+    const links = new Map([
+      ["cust-0178", "cust-0179"],
+      ["cust-0081", "cust-0073"],
+    ]);
+    const groups = duplicateActiveSubGroups(rows, links);
+    expect(groups[0].sameCvr).toBe(true);
+  });
+});
+
+describe("expansionAnomaly", () => {
+  it("flags a spike far above the floor (the 40.281 stale artifact)", () => {
+    expect(expansionAnomaly(4_028_100, 0).anomalous).toBe(true);
+  });
+
+  it("passes normal ~0 / below-floor expansion", () => {
+    expect(expansionAnomaly(0, 0).anomalous).toBe(false);
+    expect(expansionAnomaly(160_000, 50_000).anomalous).toBe(false);
+  });
+
+  it("uses 3× trailing avg when it exceeds the floor", () => {
+    const r = expansionAnomaly(5_000_000, 2_000_000); // threshold = max(1M, 6M) = 6M
+    expect(r.threshold).toBe(6_000_000);
+    expect(r.anomalous).toBe(false);
   });
 });

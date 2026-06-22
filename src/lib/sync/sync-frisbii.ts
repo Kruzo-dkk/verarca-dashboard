@@ -141,16 +141,27 @@ export async function syncMonthlySnapshot(month: string): Promise<void> {
   // ── 3. MRR decomposition from customer snapshots ───────────
   const prevMonthKey = previousMonth(month);
 
-  const [{ data: currentSnaps }, { data: prevSnaps }] = await Promise.all([
-    supabase
-      .from("customer_snapshots")
-      .select("customer_id, mrr, status, plan_handle")
-      .eq("month", month),
-    supabase
-      .from("customer_snapshots")
-      .select("customer_id, mrr, status, plan_handle")
-      .eq("month", prevMonthKey),
-  ]);
+  const [{ data: currentSnaps }, { data: prevSnaps }, { data: allCustomerRows }] =
+    await Promise.all([
+      supabase
+        .from("customer_snapshots")
+        .select("customer_id, mrr, status, plan_handle")
+        .eq("month", month),
+      supabase
+        .from("customer_snapshots")
+        .select("customer_id, mrr, status, plan_handle")
+        .eq("month", prevMonthKey),
+      supabase
+        .from("customers")
+        .select("id, frisbii_handle, churn_date, status, cvr")
+        .eq("excluded", false),
+    ]);
+
+  const customers = (allCustomerRows ?? []) as CustomerChurnState[];
+  // customer_id → cvr, so collapseLinkedSnapshots can de-dupe identical subs.
+  const cvrById = new Map(
+    (allCustomerRows ?? []).map((c) => [String(c.id), c.cvr ?? null])
+  );
 
   const toMRRSnap = (
     rows: { customer_id: number; mrr: number; status: string; plan_handle: string | null }[] | null
@@ -160,6 +171,7 @@ export async function syncMonthlySnapshot(month: string): Promise<void> {
       mrr: r.mrr,
       status: r.status,
       planHandle: r.plan_handle || "",
+      cvr: cvrById.get(String(r.customer_id)) ?? null,
     }));
 
   const currentSnapshots = toMRRSnap(currentSnaps);
@@ -168,11 +180,6 @@ export async function syncMonthlySnapshot(month: string): Promise<void> {
   // Customer linking + aggregate metrics — single source of truth shared with
   // backfillHistory (monthly-metrics.ts), so the live and historic paths cannot drift.
   const confirmedLinks = await getConfirmedLinks(); // linkedHandle → canonicalHandle
-  const { data: allCustomerRows } = await supabase
-    .from("customers")
-    .select("id, frisbii_handle, churn_date, status")
-    .eq("excluded", false);
-  const customers = (allCustomerRows ?? []) as CustomerChurnState[];
 
   const { data: prevRow } = await supabase
     .from("monthly_snapshots").select("mrr").eq("month", prevMonthKey).maybeSingle();

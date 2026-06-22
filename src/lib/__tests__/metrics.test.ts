@@ -825,6 +825,73 @@ describe("collapseLinkedSnapshots top-K (re-signup de-duplication)", () => {
   });
 });
 
+describe("collapseLinkedSnapshots CVR de-duplication (identical concurrent subs)", () => {
+  const ac = (
+    id: string,
+    mrr: number,
+    cvr: string | null,
+    plan = "p"
+  ): CustomerMRRSnapshot => ({ customerId: id, mrr, status: "active", planHandle: plan, cvr });
+
+  it("two active members with same (cvr, plan, mrr) count ONCE, not summed (lmpihl)", () => {
+    const snaps = [
+      ac("73", 459900, "47982715", "c-mellem"),
+      ac("81", 459900, "47982715", "c-mellem"),
+    ];
+    const links = new Map([["81", "73"]]);
+    const k = new Map([["73", 2]]); // both active in customers table
+    const [g] = collapseLinkedSnapshots(snaps, links, k);
+    expect(g.mrr).toBe(459900); // not 919800
+    expect(g.active).toBe(true);
+  });
+
+  it("same plan+mrr but DIFFERENT cvr still sum (Madsen-Kastberg / Tina Olesen)", () => {
+    const snaps = [
+      ac("178", 149900, "25709802", "a-b-mikro"),
+      ac("179", 149900, "29222169", "a-b-mikro"),
+    ];
+    const links = new Map([["178", "179"]]);
+    const k = new Map([["179", 2]]);
+    const [g] = collapseLinkedSnapshots(snaps, links, k);
+    expect(g.mrr).toBe(299800); // distinct legal entities → summed
+  });
+
+  it("same cvr + same plan but DIFFERENT mrr still sum (Consensus)", () => {
+    const snaps = [
+      ac("16", 119900, "29194475", "b-scope"),
+      ac("79", 219900, "29194475", "b-scope"),
+    ];
+    const links = new Map([["79", "16"]]);
+    const k = new Map([["16", 2]]);
+    const [g] = collapseLinkedSnapshots(snaps, links, k);
+    expect(g.mrr).toBe(339800);
+  });
+
+  it("dedups same-cvr duplicate then top-K caps a null-cvr re-signup sibling (ALULINE)", () => {
+    // 0191 + 0189 share cvr → collapse to one; 0190 has null cvr → kept; K=1 → top-1.
+    const snaps = [
+      ac("191", 89900, "73428513", "c-mellem-1-2"),
+      ac("189", 89900, "73428513", "c-mellem-1-2"),
+      ac("190", 89900, null, "c-mellem-1-2"),
+    ];
+    const links = new Map([
+      ["189", "191"],
+      ["190", "191"],
+    ]);
+    const k = new Map([["191", 1]]); // only 0191 active in customers
+    const [g] = collapseLinkedSnapshots(snaps, links, k);
+    expect(g.mrr).toBe(89900);
+  });
+
+  it("no cvr on snapshots → no dedup (backward compatible)", () => {
+    const snaps = [ac("a", 459900, null), ac("b", 459900, null)];
+    const links = new Map([["b", "a"]]);
+    const k = new Map([["a", 2]]);
+    const [g] = collapseLinkedSnapshots(snaps, links, k);
+    expect(g.mrr).toBe(919800); // null cvr → summed (current behaviour)
+  });
+});
+
 describe("buildActiveCountByCanonical", () => {
   it("counts currently-active members per canonical", () => {
     const customers = [

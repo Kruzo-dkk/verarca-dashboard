@@ -74,4 +74,67 @@ describe("computeMonthlyMetrics", () => {
     expect(m.mrr).toBe(2_000); // top-K (K=1), not 6.000
     expect(m.customerCount).toBe(1);
   });
+
+  it("does not inflate headline MRR for an identical same-CVR duplicate (lmpihl)", () => {
+    const snapC = (
+      id: string,
+      mrr: number,
+      cvr: string
+    ): CustomerMRRSnapshot => ({
+      customerId: id,
+      mrr,
+      status: "active",
+      planHandle: "c-mellem",
+      cvr,
+    });
+    const curr = [snapC("73", 459_900, "47982715"), snapC("81", 459_900, "47982715")];
+    const customers = [
+      cust(73, "cust-0073", "active", null),
+      cust(81, "cust-0081", "active", null),
+    ];
+    const m = computeMonthlyMetrics({
+      month: "2026-06",
+      currentSnapshots: curr,
+      prevSnapshots: curr,
+      customers,
+      confirmedLinks: new Map([["cust-0081", "cust-0073"]]),
+      newLogos: 0,
+      prevMonthMRR: null,
+      prevYearMRR: null,
+    });
+    expect(m.mrr).toBe(459_900); // not 919.800
+    expect(m.customerCount).toBe(1);
+    expect(m.expansionMRR).toBe(0);
+  });
+
+  it("still sums a genuine different-amount pair on the same plan (Consensus)", () => {
+    const snapC = (
+      id: string,
+      mrr: number,
+      cvr: string
+    ): CustomerMRRSnapshot => ({
+      customerId: id,
+      mrr,
+      status: "active",
+      planHandle: "b-scope",
+      cvr,
+    });
+    const curr = [snapC("16", 119_900, "29194475"), snapC("79", 219_900, "29194475")];
+    const customers = [
+      cust(16, "cust-0016", "active", null),
+      cust(79, "cust-0079", "active", null),
+    ];
+    const m = computeMonthlyMetrics({
+      month: "2026-06",
+      currentSnapshots: curr,
+      prevSnapshots: curr,
+      customers,
+      confirmedLinks: new Map([["cust-0079", "cust-0016"]]),
+      newLogos: 0,
+      prevMonthMRR: null,
+      prevYearMRR: null,
+    });
+    expect(m.mrr).toBe(339_800);
+    expect(m.customerCount).toBe(1);
+  });
 });

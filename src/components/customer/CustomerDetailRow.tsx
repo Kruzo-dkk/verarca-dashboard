@@ -161,6 +161,11 @@ export function CustomerDetailRow({ customerId, formatValue }: CustomerDetailRow
             <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 font-medium">
               Tæller som 1 kunde · {detail.linkedGroup.activeSubscriptionCount} aktive abonnementer · samlet MRR {formatValue(detail.linkedGroup.totalMrr)}
             </span>
+            {detail.linkedGroup.hasDuplicateActivePlan && (
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400 font-medium">
+                ⚠ Mulig dobbeltregistrering · samme abonnement aktivt 2× — talt som 1, men annullér den ene i Frisbii
+              </span>
+            )}
           </div>
           <div className="space-y-1">
             {detail.linkedGroup.members.map((m) => (

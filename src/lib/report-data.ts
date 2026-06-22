@@ -325,6 +325,7 @@ export async function getReportData(
     const n = churnHandleToId.get(l.canonical_handle);
     if (o && n && o !== n) churnLinkIdMap.set(o, n);
   }
+  const custById = new Map(customers.map((c) => [c.id, c]));
   const toMRRSnap = (
     rows: { customer_id: number; mrr: number; status: string; plan_handle: string | null }[]
   ): CustomerMRRSnapshot[] =>
@@ -333,9 +334,9 @@ export async function getReportData(
       mrr: cs.mrr,
       status: cs.status,
       planHandle: cs.plan_handle ?? "",
+      // CVR lets collapseLinkedSnapshots de-dupe identical concurrent subs.
+      cvr: custById.get(cs.customer_id)?.cvr ?? null,
     }));
-
-  const custById = new Map(customers.map((c) => [c.id, c]));
 
   // Event-based churn (close-month): customers whose subscription ENDED within
   // the period, deduped by canonical, group fully gone. Count + MRR reconcile
