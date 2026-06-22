@@ -74,6 +74,7 @@ export function MRRMovementBreakdown({ movement, formatValue }: MRRMovementBreak
 
       <div className="overflow-x-auto">
         <CustomerTable
+          key={activeTab}
           customers={active}
           formatValue={formatValue}
           expandable
