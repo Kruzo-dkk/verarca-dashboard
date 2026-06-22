@@ -17,6 +17,7 @@ import {
   calculateMRRGrowth,
   countActiveCustomers,
   collapseLinkedSnapshots,
+  normalizeLinks,
   buildActiveCountByCanonical,
   decomposeMRR,
   decomposeMRRByCustomer,
@@ -894,5 +895,52 @@ describe("computeCACPayback", () => {
   it("null when CAC/ARPA missing", () => {
     expect(computeCACPayback(null, 100_000, 80)).toBeNull();
     expect(computeCACPayback(1_200_000, 0, 80)).toBeNull();
+  });
+});
+
+
+// ─── normalizeLinks (cycle-/conflict-safe canonical grouping) ─────
+
+describe("normalizeLinks", () => {
+  it("maps a clean group's secondaries to its sink canonical", () => {
+    const r = normalizeLinks(new Map([["s1", "canon"], ["s2", "canon"]]));
+    expect(r.get("s1")).toBe("canon");
+    expect(r.get("s2")).toBe("canon");
+    expect(r.has("canon")).toBe(false);
+  });
+
+  it("flattens a multi-hop chain to the final sink", () => {
+    const r = normalizeLinks(new Map([["a", "b"], ["b", "c"]]));
+    expect(r.get("a")).toBe("c");
+    expect(r.get("b")).toBe("c");
+    expect(r.has("c")).toBe(false);
+  });
+
+  it("resolves the conflicting-bidirectional bug to ONE group (Aluline)", () => {
+    // cust-0189 ↔ cust-0191 (opposing system rows) + cust-0190 → cust-0191.
+    const r = normalizeLinks(
+      new Map([
+        ["cust-0189", "cust-0191"],
+        ["cust-0191", "cust-0189"],
+        ["cust-0190", "cust-0191"],
+      ])
+    );
+    const repOf = (h: string) => r.get(h) ?? h;
+    const reps = new Set(["cust-0189", "cust-0190", "cust-0191"].map(repOf));
+    expect(reps.size).toBe(1); // all three collapse to a single representative
+    expect(repOf("cust-0189")).toBe("cust-0189"); // deterministic min handle
+    expect(repOf("cust-0191")).toBe("cust-0189");
+  });
+
+  it("resolves a 2-cycle deterministically", () => {
+    const r = normalizeLinks(new Map([["b", "a"], ["a", "b"]]));
+    const repOf = (h: string) => r.get(h) ?? h;
+    expect(repOf("a")).toBe(repOf("b"));
+  });
+
+  it("keeps disjoint groups separate", () => {
+    const r = normalizeLinks(new Map([["a", "b"], ["x", "y"]]));
+    expect(r.get("a")).toBe("b");
+    expect(r.get("x")).toBe("y");
   });
 });

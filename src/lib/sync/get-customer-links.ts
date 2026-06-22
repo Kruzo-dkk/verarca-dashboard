@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { normalizeLinks } from "@/lib/metrics";
 
 export type LinkStatus = "suggested" | "confirmed" | "rejected";
 export type LinkMatchMethod = "cvr" | "email" | "name" | "manual";
@@ -36,7 +37,10 @@ export async function getConfirmedLinks(): Promise<Map<string, string>> {
       map.set(row.linked_handle, row.canonical_handle);
     }
   }
-  return map;
+  // Collapse to connected components so conflicting/cyclic link rows (e.g. a
+  // delete/recreate that flips which handle is canonical) still resolve a real
+  // customer to ONE group rather than splitting it. See normalizeLinks.
+  return normalizeLinks(map);
 }
 
 /**

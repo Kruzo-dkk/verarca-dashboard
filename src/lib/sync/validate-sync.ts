@@ -663,6 +663,47 @@ async function checkForecastPredictedRates(month: string): Promise<ValidationChe
   };
 }
 
+/** Confirmed link pairs that conflict — the same handle pair linked in BOTH
+ * directions (A→B and B→A), which makes a customer collapse into >1 group. */
+export function conflictingLinkPairs(
+  links: { canonical_handle: string; linked_handle: string }[]
+): string[] {
+  const edges = new Set(links.map((l) => `${l.canonical_handle}|${l.linked_handle}`));
+  const conflicts = new Set<string>();
+  for (const l of links) {
+    if (edges.has(`${l.linked_handle}|${l.canonical_handle}`)) {
+      const pair = [l.canonical_handle, l.linked_handle].sort();
+      conflicts.add(`${pair[0]}↔${pair[1]}`);
+    }
+  }
+  return [...conflicts];
+}
+
+/**
+ * Flags conflicting/cyclic confirmed customer_links. The collapse is now
+ * cycle-safe (normalizeLinks), so this is a WARN — it surfaces link-table noise
+ * (e.g. a delete/recreate flipping the canonical) for cleanup without breaking
+ * the sync or the figures.
+ */
+async function checkConflictingLinks(): Promise<ValidationCheck> {
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("customer_links")
+    .select("canonical_handle, linked_handle")
+    .eq("status", "confirmed");
+  const conflicts = conflictingLinkPairs(data ?? []);
+  return {
+    checkName: "conflicting_customer_links",
+    status: conflicts.length ? "warn" : "pass",
+    expectedValue: "0",
+    actualValue: String(conflicts.length),
+    delta: conflicts.length,
+    details: conflicts.length
+      ? `Conflicting bidirectional links (collapse is cycle-safe, but clean these up): ${conflicts.join(", ")}`
+      : null,
+  };
+}
+
 // ─── Main validation ─────────────────────────────────────────
 
 /**
@@ -682,6 +723,7 @@ export async function validateSync(month: string): Promise<void> {
     checkMrrWaterfall(month),
     checkArrArpaIdentity(month),
     checkForecastPredictedRates(month),
+    checkConflictingLinks(),
   ]);
 
   const warnings = checks.filter((c) => c.status === "warn");

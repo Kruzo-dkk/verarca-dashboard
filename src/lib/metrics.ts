@@ -149,6 +149,64 @@ function resolveCanonical(
 }
 
 /**
+ * Normalize a linkedHandle→canonicalHandle map into connected components so a
+ * real customer split across many handles collapses to exactly ONE group,
+ * regardless of link direction, chains, or conflicting/cyclic edges.
+ *
+ * The directed map can be inconsistent — e.g. two system rows disagreeing on
+ * which handle is canonical (A→B and B→A), which made `resolveCanonical` return
+ * a start-dependent answer and split one customer into several groups. This
+ * builds undirected connected components (union-find) and maps every member to a
+ * single deterministic representative: the component's unique *sink* (a handle
+ * that is a canonical but never a linked handle) when there is one, else the
+ * lexicographically smallest handle. Returns member→representative for every
+ * non-representative; representatives resolve to themselves (omitted).
+ */
+export function normalizeLinks(links: Map<string, string>): Map<string, string> {
+  const parent = new Map<string, string>();
+  const add = (x: string) => {
+    if (!parent.has(x)) parent.set(x, x);
+  };
+  const find = (x: string): string => {
+    let r = x;
+    while (parent.get(r) !== r) r = parent.get(r)!;
+    let c = x;
+    while (parent.get(c) !== r) {
+      const n = parent.get(c)!;
+      parent.set(c, r);
+      c = n;
+    }
+    return r;
+  };
+  const union = (a: string, b: string) => {
+    add(a);
+    add(b);
+    const ra = find(a);
+    const rb = find(b);
+    if (ra !== rb) parent.set(ra, rb); // grouping only; representative chosen below
+  };
+
+  const linkedHandles = new Set(links.keys());
+  for (const [k, v] of links) union(k, v);
+
+  const components = new Map<string, string[]>();
+  for (const node of parent.keys()) {
+    const root = find(node);
+    const list = components.get(root);
+    if (list) list.push(node);
+    else components.set(root, [node]);
+  }
+
+  const out = new Map<string, string>();
+  for (const members of components.values()) {
+    const sinks = members.filter((m) => !linkedHandles.has(m));
+    const rep = sinks.length === 1 ? sinks[0] : [...members].sort()[0];
+    for (const m of members) if (m !== rep) out.set(m, rep);
+  }
+  return out;
+}
+
+/**
  * Collapse snapshots into one logical customer per linked group. A group is
  * "active" if ANY member is active with mrr > 0.
  *
