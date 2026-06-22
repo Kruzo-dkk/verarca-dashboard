@@ -3,6 +3,20 @@ export interface DataQualityError {
   message: string;
 }
 
+/** One row of the sync_runs log — what each module synced and how it went. */
+export interface SyncRunLog {
+  id: number;
+  module: string;
+  month: string | null;
+  status: string; // running | success | failed
+  startedAt: string;
+  finishedAt: string | null;
+  durationMs: number | null;
+  recordsFetched: number | null;
+  recordsUpserted: number | null;
+  errorMessage: string | null;
+}
+
 export interface DataQualityData {
   month: string;
   reconciliation: ReconciliationStatus;
@@ -10,6 +24,7 @@ export interface DataQualityData {
   exclusions: ExclusionItem[];
   overrideCounts: OverrideCounts;
   frisbiiComparison: FrisbiiComparison;
+  syncLog: SyncRunLog[];
   lastSyncAt: string | null;
   errors: DataQualityError[];
   hubspotSyncHealth: import("@/lib/sync/types").HubSpotSyncHealth[];
