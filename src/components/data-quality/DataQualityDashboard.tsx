@@ -582,13 +582,27 @@ function SyncLogCard() {
                       : "—"}
                   </td>
                   <td className="py-1.5 text-xs max-w-xs truncate">
-                    {r.errorMessage ? (
-                      <span className="text-red-400" title={r.errorMessage}>
-                        {r.errorMessage}
-                      </span>
-                    ) : (
-                      <span className="text-[var(--text-muted)]">—</span>
-                    )}
+                    {(() => {
+                      if (r.errorMessage)
+                        return (
+                          <span className="text-red-400" title={r.errorMessage}>
+                            {r.errorMessage}
+                          </span>
+                        );
+                      const meta = r.metadata as {
+                        actions?: { type: string; target: string; detail: string }[];
+                      } | null;
+                      const acts = meta?.actions ?? [];
+                      if (acts.length > 0) {
+                        const summary = acts.map((a) => `${a.target}: ${a.detail}`).join("; ");
+                        return (
+                          <span className="text-amber-500" title={summary}>
+                            {acts.length} auto-fix{acts.length !== 1 ? "es" : ""} — {summary}
+                          </span>
+                        );
+                      }
+                      return <span className="text-[var(--text-muted)]">—</span>;
+                    })()}
                   </td>
                 </tr>
               ))}

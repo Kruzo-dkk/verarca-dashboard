@@ -6,6 +6,7 @@ import {
   type TrailingSnapshot,
 } from "@/lib/forecast";
 import { getConfirmedLinks } from "./get-customer-links";
+import { getExcludedSubscriptionHandles } from "./get-exclusions";
 import { collapsedCustomerMRR } from "./reconcile";
 import { syncLog } from "./logger";
 
@@ -157,6 +158,9 @@ async function checkChurnSpike(month: string): Promise<ValidationCheck> {
  */
 async function checkDeleteRecreate(): Promise<ValidationCheck> {
   const allSubs = await listSubscriptions();
+  // Subs already resolved by auto-remediate (subscription_exclusions) are no
+  // longer an open issue — skip them so the check clears once auto-fixed.
+  const excludedSubs = await getExcludedSubscriptionHandles();
 
   // Group by customer handle
   const byCustomer = new Map<string, Subscription[]>();
@@ -180,6 +184,7 @@ async function checkDeleteRecreate(): Promise<ValidationCheck> {
 
     const recentlyEnded = subs.filter((s) => {
       if (s.state === "active") return false;
+      if (excludedSubs.has(s.handle)) return false; // already auto-remediated
       const endDate = (s.expired_date || s.cancelled_date)?.slice(0, 10);
       return endDate && endDate >= ninetyDaysAgo;
     });
