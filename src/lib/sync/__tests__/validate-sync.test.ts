@@ -90,7 +90,7 @@ describe("validateSync", () => {
     // the forecast predicted-rate identity)
     expect(mockInsert).toHaveBeenCalledTimes(1);
     const insertedRows = mockInsert.mock.calls[0][0];
-    expect(insertedRows).toHaveLength(9);
+    expect(insertedRows).toHaveLength(10);
     expect(
       insertedRows.map((r: { check_name: string }) => r.check_name)
     ).toEqual(
@@ -104,6 +104,7 @@ describe("validateSync", () => {
         "mrr_waterfall_identity",
         "arr_arpa_identity",
         "forecast_predicted_rates",
+        "conflicting_customer_links",
       ])
     );
   });

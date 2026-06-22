@@ -4,6 +4,7 @@ import {
   mrrWaterfallExpected,
   arrArpaProblems,
   forecastRateProblems,
+  conflictingLinkPairs,
 } from "../validate-sync";
 
 describe("nrrGrrProblems", () => {
@@ -66,5 +67,25 @@ describe("forecastRateProblems", () => {
     const p = forecastRateProblems(3.0, 3.0, 1.5, 0.0);
     expect(p.length).toBe(1);
     expect(p[0]).toContain("predicted expansion");
+  });
+});
+
+
+describe("conflictingLinkPairs", () => {
+  it("returns [] for a clean DAG of links", () => {
+    expect(
+      conflictingLinkPairs([
+        { canonical_handle: "c", linked_handle: "a" },
+        { canonical_handle: "c", linked_handle: "b" },
+      ])
+    ).toEqual([]);
+  });
+  it("flags a bidirectional conflict once (the Aluline bug)", () => {
+    const r = conflictingLinkPairs([
+      { canonical_handle: "cust-0191", linked_handle: "cust-0189" },
+      { canonical_handle: "cust-0189", linked_handle: "cust-0191" },
+      { canonical_handle: "cust-0191", linked_handle: "cust-0190" },
+    ]);
+    expect(r).toEqual(["cust-0189↔cust-0191"]);
   });
 });
