@@ -27,10 +27,39 @@ export function CustomerTable({
   movementColumn,
 }: CustomerTableProps) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const hasDate = !!(showChurnDate || showStartDate);
+  // Default to "latest activity first" when there's a date column, else by value.
+  const [sort, setSort] = useState<{ key: "value" | "date"; dir: "asc" | "desc" }>(
+    hasDate ? { key: "date", dir: "desc" } : { key: "value", dir: "desc" }
+  );
 
   if (customers.length === 0) {
     return <p className="py-4 text-center text-[var(--text-muted)] text-sm">{emptyMessage}</p>;
   }
+
+  const dateOf = (c: CustomerSummary) =>
+    (showChurnDate ? c.churnDate : c.startDate) ?? null;
+  const toggleSort = (key: "value" | "date") =>
+    setSort((s) =>
+      s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "desc" }
+    );
+  const arrow = (key: "value" | "date") =>
+    sort.key === key ? (sort.dir === "asc" ? " ↑" : " ↓") : "";
+  const sorted = [...customers].sort((a, b) => {
+    const mul = sort.dir === "asc" ? 1 : -1;
+    if (sort.key === "date") {
+      const da = dateOf(a);
+      const db = dateOf(b);
+      if (da !== db) {
+        if (da == null) return 1; // undated rows last, regardless of direction
+        if (db == null) return -1;
+        return (da < db ? -1 : 1) * mul;
+      }
+      return b.mrr - a.mrr; // tie-break: larger value first
+    }
+    if (a.mrr !== b.mrr) return (a.mrr < b.mrr ? -1 : 1) * mul;
+    return 0;
+  });
 
   return (
     <table className="w-full text-sm table-fixed">
@@ -44,20 +73,36 @@ export function CustomerTable({
       <thead>
         <tr className="text-left text-[var(--text-muted)] text-xs uppercase tracking-wider">
           <th className="pb-2 font-medium">Customer</th>
-          <th className="pb-2 font-medium text-right pr-4">{movementColumn ? "Before → After" : "MRR"}</th>
+          <th className="pb-2 font-medium text-right pr-4">
+            <button
+              type="button"
+              onClick={() => toggleSort("value")}
+              className="cursor-pointer hover:text-[var(--text-secondary)] tabular-nums"
+            >
+              {movementColumn ? "Before → After" : "MRR"}
+              {arrow("value")}
+            </button>
+          </th>
           <th className="pb-2 font-medium hidden sm:table-cell pl-4">Scope</th>
           <th className="pb-2 font-medium hidden md:table-cell">Partner</th>
-          {showChurnDate ? (
-            <th className="pb-2 font-medium">Closed</th>
-          ) : showStartDate ? (
-            <th className="pb-2 font-medium">Started</th>
+          {showChurnDate || showStartDate ? (
+            <th className="pb-2 font-medium">
+              <button
+                type="button"
+                onClick={() => toggleSort("date")}
+                className="cursor-pointer hover:text-[var(--text-secondary)]"
+              >
+                {showChurnDate ? "Closed" : "Started"}
+                {arrow("date")}
+              </button>
+            </th>
           ) : (
             <th className="pb-2 font-medium hidden sm:table-cell">Status</th>
           )}
         </tr>
       </thead>
       <tbody>
-        {customers.map((c) => {
+        {sorted.map((c) => {
           // Show the company name as the primary label when it differs from the
           // (possibly personal) display name; keep the person as a subtitle.
           const company =
