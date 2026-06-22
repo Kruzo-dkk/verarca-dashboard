@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mapWithConcurrency, withRetry } from "../frisbii";
+import { mapWithConcurrency, withRetry, FrisbiiApiError } from "../frisbii";
 
 describe("withRetry", () => {
   it("returns immediately on success", async () => {
@@ -70,5 +70,48 @@ describe("mapWithConcurrency", () => {
 
   it("handles an empty list", async () => {
     expect(await mapWithConcurrency([], 4, async (n) => n)).toEqual([]);
+  });
+});
+
+
+describe("withRetry shouldRetry predicate", () => {
+  it("fails fast (no retries) when the error is not retryable", async () => {
+    let calls = 0;
+    await expect(
+      withRetry(
+        async () => {
+          calls++;
+          throw new Error("404 not found");
+        },
+        5,
+        0,
+        () => false
+      )
+    ).rejects.toThrow("404");
+    expect(calls).toBe(1);
+  });
+  it("retries when the predicate says so", async () => {
+    let calls = 0;
+    await expect(
+      withRetry(
+        async () => {
+          calls++;
+          throw new Error("429");
+        },
+        2,
+        0,
+        () => true
+      )
+    ).rejects.toThrow();
+    expect(calls).toBe(3);
+  });
+});
+
+describe("FrisbiiApiError", () => {
+  it("carries the HTTP status for retry decisions", () => {
+    const e = new FrisbiiApiError(429, "rate limited");
+    expect(e.status).toBe(429);
+    expect(e.name).toBe("FrisbiiApiError");
+    expect(e).toBeInstanceOf(Error);
   });
 });
