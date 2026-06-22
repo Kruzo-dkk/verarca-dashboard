@@ -78,6 +78,8 @@ export function MRRMovementBreakdown({ movement, formatValue }: MRRMovementBreak
           formatValue={formatValue}
           expandable
           movementColumn={activeTab === "expansion" || activeTab === "contraction"}
+          showChurnDate={activeTab === "churned"}
+          showStartDate={activeTab !== "churned"}
           emptyMessage={`No ${activeMeta.label.toLowerCase()} this period`}
         />
       </div>
